@@ -2,7 +2,7 @@
 torch==2.2.2
 transformers==4.51.3
 datasets==2.19.0
-tokenizers==0.19.1
+tokenizers==0.21.4
 evaluate==0.4.1
 scikit-learn==1.4.2
 numpy==1.26.4
@@ -18,7 +18,7 @@ accelerate==0.30.1
 wandb==0.17.0
 
 # HuggingFace Hub
-huggingface_hub==0.23.2
+huggingface_hub==0.30.2
 
 # Visualisation (for EDA)
 matplotlib==3.9.0
@@ -27,3 +27,5 @@ seaborn==0.13.2
 # Utilities
 python-dotenv==1.0.1
 tqdm==4.66.4
+ipywidgets==8.1.8
+notebook==7.5.6
