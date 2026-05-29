@@ -13,8 +13,15 @@ env/
 .env.local
 !.env.example
 
-# Data & Models (HUGE files)
-data/models/
+# Data & Models (HUGE files - NEVER commit)
+data/
+notebooks/data/
+*.arrow
+*.parquet
+*.csv
+*.json
+!data/reports/*.json
+!data/figures/*.png
 *.pt
 *.bin
 *.safetensors
