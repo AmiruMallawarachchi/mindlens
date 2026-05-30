@@ -1,0 +1,136 @@
+2026-05-19 21:06:54,214  INFO  =================================================================
+2026-05-19 21:06:54,214  INFO  MindLens Complete Data Cleaning and Preprocessing Pipeline
+2026-05-19 21:06:54,214  INFO  =================================================================
+2026-05-19 21:06:54,349  INFO  Processing GoEmotions...
+2026-05-19 21:07:04,669  INFO    Processing train split (43,410 examples)...
+2026-05-19 21:07:15,070  INFO    Processing validation split (5,426 examples)...
+2026-05-19 21:07:16,095  INFO    Processing test split (5,427 examples)...
+2026-05-19 21:07:16,747  INFO    Class imbalance ratio: 172.17x
+2026-05-19 21:07:16,748  INFO    Class weights saved for training (shape: 28)
+2026-05-19 21:07:16,879  INFO    Saved locally: D:\AI Projects\mindlens\data\cleaned\go_emotions_cleaned
+2026-05-19 21:07:16,880  INFO    Report saved: D:\AI Projects\mindlens\data\reports\go_emotions_cleaned_report.json
+2026-05-19 21:07:18,274  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:07:21,907  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:07:24,798  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:07:28,365  INFO    Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-go_emotions_cleaned
+2026-05-19 21:07:32,967  INFO    Figure saved: D:\AI Projects\mindlens\data\figures\01_go_emotions_distribution.png
+2026-05-19 21:07:32,969  INFO  Processing DAIR-AI Emotion...
+2026-05-19 21:07:54,373  INFO    Saved locally: D:\AI Projects\mindlens\data\cleaned\dair_emotion_cleaned
+2026-05-19 21:07:54,376  INFO    Report saved: D:\AI Projects\mindlens\data\reports\dair_emotion_cleaned_report.json
+2026-05-19 21:07:55,807  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:07:58,092  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:08:00,875  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:08:04,375  INFO    Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-dair_emotion_cleaned
+2026-05-19 21:08:04,377  INFO  Processing DepSeverity...
+2026-05-19 21:08:04,690  WARNING    DepSeverity unavailable: Dataset 'bdotloh/DepSeverity' doesn't exist on the Hub or cannot be accessed
+2026-05-19 21:08:04,690  WARNING    Creating synthetic severity dataset from GoEmotions high-severity labels.
+2026-05-19 21:08:04,690  INFO    Loading GoEmotions as severity fallback...
+2026-05-19 21:08:16,858  INFO    Saved locally: D:\AI Projects\mindlens\data\cleaned\dep_severity_cleaned
+2026-05-19 21:08:16,862  INFO    Report saved: D:\AI Projects\mindlens\data\reports\dep_severity_cleaned_report.json
+2026-05-19 21:08:18,344  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:08:20,402  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:08:22,242  WARNING  Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:08:25,844  INFO    Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-dep_severity_cleaned
+2026-05-19 21:08:25,847  INFO  Processing Reddit Mental Health dataset...
+2026-05-19 21:08:34,233  WARNING    All Reddit MH sources failed. Creating keyword-labeled dataset.
+2026-05-19 21:08:34,233  INFO    Building MH dataset from CounselChat (fallback)...
+2026-05-19 21:08:37,769  WARNING  Repo card metadata block was not found. Setting CardData to empty.
+2026-05-19 21:15:40,251  INFO      =================================================================
+2026-05-19 21:15:40,252  INFO      MindLens Complete Data Cleaning and Preprocessing Pipeline
+2026-05-19 21:15:40,254  INFO      =================================================================
+2026-05-19 21:15:40,254  INFO      
+[1/6] GoEmotions → Model 1 (Emotion Classifier)
+2026-05-19 21:15:40,256  INFO      Processing GoEmotions...
+2026-05-19 21:15:48,623  INFO        Processing train split (43,410 examples)...
+2026-05-19 21:15:52,091  INFO          train: 43,410 → 40,168 (92.5% retained)
+2026-05-19 21:15:52,091  INFO        Processing validation split (5,426 examples)...
+2026-05-19 21:15:52,439  INFO          validation: 5,426 → 5,025 (92.6% retained)
+2026-05-19 21:15:52,440  INFO        Processing test split (5,427 examples)...
+2026-05-19 21:15:52,791  INFO          test: 5,427 → 5,034 (92.8% retained)
+2026-05-19 21:15:52,920  INFO        Class imbalance ratio: 172.17x
+2026-05-19 21:15:52,920  INFO        Class weights saved for training (shape: 28)
+2026-05-19 21:15:52,992  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\go_emotions_cleaned
+2026-05-19 21:15:52,994  INFO        Report saved: D:\AI Projects\mindlens\data\reports\go_emotions_cleaned_report.json
+2026-05-19 21:15:54,466  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:15:58,231  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:01,261  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:04,639  INFO        Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-go_emotions_cleaned
+2026-05-19 21:16:06,240  INFO        Figure saved: D:\AI Projects\mindlens\data\figures\01_go_emotions_distribution.png
+2026-05-19 21:16:06,240  INFO      
+[2/6] DAIR-AI Emotion → Model 1 (combined)
+2026-05-19 21:16:06,241  INFO      Processing DAIR-AI Emotion...
+2026-05-19 21:16:17,508  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\dair_emotion_cleaned
+2026-05-19 21:16:17,509  INFO        Report saved: D:\AI Projects\mindlens\data\reports\dair_emotion_cleaned_report.json
+2026-05-19 21:16:19,179  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:21,362  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:24,925  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:28,829  INFO        Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-dair_emotion_cleaned
+2026-05-19 21:16:28,829  INFO      
+[3/6] DepSeverity → Model 3 (Crisis Detector)
+2026-05-19 21:16:28,829  INFO      Processing DepSeverity...
+2026-05-19 21:16:29,127  WARNING     DepSeverity unavailable: Dataset 'bdotloh/DepSeverity' doesn't exist on the Hub or cannot be accessed
+2026-05-19 21:16:29,127  WARNING     Creating synthetic severity dataset from GoEmotions high-severity labels.
+2026-05-19 21:16:29,128  INFO        Loading GoEmotions as severity fallback...
+2026-05-19 21:16:38,189  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\dep_severity_cleaned
+2026-05-19 21:16:38,191  INFO        Report saved: D:\AI Projects\mindlens\data\reports\dep_severity_cleaned_report.json
+2026-05-19 21:16:39,655  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:42,682  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:44,430  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:16:47,969  INFO        Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-dep_severity_cleaned
+2026-05-19 21:16:47,970  INFO      
+[4/6] Reddit MH → Model 2 (MH Classifier)
+2026-05-19 21:16:47,970  INFO      Processing Reddit Mental Health dataset...
+2026-05-19 21:16:54,294  WARNING     All Reddit MH sources failed. Creating keyword-labeled dataset.
+2026-05-19 21:16:54,294  INFO        Building MH dataset from CounselChat (fallback)...
+2026-05-19 21:16:56,922  WARNING   Repo card metadata block was not found. Setting CardData to empty.
+2026-05-19 21:18:57,872  INFO      =================================================================
+2026-05-19 21:18:57,872  INFO      MindLens Complete Data Cleaning and Preprocessing Pipeline
+2026-05-19 21:18:57,872  INFO      =================================================================
+2026-05-19 21:18:57,874  INFO      
+[1/6] GoEmotions → Model 1 (Emotion Classifier)
+2026-05-19 21:18:57,876  INFO      Processing GoEmotions...
+2026-05-19 21:19:13,456  WARNING   Using the latest cached version of the dataset since google-research-datasets/go_emotions couldn't be found on the Hugging Face Hub
+2026-05-19 21:19:13,458  WARNING   Found the latest cached dataset configuration 'simplified' at C:\Users\M S I\.cache\huggingface\datasets\google-research-datasets___go_emotions\simplified\0.0.0\add492243ff905527e67aeb8b80c082af02207c3 (last modified on Tue May 19 12:41:09 2026).
+2026-05-19 21:19:13,575  INFO        Processing train split (43,410 examples)...
+2026-05-19 21:19:17,590  INFO          train: 43,410 → 40,168 (92.5% retained)
+2026-05-19 21:19:17,590  INFO        Processing validation split (5,426 examples)...
+2026-05-19 21:19:17,993  INFO          validation: 5,426 → 5,025 (92.6% retained)
+2026-05-19 21:19:17,993  INFO        Processing test split (5,427 examples)...
+2026-05-19 21:19:18,397  INFO          test: 5,427 → 5,034 (92.8% retained)
+2026-05-19 21:19:18,511  INFO        Class imbalance ratio: 172.17x
+2026-05-19 21:19:18,512  INFO        Class weights saved for training (shape: 28)
+2026-05-19 21:19:18,604  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\go_emotions_cleaned
+2026-05-19 21:19:18,606  INFO        Report saved: D:\AI Projects\mindlens\data\reports\go_emotions_cleaned_report.json
+2026-05-19 21:19:19,966  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:19:21,139  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:19:22,104  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:19:25,754  WARNING   No files have been modified since last commit. Skipping to prevent empty commit.
+2026-05-19 21:19:26,063  INFO        Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-go_emotions_cleaned
+2026-05-19 21:19:28,923  INFO        Figure saved: D:\AI Projects\mindlens\data\figures\01_go_emotions_distribution.png
+2026-05-19 21:19:28,924  INFO      
+[2/6] DAIR-AI Emotion → Model 1 (combined)
+2026-05-19 21:19:28,924  INFO      Processing DAIR-AI Emotion...
+2026-05-19 21:19:40,973  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\dair_emotion_cleaned
+2026-05-19 21:19:40,974  INFO        Report saved: D:\AI Projects\mindlens\data\reports\dair_emotion_cleaned_report.json
+2026-05-19 21:19:42,086  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:19:43,094  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:20:01,236  WARNING     Push failed (will retry): 500 Server Error: Internal Server Error for url: https://huggingface.co/api/datasets/AmiruMallawarachchi/mindlens-dair_emotion_cleaned/preupload/main
+2026-05-19 21:20:01,238  INFO      
+[3/6] DepSeverity → Model 3 (Crisis Detector)
+2026-05-19 21:20:01,238  INFO      Processing DepSeverity...
+2026-05-19 21:20:01,663  WARNING     DepSeverity unavailable: Dataset 'bdotloh/DepSeverity' doesn't exist on the Hub or cannot be accessed
+2026-05-19 21:20:01,663  WARNING     Creating synthetic severity dataset from GoEmotions high-severity labels.
+2026-05-19 21:20:01,663  INFO        Loading GoEmotions as severity fallback...
+2026-05-19 21:20:14,429  INFO        Saved locally: D:\AI Projects\mindlens\data\cleaned\dep_severity_cleaned
+2026-05-19 21:20:14,431  INFO        Report saved: D:\AI Projects\mindlens\data\reports\dep_severity_cleaned_report.json
+2026-05-19 21:20:15,411  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:20:16,339  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:20:17,281  WARNING   Uploading files as bytes or binary IO objects is not supported by Xet Storage. Falling back to HTTP upload.
+2026-05-19 21:20:19,719  WARNING   No files have been modified since last commit. Skipping to prevent empty commit.
+2026-05-19 21:20:20,002  INFO        Pushed to Hub: huggingface.co/datasets/AmiruMallawarachchi/mindlens-dep_severity_cleaned
+2026-05-19 21:20:20,005  INFO      
+[4/6] Reddit MH → Model 2 (MH Classifier)
+2026-05-19 21:20:20,005  INFO      Processing Reddit Mental Health dataset...
+2026-05-19 21:20:25,931  WARNING     All Reddit MH sources failed. Creating keyword-labeled dataset.
+2026-05-19 21:20:27,969  WARNING   Repo card metadata block was not found. Setting CardData to empty.
+2026-05-19 21:20:30,747  ERROR     Pipeline failed: 'str' object has no attribute 'get'
