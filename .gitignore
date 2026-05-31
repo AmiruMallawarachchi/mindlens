@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .venv/
+venv-train/
 venv/
 ENV/
 env/
@@ -45,3 +46,9 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Jupyter notebooks - keep code, exclude outputs
+notebooks/*.ipynb
+notebooks/**/*.ipynb
+.ipynb_checkpoints/
+*.ipynb_checkpoints
