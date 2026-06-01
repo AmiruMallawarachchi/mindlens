@@ -4,7 +4,7 @@ Load fine-tuned models from HuggingFace Hub
 
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 YOUR_HF_USERNAME = "AmiruMallawarachchi"
 
@@ -18,48 +18,42 @@ class ModelManager:
         print("Loading crisis model...")
         model_id = f"{YOUR_HF_USERNAME}/mindlens-crisis"
         
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
-            
-            self.models["crisis"] = {
-                "tokenizer": tokenizer,
-                "model": model,
-                "pipeline": pipeline(
-                    "text-classification",
-                    model=model,
-                    tokenizer=tokenizer,
-                    device=0 if self.device == "cuda" else -1,
-                    return_all_scores=True
-                )
-            }
-            print("✓ Crisis model loaded")
-        except Exception as e:
-            print(f"✗ Failed to load crisis model: {e}")
-            raise RuntimeError("Crisis model is required for safety.")
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
+        
+        self.models["crisis"] = {
+            "tokenizer": tokenizer,
+            "model": model,
+            "pipeline": pipeline(
+                "text-classification",
+                model=model,
+                tokenizer=tokenizer,
+                device=0 if self.device == "cuda" else -1,
+                return_all_scores=True
+            )
+        }
+        print("✓ Crisis model loaded")
     
     def load_emotion(self):
         print("Loading emotion model...")
-        model_id = f"{YOUR_HF_USERNAME}/mindlens-emotion"
+        model_id = "SamLowe/roberta-base-go_emotions"
         
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
-            
-            self.models["emotion"] = {
-                "tokenizer": tokenizer,
-                "model": model,
-                "pipeline": pipeline(
-                    "text-classification",
-                    model=model,
-                    tokenizer=tokenizer,
-                    device=0 if self.device == "cuda" else -1,
-                    return_all_scores=True
-                )
-            }
-            print("✓ Emotion model loaded")
-        except Exception as e:
-            print(f"⚠ Emotion model not available: {e}")
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
+        
+        self.models["emotion"] = {
+            "tokenizer": tokenizer,
+            "model": model,
+            "pipeline": pipeline(
+                "text-classification",
+                model=model,
+                tokenizer=tokenizer,
+                device=0 if self.device == "cuda" else -1,
+                top_k=None,  # Returns all 28 scores
+                function_to_apply="sigmoid"
+            )
+        }
+        print("✓ Emotion model loaded")
     
     def load_mh(self):
         print("Loading MH classifier...")
@@ -75,13 +69,14 @@ class ModelManager:
             }
             print("✓ MH model loaded")
         except Exception as e:
-            print(f"⚠ MH model not available: {e}")
+            print(f"⚠ MH model not available yet: {e}")
+            self.models["mh"] = None
     
     def load_all(self):
         self.load_crisis()
         self.load_emotion()
         self.load_mh()
-        print(f"\nAll models loaded: {list(self.models.keys())}")
+        print(f"\nAll models loaded: {[k for k, v in self.models.items() if v is not None]}")
     
     async def predict_crisis(self, text: str) -> Dict[str, Any]:
         if "crisis" not in self.models:
@@ -89,8 +84,6 @@ class ModelManager:
         
         result = self.models["crisis"]["pipeline"](text)[0]
         scores = {r["label"]: r["score"] for r in result}
-        
-        # FIXED: Use list() and key function properly
         crisis_label = max(scores.keys(), key=lambda k: scores[k]) if scores else "0"
         crisis_prob = scores.get(crisis_label, 0.0)
         
@@ -104,23 +97,43 @@ class ModelManager:
     
     async def predict_emotion(self, text: str) -> Dict[str, Any]:
         if "emotion" not in self.models:
-            return {"core": "neutral", "surface": "neutral", "severity": 0.5}
+            return {"core_emotion": "neutral", "surface_emotion": "neutral", "suppressed_emotion": None, "severity": 0.5, "valence": "neutral", "all_scores": {}}
         
         result = self.models["emotion"]["pipeline"](text)[0]
         scores = {r["label"]: r["score"] for r in result}
-        top = max(scores.keys(), key=lambda k: scores[k]) if scores else "neutral"
+        sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        top = sorted_emotions[0][0] if sorted_emotions else "neutral"
+        
+        negative_emotions = {"sadness", "grief", "anger", "fear", "disgust", "annoyance", 
+                             "disappointment", "remorse", "embarrassment", "nervousness"}
+        positive_emotions = {"joy", "admiration", "excitement", "love", "gratitude", "relief", "pride", "optimism"}
+        
+        negative_scores = {k: v for k, v in scores.items() if k in negative_emotions}
+        core = max(negative_scores.keys(), key=lambda k: negative_scores[k]) if negative_scores else top
+        
+        suppressed = sorted_emotions[1][0] if len(sorted_emotions) > 1 and sorted_emotions[1][0] != top else None
+        
+        has_positive = any(scores.get(e, 0) > 0.3 for e in positive_emotions)
+        has_negative = any(scores.get(e, 0) > 0.3 for e in negative_emotions)
+        valence = "negative" if has_negative and not has_positive else "positive" if has_positive and not has_negative else "neutral"
+        severity = max(negative_scores.values()) if negative_scores else scores.get(top, 0.5)
         
         return {
-            "core_emotion": top,
             "surface_emotion": top,
-            "severity": scores.get(top, 0.5),
-            "valence": "negative" if scores.get(top, 0.5) > 0.5 else "neutral",
+            "core_emotion": core,
+            "suppressed_emotion": suppressed,
+            "severity": severity,
+            "valence": valence,
             "all_scores": scores
         }
     
     async def predict_mh(self, text: str) -> Dict[str, Any]:
-        if "mh" not in self.models:
-            return {"conditions": {}, "dominant": "none"}
+        if "mh" not in self.models or self.models["mh"] is None:
+            return {
+                "conditions": {"depression": 0.0, "anxiety": 0.0, "stress": 0.0, "burnout": 0.0, "ptsd": 0.0},
+                "dominant_condition": "none",
+                "multi_label": []
+            }
         
         model_data = self.models["mh"]
         tokenizer = model_data["tokenizer"]
@@ -141,7 +154,6 @@ class ModelManager:
             "ptsd": float(probs[4])
         }
         
-        # FIXED: Use max with key properly
         dominant = max(conditions.keys(), key=lambda k: conditions[k]) if conditions else "none"
         
         return {
