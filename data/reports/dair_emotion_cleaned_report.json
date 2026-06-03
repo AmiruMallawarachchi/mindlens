@@ -1,0 +1,33 @@
+{
+  "dataset": "DAIR-AI Emotion",
+  "splits": {
+    "train": {
+      "original_count": 16000,
+      "cleaned_count": 15992,
+      "skipped": 8,
+      "retention_rate": "100.0%"
+    },
+    "validation": {
+      "original_count": 2000,
+      "cleaned_count": 1999,
+      "skipped": 1,
+      "retention_rate": "100.0%"
+    },
+    "test": {
+      "original_count": 2000,
+      "cleaned_count": 2000,
+      "skipped": 0,
+      "retention_rate": "100.0%"
+    }
+  },
+  "issues_fixed": [],
+  "class_weights": [
+    0.5713469096105752,
+    0.4972636815920398,
+    2.0439672801635993,
+    1.2362399505256647,
+    1.3774332472006892,
+    4.659673659673659
+  ],
+  "imbalance_ratio": 9.37
+}

@@ -1,0 +1,91 @@
+{
+  "dataset": "GoEmotions",
+  "splits": {
+    "train": {
+      "original_count": 43410,
+      "cleaned_count": 40168,
+      "skipped_empty": 0,
+      "skipped_short": 3202,
+      "duplicates_removed": 40,
+      "retention_rate": "92.5%"
+    },
+    "validation": {
+      "original_count": 5426,
+      "cleaned_count": 5025,
+      "skipped_empty": 0,
+      "skipped_short": 399,
+      "duplicates_removed": 2,
+      "retention_rate": "92.6%"
+    },
+    "test": {
+      "original_count": 5427,
+      "cleaned_count": 5034,
+      "skipped_empty": 0,
+      "skipped_short": 393,
+      "duplicates_removed": 0,
+      "retention_rate": "92.8%"
+    }
+  },
+  "issues_fixed": [
+    "Class imbalance ratio 172.17x \u2014 class weights computed and saved"
+  ],
+  "class_weights": [
+    0.4543220501051826,
+    0.7870560561887092,
+    1.2043242421170028,
+    0.719937571974059,
+    0.6077696479738027,
+    1.65874179583857,
+    1.2855248917748918,
+    0.8092002179985013,
+    2.6722722159730035,
+    1.3706727440572353,
+    0.8670888386013578,
+    2.299312814556717,
+    5.831246931762395,
+    2.2535097704420415,
+    3.051965570400822,
+    0.7153848470248133,
+    22.625238095238096,
+    1.264450713221205,
+    0.8715422995084012,
+    11.018784786641929,
+    1.0933587997054492,
+    16.636204481792717,
+    1.551090363019065,
+    11.312619047619048,
+    3.238345147219193,
+    1.3651591771060798,
+    1.717502891844997,
+    0.13140965361595733
+  ],
+  "imbalance_ratio": 172.17,
+  "most_common_labels": [
+    [
+      27,
+      12913
+    ],
+    [
+      0,
+      3735
+    ],
+    [
+      4,
+      2792
+    ]
+  ],
+  "least_common_labels": [
+    [
+      16,
+      75
+    ],
+    [
+      21,
+      102
+    ],
+    [
+      23,
+      150
+    ]
+  ]
+}
