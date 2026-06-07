@@ -1,165 +1,170 @@
+# backend/app/models/loader.py
 """
-Load fine-tuned models from HuggingFace Hub
+MindLens Model Loader
+======================
+Handles lazy loading, caching, and inference of all HuggingFace pipelines.
+Ensures models are loaded once and reused across the application lifespan.
 """
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any, cast
 
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
-from typing import Dict, Any
+from transformers import pipeline, Pipeline
 
-YOUR_HF_USERNAME = "AmiruMallawarachchi"
+from app.config import settings
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Hardware detection
+# ---------------------------------------------------------------------------
+_DEVICE = 0 if torch.cuda.is_available() else -1
+_TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
+
 
 class ModelManager:
-    def __init__(self):
-        self.models: Dict[str, Any] = {}
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"ModelManager using device: {self.device}")
-    
-    def load_crisis(self):
-        print("Loading crisis model...")
-        model_id = f"{YOUR_HF_USERNAME}/mindlens-crisis"
-        
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
-        
-        self.models["crisis"] = {
-            "tokenizer": tokenizer,
-            "model": model,
-            "pipeline": pipeline(
-                "text-classification",
-                model=model,
-                tokenizer=tokenizer,
-                device=0 if self.device == "cuda" else -1,
-                return_all_scores=True
-            )
-        }
-        print("✓ Crisis model loaded")
-    
-    def load_emotion(self):
-        print("Loading emotion model...")
-        model_id = "SamLowe/roberta-base-go_emotions"
-        
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
-        
-        self.models["emotion"] = {
-            "tokenizer": tokenizer,
-            "model": model,
-            "pipeline": pipeline(
-                "text-classification",
-                model=model,
-                tokenizer=tokenizer,
-                device=0 if self.device == "cuda" else -1,
-                top_k=None,  # Returns all 28 scores
-                function_to_apply="sigmoid"
-            )
-        }
-        print("✓ Emotion model loaded")
-    
-    def load_mh(self):
-        print("Loading MH classifier...")
-        model_id = f"{YOUR_HF_USERNAME}/mindlens-mh-classifier"
-        
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = AutoModelForSequenceClassification.from_pretrained(model_id).to(self.device)
-            
-            self.models["mh"] = {
-                "tokenizer": tokenizer,
-                "model": model
-            }
-            print("✓ MH model loaded")
-        except Exception as e:
-            print(f"⚠ MH model not available yet: {e}")
-            self.models["mh"] = None
-    
-    def load_all(self):
-        self.load_crisis()
-        self.load_emotion()
-        self.load_mh()
-        print(f"\nAll models loaded: {[k for k, v in self.models.items() if v is not None]}")
-    
-    async def predict_crisis(self, text: str) -> Dict[str, Any]:
-        if "crisis" not in self.models:
-            return {"is_crisis": False, "probability": 0.0, "error": "Model not loaded"}
-        
-        result = self.models["crisis"]["pipeline"](text)[0]
-        scores = {r["label"]: r["score"] for r in result}
-        crisis_label = max(scores.keys(), key=lambda k: scores[k]) if scores else "0"
-        crisis_prob = scores.get(crisis_label, 0.0)
-        
-        return {
-            "is_crisis": crisis_prob >= 0.45,
-            "probability": crisis_prob,
-            "severity_score": crisis_prob,
-            "crisis_type": "suicidal_ideation" if crisis_prob > 0.7 else "crisis_state" if crisis_prob > 0.45 else "none",
-            "all_scores": scores
-        }
-    
-    async def predict_emotion(self, text: str) -> Dict[str, Any]:
-        if "emotion" not in self.models:
-            return {"core_emotion": "neutral", "surface_emotion": "neutral", "suppressed_emotion": None, "severity": 0.5, "valence": "neutral", "all_scores": {}}
-        
-        result = self.models["emotion"]["pipeline"](text)[0]
-        scores = {r["label"]: r["score"] for r in result}
-        sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        top = sorted_emotions[0][0] if sorted_emotions else "neutral"
-        
-        negative_emotions = {"sadness", "grief", "anger", "fear", "disgust", "annoyance", 
-                             "disappointment", "remorse", "embarrassment", "nervousness"}
-        positive_emotions = {"joy", "admiration", "excitement", "love", "gratitude", "relief", "pride", "optimism"}
-        
-        negative_scores = {k: v for k, v in scores.items() if k in negative_emotions}
-        core = max(negative_scores.keys(), key=lambda k: negative_scores[k]) if negative_scores else top
-        
-        suppressed = sorted_emotions[1][0] if len(sorted_emotions) > 1 and sorted_emotions[1][0] != top else None
-        
-        has_positive = any(scores.get(e, 0) > 0.3 for e in positive_emotions)
-        has_negative = any(scores.get(e, 0) > 0.3 for e in negative_emotions)
-        valence = "negative" if has_negative and not has_positive else "positive" if has_positive and not has_negative else "neutral"
-        severity = max(negative_scores.values()) if negative_scores else scores.get(top, 0.5)
-        
-        return {
-            "surface_emotion": top,
-            "core_emotion": core,
-            "suppressed_emotion": suppressed,
-            "severity": severity,
-            "valence": valence,
-            "all_scores": scores
-        }
-    
-    async def predict_mh(self, text: str) -> Dict[str, Any]:
-        if "mh" not in self.models or self.models["mh"] is None:
-            return {
-                "conditions": {"depression": 0.0, "anxiety": 0.0, "stress": 0.0, "burnout": 0.0, "ptsd": 0.0},
-                "dominant_condition": "none",
-                "multi_label": []
-            }
-        
-        model_data = self.models["mh"]
-        tokenizer = model_data["tokenizer"]
-        model = model_data["model"]
-        
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=256).to(self.device)
-        
-        with torch.no_grad():
-            outputs = model(**inputs)
-        
-        probs = torch.sigmoid(outputs.logits).cpu().numpy()[0]
-        
-        conditions = {
-            "depression": float(probs[0]),
-            "anxiety": float(probs[1]),
-            "stress": float(probs[2]),
-            "burnout": float(probs[3]),
-            "ptsd": float(probs[4])
-        }
-        
-        dominant = max(conditions.keys(), key=lambda k: conditions[k]) if conditions else "none"
-        
-        return {
-            "conditions": conditions,
-            "dominant_condition": dominant,
-            "multi_label": [k for k, v in conditions.items() if v > 0.5]
-        }
+    """
+    Singleton-style manager for all HF pipelines.
+    Loads on first use; persists for the application lifetime.
+    """
 
-model_manager = ModelManager()
+    _instance: ModelManager | None = None
+    _lock = asyncio.Lock()
+
+    def __new__(cls) -> ModelManager:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            # Initialize storage dict inside __new__ to avoid Pylance
+            # complaining about attribute access before __init__
+            object.__setattr__(cls._instance, "_pipelines", {})
+        return cls._instance
+
+    # -----------------------------------------------------------------------
+    # Internal helpers
+    # -----------------------------------------------------------------------
+
+    def _load_pipeline(
+        self,
+        name: str,
+        model_id: str,
+        task: str,
+        *,
+        top_k: int | None = 1,
+        **kwargs: Any,
+    ) -> Pipeline:
+        """
+        Load a transformers pipeline with consistent device/dtype settings.
+        `top_k=None` is REQUIRED for multi-label classifiers (go-emotions)
+        so that raw logits for all classes are returned.
+        """
+        # Use object.__getattribute__ to satisfy Pylance on the singleton
+        pipelines: dict[str, Pipeline] = object.__getattribute__(self, "_pipelines")
+        if name in pipelines:
+            return pipelines[name]
+
+        logger.info("Loading model '%s' from %s …", name, model_id)
+        pipe = pipeline(
+            task,
+            model=model_id,
+            tokenizer=model_id,
+            device=_DEVICE,
+            torch_dtype=_TORCH_DTYPE,
+            top_k=top_k,
+            **kwargs,
+        )
+        pipelines[name] = pipe
+        logger.info("Model '%s' loaded successfully.", name)
+        return pipe
+
+    # -----------------------------------------------------------------------
+    # Public accessors
+    # -----------------------------------------------------------------------
+
+    def emotion(self) -> Pipeline:
+        """
+        28-class multi-label emotion classifier (go-emotions).
+        top_k=None → returns scores for ALL 28 classes simultaneously.
+        """
+        return self._load_pipeline(
+            name="emotion",
+            model_id=settings.EMOTION_MODEL_ID,
+            task="text-classification",
+            top_k=None,
+            truncation=True,
+            max_length=512,
+        )
+
+    def crisis(self) -> Pipeline:
+        """
+        Binary crisis detector (DistilBERT fine-tuned).
+        top_k=1 → single highest-probability label is sufficient.
+        """
+        return self._load_pipeline(
+            name="crisis",
+            model_id=settings.CRISIS_MODEL_ID,
+            task="text-classification",
+            top_k=1,
+            truncation=True,
+            max_length=512,
+        )
+
+    def mental_health(self) -> Pipeline:
+        """
+        Multi-label mental-health condition classifier (MentalBERT).
+        top_k=None → returns scores for all condition classes.
+        """
+        return self._load_pipeline(
+            name="mental_health",
+            model_id=settings.MH_MODEL_ID,
+            task="text-classification",
+            top_k=None,
+            truncation=True,
+            max_length=512,
+        )
+
+    # -----------------------------------------------------------------------
+    # Async wrappers (non-blocking for FastAPI)
+    # -----------------------------------------------------------------------
+
+    async def predict_emotion(self, text: str) -> list[dict[str, Any]]:
+        """Async wrapper; runs in thread pool to avoid blocking the event loop."""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self.emotion(), text)
+        return cast(list[dict[str, Any]], result)
+
+    async def predict_crisis(self, text: str) -> list[dict[str, Any]]:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self.crisis(), text)
+        return cast(list[dict[str, Any]], result)
+
+    async def predict_mental_health(self, text: str) -> list[dict[str, Any]]:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self.mental_health(), text)
+        return cast(list[dict[str, Any]], result)
+
+    # -----------------------------------------------------------------------
+    # Batch prediction helpers (used by orchestrator for parallel gather)
+    # -----------------------------------------------------------------------
+
+    async def predict_all(self, text: str) -> dict[str, list[dict[str, Any]]]:
+        """
+        Fire all three models concurrently via asyncio.gather.
+        Total latency = max(individual latency), NOT the sum.
+        """
+        emotion_task = self.predict_emotion(text)
+        crisis_task = self.predict_crisis(text)
+        mh_task = self.predict_mental_health(text)
+
+        emotion_result, crisis_result, mh_result = await asyncio.gather(
+            emotion_task, crisis_task, mh_task
+        )
+
+        return {
+            "emotion": emotion_result,
+            "crisis": crisis_result,
+            "mental_health": mh_result,
+        }
