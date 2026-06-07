@@ -1,19 +1,20 @@
+# backend/app/utils/logger.py
+"""Structured logging utility."""
+
 import logging
 import sys
 
-def setup_logger(name: str = "mindlens") -> logging.Logger:
+
+def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-    
-    # Avoid adding multiple handlers if logger is imported multiple times
+    logger.setLevel(level)
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setLevel(level)
+        formatter = logging.Formatter(
+            "%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
     return logger
-
-# Export a default logger instance
-logger = setup_logger()
