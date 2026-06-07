@@ -154,8 +154,8 @@ class Anonymizer:
     def _regex_scrub(text: str) -> str:
         """Apply all compiled regexes in sequence."""
         text = _RE_EMAIL.sub(_REPLACEMENTS["email"], text)
-        text = _RE_PHONE.sub(_REPLACEMENTS["phone"], text)
         text = _RE_NIC_LK.sub(_REPLACEMENTS["nic"], text)
+        text = _RE_PHONE.sub(_REPLACEMENTS["phone"], text)
         text = _RE_PASSPORT.sub(_REPLACEMENTS["passport"], text)
         text = _RE_CC.sub(_REPLACEMENTS["cc"], text)
         text = _RE_BANK.sub(_REPLACEMENTS["bank"], text)

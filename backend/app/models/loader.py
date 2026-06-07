@@ -168,3 +168,7 @@ class ModelManager:
             "crisis": crisis_result,
             "mental_health": mh_result,
         }
+
+
+# Module-level instance
+model_manager = ModelManager()

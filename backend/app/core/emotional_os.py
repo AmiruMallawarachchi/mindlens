@@ -1,50 +1,66 @@
-# backend/app/core/emotional_os.py
 """Emotional Operating System (EOS) — typed state snapshot per turn."""
 
 from __future__ import annotations
 
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 
-class EmotionalOS(BaseModel):
+class InterventionReceptiveness(BaseModel):
+    """What interventions will land right now."""
+
+    music: float = Field(default=0.5, ge=0.0, le=1.0)
+    journaling: float = Field(default=0.5, ge=0.0, le=1.0)
+    challenge: float = Field(default=0.0, ge=0.0, le=1.0)
+    grounding: float = Field(default=0.5, ge=0.0, le=1.0)
+    breathing: float = Field(default=0.5, ge=0.0, le=1.0)
+    routine: float = Field(default=0.5, ge=0.0, le=1.0)
+    social_support: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class EmotionalOperatingState(BaseModel):
     """
-    Immutable snapshot of the user's psychological state at a single turn.
-    Passed through the entire agent pipeline.
+    The core object of MindLens. Built fresh every turn.
+    Every agent reads this instead of raw text.
     """
 
-    surface_emotion: str = Field(
-        ..., description="Highest-scoring emotion from 28-class output"
-    )
-    core_emotion: str = Field(
-        ..., description="Highest-scoring NEGATIVE emotion"
-    )
-    suppressed_emotion: str = Field(
-        ..., description="Second-highest emotion (often masked)"
-    )
-    distress_level: float = Field(
-        ..., ge=0.0, le=1.0, description="Composite 0-1 distress score"
-    )
-    crisis_flag: bool = Field(
-        False, description="True if safety gate triggered"
-    )
-    crisis_score: float = Field(
-        0.0, ge=0.0, le=1.0, description="Raw crisis classifier probability"
-    )
-    mh_scores: dict[str, float] = Field(
-        default_factory=dict, description="Mental health condition scores"
-    )
-    emotion_scores: dict[str, float] = Field(
-        default_factory=dict, description="All 28 emotion class scores"
-    )
-    modality: str = Field(
-        "CBT", description="Selected therapy modality"
-    )
-    trust_level: float = Field(
-        0.5, ge=0.0, le=1.0, description="Therapeutic alliance estimate"
-    )
-    session_depth: float = Field(
-        0.0, ge=0.0, le=1.0, description="How deep the current session has gone"
-    )
-    receptiveness: dict[str, float] = Field(
-        default_factory=dict, description="Per-intervention effectiveness scores"
-    )
+    # Surface vs depth
+    surface_emotion: str = Field(default="neutral")
+    core_emotion: str = Field(default="neutral")
+    suppressed_emotion: Optional[str] = Field(default=None)
+
+    # Continuous scores
+    emotional_stability: float = Field(default=0.5, ge=0.0, le=1.0)
+    mental_fatigue: float = Field(default=0.5, ge=0.0, le=1.0)
+    social_energy: float = Field(default=0.5, ge=0.0, le=1.0)
+    distress_level: float = Field(default=0.5, ge=0.0, le=1.0)
+    trust_level: float = Field(default=0.3, ge=0.0, le=1.0)
+
+    # Relationship
+    attachment_style: Literal["secure", "anxious", "avoidant", "unknown"] = Field(default="unknown")
+
+    # Receptiveness
+    receptiveness: InterventionReceptiveness = Field(default_factory=InterventionReceptiveness)
+
+    # Basic
+    valence: Literal["positive", "negative", "neutral"] = Field(default="neutral")
+
+    # Routing (set by Orchestrator)
+    modality: Literal["CBT", "DBT", "ACT", "Mindfulness", "MI"] = Field(default="CBT")
+    run_distortion: bool = Field(default=False)
+    run_challenge: bool = Field(default=False)
+    run_music: bool = Field(default=False)
+    run_routine: bool = Field(default=False)
+    run_journaling: bool = Field(default=False)
+    run_mindfulness: bool = Field(default=False)
+
+    # Session context
+    session_depth: float = Field(default=0.0, ge=0.0, le=1.0)
+    alliance_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    def to_dict(self) -> dict:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EmotionalOperatingState":
+        return cls(**data)

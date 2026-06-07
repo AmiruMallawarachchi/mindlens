@@ -1,4 +1,3 @@
-# backend/app/agents/orchestrator.py
 """
 MindLens Orchestrator
 =====================
@@ -8,13 +7,15 @@ All model inference runs in parallel via asyncio.gather.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from app.core.emotional_os import EmotionalOS
+from app.core.emotional_os import EmotionalOperatingState
 from app.core.emotion_labels import (
     EMOTION_LABELS,
     NEGATIVE_EMOTIONS,
+    POSITIVE_EMOTIONS,
     EMOTION_SEVERITY_WEIGHTS,
+    is_negative,
 )
 from app.models.loader import ModelManager
 from app.utils.logger import get_logger
@@ -69,23 +70,38 @@ class Orchestrator:
         # Compute composite distress
         distress_level = self._compute_distress(emotion_scores, mh_scores, crisis_score)
 
+        # Determine valence
+        valence: Literal["positive", "negative", "neutral"] = "neutral"
+        if is_negative(core_emotion):
+            valence = "negative"
+        elif core_emotion in POSITIVE_EMOTIONS:
+            valence = "positive"
+
+        # Determine modality
+        modality: Literal["CBT", "DBT", "ACT", "Mindfulness", "MI"] = "CBT"
+        if distress_level > 0.7:
+            modality = "DBT"
+
         # Build EOS snapshot
-        eos = EmotionalOS(
+        eos = EmotionalOperatingState(
             surface_emotion=surface_emotion,
             core_emotion=core_emotion,
             suppressed_emotion=suppressed_emotion,
             distress_level=round(distress_level, 3),
-            crisis_flag=crisis_flag,
-            crisis_score=round(crisis_score, 3),
-            mh_scores={k: round(v, 3) for k, v in mh_scores.items()},
-            emotion_scores={k: round(v, 3) for k, v in emotion_scores.items()},
-            modality="CBT",
+            valence=valence,
+            modality=modality,
             trust_level=0.5,
             session_depth=0.0,
         )
 
         # Routing decision
-        agents = self._select_agents(eos)
+        agents = self._select_agents(eos, crisis_flag)
+
+        # Synchronize run flags based on agents
+        eos.run_mindfulness = "mindfulness" in agents
+        eos.run_music = "music" in agents
+        eos.run_challenge = "challenge" in agents
+        eos.run_journaling = "reflection" in agents
 
         return {
             "eos": eos.model_dump(),
@@ -175,7 +191,7 @@ class Orchestrator:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _select_agents(eos: EmotionalOS) -> list[str]:
+    def _select_agents(eos: EmotionalOperatingState, crisis_flag: bool) -> list[str]:
         """
         Cost-optimized agent dispatch.
         $0 agents run every turn; paid agents gated by thresholds.
@@ -195,7 +211,7 @@ class Orchestrator:
         if trust_level > 0.6 and eos.distress_level < 0.7:
             agents.append("challenge")
 
-        if eos.crisis_flag:
+        if crisis_flag:
             return ["crisis"]
 
         return agents
