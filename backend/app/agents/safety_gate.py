@@ -3,8 +3,11 @@
 CRITICAL: If ANY layer says crisis, we go to crisis mode. No overrides.
 """
 
+from __future__ import annotations
+
 import re
-from typing import Dict
+from typing import Dict, Any
+
 from app.models.loader import model_manager
 
 # Layer 1: Regex keywords (fast, synchronous, <1ms)
@@ -16,7 +19,8 @@ CRISIS_PATTERNS = [
     r"\b(hurt myself|slit my wrist|hang myself)\b"
 ]
 
-def layer1_keyword_scan(text: str) -> Dict:
+
+def layer1_keyword_scan(text: str) -> Dict[str, Any]:
     text_lower = text.lower()
     matched = [p for p in CRISIS_PATTERNS if re.search(p, text_lower)]
     return {
@@ -25,17 +29,23 @@ def layer1_keyword_scan(text: str) -> Dict:
         "layer": 1
     }
 
-async def layer2_model_scan(text: str) -> Dict:
+
+async def layer2_model_scan(text: str) -> Dict[str, Any]:
     """Your fine-tuned model from HuggingFace"""
     result = await model_manager.predict_crisis(text)
+    res = result[0] if result else {}
+    label = str(res.get("label", "NON_CRISIS")).upper()
+    score = float(res.get("score", 0.0))
+    is_crisis = label == "CRISIS" and score > 0.45
     return {
-        "triggered": result["is_crisis"],
-        "probability": result["probability"],
-        "severity": result["severity_score"],
+        "triggered": is_crisis,
+        "probability": score,
+        "severity": score,
         "layer": 2
     }
 
-async def safety_gate(text: str) -> Dict:
+
+async def safety_gate(text: str) -> Dict[str, Any]:
     """
     Unbypassable safety gate.
     FAIL-SAFE: If Layer 1 OR Layer 2 says crisis → CRISIS MODE.
