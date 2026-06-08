@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.db import connect_db, disconnect_db, db_client
+from app.db import connect_db, disconnect_db, get_db_client
 from app.routers import auth, session, dashboard
 from app.utils.logger import get_logger
 
@@ -90,9 +90,10 @@ def create_app() -> FastAPI:
         Returns JSONResponse so we can send 503 on failure.
         """
         try:
-            if db_client is None:
+            client = get_db_client()
+            if client is None:
                 raise RuntimeError("DB client not initialized")
-            await db_client.admin.command("ping")
+            await client.admin.command("ping")
             return JSONResponse(
                 content={"ready": True, "database": "connected"},
             )

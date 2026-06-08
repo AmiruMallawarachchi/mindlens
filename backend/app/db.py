@@ -63,5 +63,8 @@ def get_database():
     return db.client[settings.mongodb_db_name]
 
 
-# Module-level reference for main.py readiness probe
-db_client = db.client
+# Accessor for main.py readiness probe — must be a function,
+# NOT a snapshot, because db.client is None at import time.
+def get_db_client() -> AsyncIOMotorClient | None:
+    """Return the live Motor client (or None if not yet connected)."""
+    return db.client
