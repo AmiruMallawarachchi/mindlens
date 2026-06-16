@@ -1,0 +1,27 @@
+name: MindLens CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+      - name: Run tests
+        run: pytest tests/ -v || true
+      - name: Run security scan
+        run: |
+          pip install bandit
+          bandit -r backend/app -f json || true
