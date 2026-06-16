@@ -1,257 +1,54 @@
-```gitignore id="final-grand-gitignore"
-# =========================================================
-# PYTHON
-# =========================================================
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.pyc
-*.pyo
-*.py,cover
-.python-version
-
-# C extensions
 *.so
-
-# =========================================================
-# ENVIRONMENTS & SECRETS
-# =========================================================
-.env
-.env.*
-*.env.local
-
 .venv/
+venv-train/
 venv/
-env/
 ENV/
-env.bak/
-venv.bak/
+env/
 
-# =========================================================
-# PACKAGING / BUILD
-# =========================================================
-.Python
-build/
-dist/
-downloads/
-develop-eggs/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
+# Environment (NEVER commit real secrets)
+.env
+.env.local
+!.env.example
 
-*.egg-info/
-*.egg
-.installed.cfg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# =========================================================
-# LOGS
-# =========================================================
-*.log
-logs/
-
-pip-log.txt
-pip-delete-this-directory.txt
-
-wandb/
-runs/
-mlruns/
-
-# TensorBoard
-tensorboard/
-events.out.tfevents.*
-
-# =========================================================
-# TESTING / COVERAGE
-# =========================================================
-htmlcov/
-.tox/
-.nox/
-
-.coverage
-.coverage.*
-.cache
-
-coverage.xml
-nosetests.xml
-
-*.cover
-*.py,cover
-
-.hypothesis/
-.pytest_cache/
-cover/
-
-# =========================================================
-# TYPE CHECKERS / LINTERS
-# =========================================================
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-.pyre/
-.pytype/
-.ruff_cache/
-
-# =========================================================
-# JUPYTER / IPYTHON
-# =========================================================
-.ipynb_checkpoints/
-
-profile_default/
-ipython_config.py
-
-# =========================================================
-# DJANGO / FLASK
-# =========================================================
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-instance/
-.webassets-cache
-
-# =========================================================
-# DOCUMENTATION
-# =========================================================
-docs/_build/
-/site
-
-# =========================================================
-# DATASETS / LARGE DATA
-# =========================================================
+# Data & Models (HUGE files - NEVER commit)
 data/
-datasets/
-
+notebooks/data/
 *.arrow
 *.parquet
-
-# =========================================================
-# AI / ML MODELS
-# =========================================================
-models/
-checkpoints/
-outputs/
-trainer_output/
-
-# LoRA / QLoRA
-adapters/
-adapter_model/
-
-# Vector databases
-chroma_db/
-vectorstore/
-faiss_index/
-
-# Model formats
-*.bin
+*.csv
+*.json
+!data/reports/*.json
+!data/figures/*.png
 *.pt
-*.pth
-*.ckpt
-*.onnx
+*.bin
 *.safetensors
-*.faiss
+*.ckpt
+*.pth
 
-# =========================================================
-# HUGGING FACE / TRANSFORMERS
-# =========================================================
-.cache/
-.cache/huggingface/
-hf_cache/
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# =========================================================
-# LANGCHAIN / LANGGRAPH / LANGSMITH
-# =========================================================
-.langsmith/
-
-# =========================================================
-# DOCKER
-# =========================================================
-docker-compose.override.yml
-
-# =========================================================
-# SCRAPY
-# =========================================================
-.scrapy
-
-# =========================================================
-# PYBUILDER
-# =========================================================
-.pybuilder/
-target/
-
-# =========================================================
-# PDM / PEP 582
-# =========================================================
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-__pypackages__/
-
-# =========================================================
-# CELERY
-# =========================================================
-celerybeat-schedule
-celerybeat.pid
-
-# =========================================================
-# SAGEMATH
-# =========================================================
-*.sage.py
-
-# =========================================================
-# IDE / EDITORS
-# =========================================================
+# IDE
 .vscode/
 .idea/
 
-.spyderproject
-.spyproject
+# Node (for later)
+node_modules/
+.next/
+dist/
+build/
 
-.ropeproject
-
-# Cursor AI editor
-.cursorignore
-.cursorindexingignore
-
-# =========================================================
-# OS FILES
-# =========================================================
+# OS
 .DS_Store
 Thumbs.db
-Desktop.ini
 
-.AppleDouble
-.LSOverride
-
-# =========================================================
-# TEMP FILES
-# =========================================================
-tmp/
-temp/
-
-*.tmp
-*.bak
-*.swp
-
-# =========================================================
-# CYTHON
-# =========================================================
-cython_debug/
-
-# =========================================================
-# PYPI
-# =========================================================
-.pypirc
-```
+# Jupyter notebooks - keep code, exclude outputs
+notebooks/*.ipynb
+notebooks/**/*.ipynb
+.ipynb_checkpoints/
+*.ipynb_checkpoints
