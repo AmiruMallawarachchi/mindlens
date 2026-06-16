@@ -81,12 +81,12 @@ class TestEmotionalOperatingState:
     def test_invalid_attachment_rejected(self) -> None:
         """attachment_style must be one of the Literal values."""
         with pytest.raises(ValidationError):
-            EmotionalOperatingState(attachment_style="invalid")
+            EmotionalOperatingState(attachment_style="invalid")  # type: ignore
 
     def test_invalid_modality_rejected(self) -> None:
         """modality must be one of the Literal values."""
         with pytest.raises(ValidationError):
-            EmotionalOperatingState(modality="Invalid")
+            EmotionalOperatingState(modality="Invalid")  # type: ignore
 
     def test_to_dict_roundtrip(self) -> None:
         """to_dict() → from_dict() preserves data."""

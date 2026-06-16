@@ -25,23 +25,20 @@ class Settings(BaseSettings):
     use_spotify: bool = False
     admin_email: str = "admin@mindlens.app"
 
-    # Model IDs (must match your HuggingFace Hub repos)
-    EMOTION_MODEL_ID: str = "SamLowe/roberta-base-go_emotions"
-    CRISIS_MODEL_ID: str = "AmiruMallawarachchi/mindlens-crisis"   # <-- your HF repo
-    MH_MODEL_ID: str = "AmiruMallawarachchi/mindlens-mh-classifier"  # <-- your HF repo
-
-    # --- Debug & CORS -------------------------------------------------------
+    # --- Debug --------------------------------------------------------------
     DEBUG: bool = False
+
+    # --- Model IDs (must match your HuggingFace Hub repos) -----------------
+    EMOTION_MODEL_ID: str = "SamLowe/roberta-base-go_emotions"
+    CRISIS_MODEL_ID: str = "AmiruMallawarachchi/mindlens-crisis"
+    MH_MODEL_ID: str = "AmiruMallawarachchi/mindlens-mh-classifier"
+
+    # --- CORS (canonical list — used by main.py) ----------------------------
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "https://localhost:3000",
         "http://127.0.0.1:3000",
     ]
-
-    # --- Model IDs ----------------------------------------------------------
-    EMOTION_MODEL_ID: str = "SamLowe/roberta-base-go_emotions"
-    CRISIS_MODEL_ID: str = "AmiruMallawarachchi/mindlens-crisis"
-    MH_MODEL_ID: str = "AmiruMallawarachchi/mindlens-mh-classifier"
     
     @field_validator('cors_origins', mode='before')
     @classmethod
