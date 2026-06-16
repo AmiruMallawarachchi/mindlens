@@ -17,11 +17,11 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install -r backend/requirements.txt
+          pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
       - name: Run tests
-        run: pytest tests/ -v || true
+        run: pytest backend/tests/ -v
       - name: Run security scan
         run: |
           pip install bandit
-          bandit -r backend/app -f json || true
+          bandit -r backend/app -f json
