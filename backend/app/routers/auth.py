@@ -3,10 +3,9 @@ MindLens Authentication Router
 
 Handles user registration, login, JWT token generation, and token validation.
 Uses bcrypt for password hashing and JWT for stateless authentication.
-Integrates with MongoDB for user persistence.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -81,25 +80,25 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(user_id: str, email: str) -> str:
     """
     Create a JWT access token.
-
+    
     Args:
         user_id: MongoDB document _id as string
         email: User's email address
-
+        
     Returns:
         Encoded JWT string
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     expire = now + timedelta(minutes=settings.jwt_expire_minutes)
-
+    
     payload = {
-        "sub": user_id,  # subject = user ID
+        "sub": user_id,           # subject = user ID
         "email": email,
-        "iat": now,  # issued at
-        "exp": expire,  # expiration
+        "iat": now,               # issued at
+        "exp": expire,            # expiration
         "type": "access",
     }
-
+    
     return jwt.encode(
         payload,
         settings.jwt_secret_key,
@@ -113,31 +112,31 @@ async def get_current_user(
 ) -> dict:
     """
     Validate JWT token and return current user document.
-
+    
     Used as a dependency in protected routes.
     """
     token = credentials.credentials
-
+    
     try:
         payload = jwt.decode(
             token,
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
         )
-
-        user_id: str = payload.get("sub")
+        
+        user_id: str | None = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token: no subject",
             )
-
+            
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
-
+    
     # Fetch user from MongoDB
     user = await db.users.find_one({"_id": user_id})
     if user is None:
@@ -145,7 +144,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-
+    
     return user
 
 
@@ -161,7 +160,7 @@ async def get_current_user(
 async def register(user_data: UserRegister, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Register a new MindLens user.
-
+    
     - Checks for duplicate email
     - Hashes password with bcrypt
     - Determines age group (teen vs adult)
@@ -174,10 +173,10 @@ async def register(user_data: UserRegister, db: AsyncIOMotorDatabase = Depends(g
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
         )
-
+    
     # Determine age group
     age_group = "teen" if user_data.age <= 19 else "adult"
-
+    
     # Create user document
     user_doc = {
         "email": user_data.email,
@@ -191,14 +190,14 @@ async def register(user_data: UserRegister, db: AsyncIOMotorDatabase = Depends(g
         "is_active": True,
         "onboarding_complete": False,
     }
-
+    
     # Insert into MongoDB
     result = await db.users.insert_one(user_doc)
     user_id = str(result.inserted_id)
-
+    
     # Generate JWT
     token = create_access_token(user_id, user_data.email)
-
+    
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -214,7 +213,7 @@ async def register(user_data: UserRegister, db: AsyncIOMotorDatabase = Depends(g
 async def login(credentials: UserLogin, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Authenticate a user and return a JWT access token.
-
+    
     - Finds user by email
     - Verifies password with bcrypt
     - Returns JWT on success
@@ -226,25 +225,25 @@ async def login(credentials: UserLogin, db: AsyncIOMotorDatabase = Depends(get_d
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-
+    
     # Verify password
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-
+    
     # Check if user is active
     if not user.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account deactivated",
         )
-
+    
     # Generate JWT
     user_id = str(user["_id"])
     token = create_access_token(user_id, credentials.email)
-
+    
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -260,7 +259,7 @@ async def login(credentials: UserLogin, db: AsyncIOMotorDatabase = Depends(get_d
 async def get_me(current_user: dict = Depends(get_current_user)):
     """
     Return the current authenticated user's profile.
-
+    
     Requires valid JWT in Authorization header.
     """
     return UserResponse(
@@ -282,7 +281,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 async def logout(current_user: dict = Depends(get_current_user)):
     """
     Logout endpoint.
-
+    
     Note: JWT is stateless, so true logout requires token blocklisting.
     For now, this is a client-side operation (delete token from storage).
     """
@@ -302,7 +301,7 @@ async def get_user_count(
 ):
     """
     Return total number of registered users.
-
+    
     Protected: requires valid authentication.
     """
     count = await db.users.count_documents({})
