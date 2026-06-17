@@ -1,0 +1,19 @@
+# Global owner
+* @AmiruMallawarachchi
+
+# Backend code
+/backend/ @AmiruMallawarachchi
+
+# Frontend code
+/frontend/ @AmiruMallawarachchi
+
+# Infrastructure
+/infrastructure/ @AmiruMallawarachchi
+
+# Documentation
+/docs/ @AmiruMallawarachchi
+
+# Security-critical files
+/backend/app/agents/safety_gate.py @AmiruMallawarachchi
+/backend/app/core/anonymizer.py @AmiruMallawarachchi
+/backend/app/middleware/rate_limiter.py @AmiruMallawarachchi
