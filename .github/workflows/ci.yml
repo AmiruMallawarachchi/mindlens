@@ -11,26 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-<<<<<<< Updated upstream
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio
-      - name: Run tests
-        run: pytest backend/tests/ -v
-      - name: Run security scan
-        run: |
-          pip install bandit
-          bandit -r backend/app -f json
-=======
 
       - name: Install dependencies
         run: |
@@ -63,4 +48,3 @@ jobs:
         run: |
           pip install detect-secrets
           detect-secrets scan --all-files --force-use-all-plugins
->>>>>>> Stashed changes
