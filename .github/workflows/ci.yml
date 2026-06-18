@@ -28,4 +28,10 @@ jobs:
       - name: Run security scan
         run: |
           pip install bandit
-          bandit -r backend/app -f json || true
+          bandit -r backend/app -f json -o bandit-report.json || true
+
+      - name: Check for hardcoded secrets
+        run: |
+          pip install detect-secrets
+          detect-secrets scan --all-files --force-use-all-plugins
+>>>>>>> Stashed changes
