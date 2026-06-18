@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from app.core.emotional_os import EmotionalOperatingState
 from app.core.emotion_labels import (
     EMOTION_LABELS,
+    EMOTION_SEVERITY_WEIGHTS,
     NEGATIVE_EMOTIONS,
     POSITIVE_EMOTIONS,
-    EMOTION_SEVERITY_WEIGHTS,
     is_negative,
+)
+from app.core.emotional_os import (
+    EmotionalOperatingState,
+    Modality,
 )
 from app.models.loader import ModelManager
 from app.utils.logger import get_logger
@@ -78,9 +81,9 @@ class Orchestrator:
             valence = "positive"
 
         # Determine modality
-        modality: Literal["CBT", "DBT", "ACT", "Mindfulness", "MI"] = "CBT"
+        modality: Modality = Modality.CBT
         if distress_level > 0.7:
-            modality = "DBT"
+            modality = Modality.DBT
 
         # Build EOS snapshot
         eos = EmotionalOperatingState(

@@ -7,11 +7,11 @@ and Orchestrator model processing.
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-import pytest
 
-from app.core.anonymizer import anonymize
-from app.agents.safety_gate import safety_gate
+import pytest
 from app.agents.orchestrator import Orchestrator
+from app.agents.safety_gate import safety_gate
+from app.core.anonymizer import anonymize
 
 
 @pytest.fixture
@@ -56,8 +56,8 @@ class TestMindLensFullPipeline:
         assert "john@doe.com" not in clean_input
 
         # -- Step B: Safety Gate check --
-        safety_status = await safety_gate(clean_input)
-        assert safety_status["safe"] is True
+        safety_status = await safety_gate.evaluate(clean_input)
+        assert safety_status.is_crisis is False
 
         # -- Step C: Orchestration --
         orchestrator = Orchestrator()
@@ -95,11 +95,11 @@ class TestMindLensFullPipeline:
         clean_input = anonymize(user_input)
 
         # -- Step B: Safety Gate check --
-        safety_status = await safety_gate(clean_input)
-        assert safety_status["safe"] is False
-        assert safety_status["crisis_type"] == "suicidal_ideation"
-        assert len(safety_status["resources"]) > 0
-        
+        safety_status = await safety_gate.evaluate(clean_input)
+        assert safety_status.is_crisis is True
+        assert safety_status.crisis_type == "suicidal_ideation"
+        assert len(safety_status.resources) > 0
+
         # Since it is unsafe, the application logic would bypass orchestrator processing
         # and directly return the crisis templates or route to emergency services.
-        assert "Sumithrayo" in [r["name"] for r in safety_status["resources"]]
+        assert "Sumithrayo" in [r["name"] for r in safety_status.resources]

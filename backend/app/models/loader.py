@@ -12,7 +12,7 @@ import asyncio
 from typing import Any, cast
 
 import torch
-from transformers import pipeline, Pipeline
+from transformers import Pipeline, pipeline
 
 from app.config import settings
 from app.utils.logger import get_logger

@@ -1,21 +1,22 @@
-"""
-MindLens Authentication Router.
+"""MindLens Authentication Router.
 
 Handles user registration, login, JWT token generation, and token validation.
 Uses bcrypt for password hashing and JWT for stateless authentication.
 """
 
-from datetime import datetime, timedelta
+from __future__ import annotations
+
+import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field
 
-from backend.app.config import settings
-from backend.app.db import get_db
+from app.config import settings
+from app.db import get_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -60,14 +61,17 @@ class UserResponse(BaseModel):
     nickname: str | None
     age: int
     age_group: str
-    created_at: datetime
+    created_at: datetime.datetime
 
 
 # --- Helper Functions ---
 
 
 def hash_password(password: str) -> str:
-    """Hash a plain password using bcrypt."""
+    """Hash a plain password using bcrypt. Truncates to 72 bytes if needed."""
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        password = password_bytes[:72].decode("utf-8", errors="ignore")
     return pwd_context.hash(password)
 
 
@@ -87,14 +91,14 @@ def create_access_token(user_id: str, email: str) -> str:
     Returns:
         Encoded JWT string
     """
-    now = datetime.utcnow()
-    expire = now + timedelta(minutes=settings.jwt_expire_minutes)
+    now = datetime.datetime.now(datetime.UTC)
+    expire = now + datetime.timedelta(minutes=settings.jwt_expire_minutes)
 
     payload = {
-        "sub": user_id,  # subject = user ID
+        "sub": user_id,
         "email": email,
-        "iat": now,  # issued at
-        "exp": expire,  # expiration
+        "iat": now,
+        "exp": expire,
         "type": "access",
     }
 
@@ -135,6 +139,14 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         ) from exc
+
+    # Check blocklist
+    blocklisted = await db.token_blocklist.find_one({"token_jti": payload.get("sub")})
+    if blocklisted:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+        )
 
     # Fetch user from MongoDB
     user = await db.users.find_one({"_id": user_id})
@@ -187,8 +199,8 @@ async def register(
         "nickname": user_data.nickname or user_data.name,
         "age": user_data.age,
         "age_group": age_group,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.datetime.now(datetime.UTC),
+        "updated_at": datetime.datetime.now(datetime.UTC),
         "is_active": True,
         "onboarding_complete": False,
     }
@@ -286,14 +298,31 @@ async def get_me(
     summary="Logout user",
 )
 async def logout(
-    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
     Logout endpoint.
 
-    Note: JWT is stateless, so true logout requires token blocklisting.
-    For now, this is a client-side operation (delete token from storage).
+    Adds the token to a blocklist so it can no longer be used.
     """
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+        )
+        jti = payload.get("sub")
+        exp = payload.get("exp")
+        await db.token_blocklist.insert_one({
+            "token_jti": jti,
+            "exp": exp,
+            "created_at": datetime.datetime.now(datetime.UTC),
+        })
+    except JWTError:
+        pass  # Token was already invalid
+
     return {"message": "Logged out successfully"}
 
 

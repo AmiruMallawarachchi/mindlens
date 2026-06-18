@@ -9,7 +9,7 @@ router registration, CORS, middleware, and global exception handling.
 from __future__ import annotations
 
 import contextlib
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db import connect_db, disconnect_db, get_db_client
-from app.routers import auth, session, dashboard
+from app.routers import auth, dashboard, session
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

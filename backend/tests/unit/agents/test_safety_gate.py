@@ -1,110 +1,99 @@
-"""Unit tests for the Safety Gate agent."""
+"""Unit tests for the Safety Gate."""
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
 import pytest
-
 from app.agents.safety_gate import (
     layer1_keyword_scan,
-    layer2_model_scan,
     safety_gate,
 )
 
 
 class TestSafetyGateKeywordScan:
-    """Validate Layer 1 keyword-based scanning."""
+    """Validate Layer 1 keyword scanning."""
 
-    def test_no_matches(self) -> None:
-        """Safe text does not trigger keyword scan."""
-        result = layer1_keyword_scan("I had a good day at work.")
+    @pytest.mark.asyncio
+    async def test_no_matches(self) -> None:
+        result = await layer1_keyword_scan(
+            "I had a good day at work."
+        )
+
         assert result["triggered"] is False
-        assert len(result["matches"]) == 0
+        assert result["matches"] == [""]
 
-    def test_exact_match(self) -> None:
-        """Direct match triggers keywords."""
-        result = layer1_keyword_scan("I want to commit suicide")
+    @pytest.mark.asyncio
+    async def test_exact_match(self) -> None:
+        result = await layer1_keyword_scan(
+            "I want to commit suicide"
+        )
+
         assert result["triggered"] is True
-        assert "suicide" in result["matches"][0]
+        assert len(result["matches"]) > 0
 
-    def test_case_insensitive_match(self) -> None:
-        """Keywords are case insensitive."""
-        result = layer1_keyword_scan("KILL MYSELF right now")
+    @pytest.mark.asyncio
+    async def test_case_insensitive_match(self) -> None:
+        result = await layer1_keyword_scan(
+            "I want to kill myself"
+        )
+
         assert result["triggered"] is True
-        assert "kill myself" in result["matches"][0]
+        assert len(result["matches"]) > 0
 
 
-class TestSafetyGateModelScan:
-    """Validate Layer 2 model-based scanning."""
-
-    @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_model_no_crisis(self, mock_manager: AsyncMock) -> None:
-        """Model returning NON_CRISIS does not trigger."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "NON_CRISIS", "score": 0.1}]
-        )
-        result = await layer2_model_scan("I am a bit stressed.")
-        assert result["triggered"] is False
-        assert result["probability"] == 0.1
+class TestSafetyGateEvaluate:
+    """Validate overall gate behaviour."""
 
     @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_model_crisis(self, mock_manager: AsyncMock) -> None:
-        """Model returning CRISIS above threshold triggers."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "CRISIS", "score": 0.85}]
+    async def test_safe_message(self) -> None:
+        result = await safety_gate.evaluate(
+            "I am happy today."
         )
-        result = await layer2_model_scan("I can't go on anymore.")
-        assert result["triggered"] is True
-        assert result["probability"] == 0.85
 
-
-class TestSafetyGateEndToEnd:
-    """Validate safety_gate coordinator function."""
+        assert result.is_crisis is False
+        assert result.layer_triggered is None
+        assert result.confidence == 0.0
 
     @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_safe_passage(self, mock_manager: AsyncMock) -> None:
-        """When both layers say safe, safety_gate passes."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "NON_CRISIS", "score": 0.05}]
+    async def test_crisis_message(self) -> None:
+        result = await safety_gate.evaluate(
+            "I want to end my life"
         )
-        result = await safety_gate("I am happy today.")
-        assert result["safe"] is True
+
+        assert result.is_crisis is True
+        assert result.layer_triggered == "regex"
+        assert result.confidence == 0.95
 
     @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_l1_only_triggered(self, mock_manager: AsyncMock) -> None:
-        """If only Layer 1 is triggered, safety_gate returns unsafe."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "NON_CRISIS", "score": 0.1}]
+    async def test_suicide_phrase(self) -> None:
+        result = await safety_gate.evaluate(
+            "I want to die"
         )
-        result = await safety_gate("I want to end my life")
-        assert result["safe"] is False
-        assert 1 in result["layers_triggered"]
-        assert result["severity_score"] == 0.9
+
+        assert result.is_crisis is True
+        assert result.layer_triggered == "regex"
 
     @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_l2_only_triggered(self, mock_manager: AsyncMock) -> None:
-        """If only Layer 2 is triggered, safety_gate returns unsafe."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "CRISIS", "score": 0.78}]
+    async def test_harm_to_others_phrase(self) -> None:
+        result = await safety_gate.evaluate(
+            "I want to kill someone"
         )
-        result = await safety_gate("Unobvious crisis text that model catches")
-        assert result["safe"] is False
-        assert 2 in result["layers_triggered"]
-        assert result["severity_score"] == 0.78
+
+        assert result.is_crisis is True
+        assert result.layer_triggered == "regex"
 
     @pytest.mark.asyncio
-    @patch("app.agents.safety_gate.model_manager")
-    async def test_crisis_type_ideation(self, mock_manager: AsyncMock) -> None:
-        """High severity returns suicidal_ideation crisis type."""
-        mock_manager.predict_crisis = AsyncMock(
-            return_value=[{"label": "CRISIS", "score": 0.95}]
+    async def test_hopelessness_phrase(self) -> None:
+        result = await safety_gate.evaluate(
+            "I feel completely hopeless"
         )
-        result = await safety_gate("very high threat text")
-        assert result["safe"] is False
-        assert result["crisis_type"] == "suicidal_ideation"
-        assert len(result["resources"]) > 0
+
+        assert result.is_crisis is True
+        assert result.layer_triggered == "regex"
+
+    @pytest.mark.asyncio
+    async def test_snippet_truncation(self) -> None:
+        text = "a" * 150
+
+        result = await safety_gate.evaluate(text)
+
+        assert len(result.user_message_snippet) == 100

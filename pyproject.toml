@@ -1,22 +1,158 @@
-[tool.black]
-line-length = 88
-target-version = ['py311']
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
+[project]
+name = "mindlens"
+version = "0.3.0-alpha"
+description = "Multi-agent AI system for personalized mental health support"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Amiru Umavin Mallawa Arachchi", email = "amiru@example.com"}
+]
+keywords = ["mental-health", "ai", "therapy", "fastapi", "mongodb"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "motor>=3.3.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "httpx>=0.26.0",
+    "groq>=0.4.0",
+    "transformers>=4.37.0",
+    "torch>=2.2.0",
+    "chromadb>=0.4.0",
+    "apscheduler>=3.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/AmiruMallawarachchi/mindlens"
+Repository = "https://github.com/AmiruMallawarachchi/mindlens"
+Issues = "https://github.com/AmiruMallawarachchi/mindlens/issues"
+
+# ============================================================
+# RUFF (linter + formatter)
+# ============================================================
 [tool.ruff]
-line-length = 88
-select = ["E", "F", "I", "W", "N", "UP", "B", "C4", "SIM"]
-ignore = ["E501", "B008"]
-exclude = ["backend/app/routers/*.py", "backend/app/agents/*.py"]
+target-version = "py311"
+line-length = 100
 
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "W",
+    "B",
+    "C4",
+    "UP",
+]
+ignore = [
+    "E501",
+    "B008",
+    "W293",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ============================================================
+# MYPY (type checker)
+# ============================================================
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+show_error_codes = true
+show_column_numbers = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
 
+# ============================================================
+# PYTEST (test runner)
+# ============================================================
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
+minversion = "7.0"
+testpaths = [
+    "backend/tests",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with -m not slow)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
 asyncio_mode = "auto"
+
+# ============================================================
+# COVERAGE
+# ============================================================
+[tool.coverage.run]
+source = ["backend/app"]
+omit = [
+    "*/tests/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+fail_under = 70

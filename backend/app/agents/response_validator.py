@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Pattern
+from re import Pattern
 
 from app.utils.logger import get_logger
 

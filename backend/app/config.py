@@ -1,7 +1,8 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
-from typing import List
 import json
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 10080
     encryption_key: str = ""
     app_env: str = "development"
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000"]
     use_openai_stubs: bool = True
     use_voice: bool = False
     use_spotify: bool = False
