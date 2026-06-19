@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import Optional  # noqa: F401
+from urllib.parse import parse_qs, urlparse
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
@@ -26,13 +27,47 @@ db = Database()
 
 async def connect_db() -> None:
     """Create MongoDB client, verify connection, and build indexes."""
-    db.client = AsyncIOMotorClient(
-        settings.mongodb_url,
-        tls=True,
-        tlsAllowInvalidCertificates=True,
+    mongo_url = settings.mongodb_url
+    is_local = any(
+        mongo_url.startswith(p) for p in ("mongodb://localhost", "mongodb://127.0.0.1")
     )
-    logger.info("Connected to MongoDB: %s", settings.mongodb_db_name)
 
+    client_kwargs: dict = {
+        "serverSelectionTimeoutMS": 10000,
+        "retryWrites": True,
+    }
+
+    # Parse connection string to avoid duplicating or conflicting with
+    # options that are already in the URI.
+    parsed = urlparse(mongo_url)
+    existing_params = {k.lower() for k in parse_qs(parsed.query).keys()}
+
+    if not is_local:
+        # If the user already has tlsAllowInvalidCertificates in their URI,
+        # we skip all other TLS tweaks to avoid PyMongo conflicts.
+        if "tlsallowinvalidcertificates" not in existing_params:
+            if "tls" not in existing_params and "ssl" not in existing_params:
+                client_kwargs["tls"] = True
+
+            # Windows + OpenSSL 3.0 workaround: disable OCSP endpoint check
+            # which causes TLSV1_ALERT_INTERNAL_ERROR on Windows with Python 3.11+
+            if "tlsdisableocspendpointcheck" not in existing_params:
+                client_kwargs["tlsDisableOCSPEndpointCheck"] = True
+
+    db.client = AsyncIOMotorClient(mongo_url, **client_kwargs)
+
+    # Fail fast — verify connectivity before building indexes
+    try:
+        await db.client.admin.command("ping")
+    except Exception as exc:
+        logger.error("MongoDB connection failed: %s", exc)
+        raise RuntimeError(
+            f"Failed to connect to MongoDB at {mongo_url}. "
+            "If using Atlas, check your IP whitelist and connection string. "
+            "If on Windows with Python 3.11+, ensure tlsDisableOCSPEndpointCheck is enabled."
+        ) from exc
+
+    logger.info("Connected to MongoDB: %s", settings.mongodb_db_name)
     database = db.client[settings.mongodb_db_name]
 
     await database.users.create_index("email", unique=True)
