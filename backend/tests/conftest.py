@@ -15,9 +15,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 from app.core.emotional_os import (
     EmotionalOperatingState,
     Modality,
-    create_calm_eos,
-    create_crisis_eos,
-    create_distressed_eos,
 )
 from app.models.loader import ModelManager
 

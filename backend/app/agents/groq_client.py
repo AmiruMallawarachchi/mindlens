@@ -68,7 +68,7 @@ class GroqClient:
     """
 
     def __init__(self) -> None:
-        self._client: AsyncGroq | None = None
+        self._client: AsyncGroq | None = None # type: ignore
         self._stub_mode = settings.use_openai_stubs
         self._api_key = settings.groq_api_key
 
@@ -81,7 +81,7 @@ class GroqClient:
             return
 
         if not self._stub_mode and self._api_key:
-            self._client = AsyncGroq(api_key=self._api_key)
+            self._client = AsyncGroq(api_key=self._api_key) # type: ignore
             logger.info("Groq client initialized (real mode).")
         else:
             logger.warning(
