@@ -7,8 +7,25 @@ All model inference runs in parallel via asyncio.gather.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Literal
 
+from app.agents.base_agent import AgentContext, AgentOutput, get_registry
+from app.agents.challenge_agent import ChallengeAgent
+from app.agents.checkin_agent import CheckInAgent
+from app.agents.checkin_scheduler import CheckInScheduler
+from app.agents.crisis_agent import CrisisAgent
+from app.agents.distortion_agent import DistortionAgent
+from app.agents.empathy_agent import EmpathyAgent
+from app.agents.journaling_agent import JournalingAgent
+from app.agents.mindfulness_agent import MindfulnessAgent
+from app.agents.music_agent import MusicAgent
+from app.agents.personality_agent import PersonalityAgent
+from app.agents.progress_agent import ProgressAgent
+from app.agents.reflection_agent import ReflectionAgent
+from app.agents.response_assembler import ResponseAssembler
+from app.agents.routine_agent import RoutineAgent
+from app.agents.session_memory_save import SessionMemorySave
 from app.core.emotion_labels import (
     EMOTION_LABELS,
     EMOTION_SEVERITY_WEIGHTS,
@@ -34,9 +51,112 @@ class Orchestrator:
 
     def __init__(self) -> None:
         self.models = ModelManager()
+        self._assembler = ResponseAssembler()
+        self._init_registry()
+
+    def _init_registry(self) -> None:
+        """Register all 14 agents in the global registry."""
+        registry = get_registry()
+        if not registry.list_names():
+            agents = [
+                EmpathyAgent(),
+                MindfulnessAgent(),
+                CrisisAgent(),
+                ReflectionAgent(),
+                ChallengeAgent(),
+                DistortionAgent(),
+                RoutineAgent(),
+                JournalingAgent(),
+                MusicAgent(),
+                CheckInAgent(),
+                ProgressAgent(),
+                PersonalityAgent(),
+                CheckInScheduler(),
+                SessionMemorySave(),
+            ]
+            for agent in agents:
+                registry.register(agent)
+            logger.info("Registered %d agents in orchestrator", len(agents))
 
     # -----------------------------------------------------------------------
-    # Public entry point
+    # Full pipeline: model inference + agent execution + response assembly
+    # -----------------------------------------------------------------------
+
+    async def run_full_pipeline(
+        self,
+        user_text: str,
+        *,
+        user_name: str = "friend",
+        session_history: list[dict] | None = None,
+        rag_chunks: list[str] | None = None,
+    ) -> dict:
+        """
+        Complete turn pipeline:
+        1. Run model inference → build EOS
+        2. Select agents based on EOS
+        3. Run all agents in parallel
+        4. Assemble response
+        5. Return full result with assembled text
+        """
+        # Step 1: Model inference + EOS
+        turn_result = await self.process_turn(user_text)
+        eos = EmotionalOperatingState(**turn_result["eos"])
+        agent_names = turn_result["agents"]
+        crisis_flag = turn_result["crisis_flag"]
+
+        # Step 2: Build agent context
+        ctx = AgentContext(
+            eos=eos,
+            user_text=user_text,
+            user_name=user_name,
+            session_history=session_history or [],
+            rag_chunks=rag_chunks or [],
+        )
+
+        # Step 3: Run agents in parallel
+        outputs: list[AgentOutput] = []
+        if crisis_flag:
+            # Crisis mode: only crisis agent
+            crisis_agent = get_registry().get("crisis")
+            if crisis_agent:
+                output = await crisis_agent.run(ctx)
+                if output:
+                    outputs.append(output)
+        else:
+            # Normal mode: run selected agents concurrently
+            tasks = []
+            for name in agent_names:
+                agent = get_registry().get(name)
+                if agent:
+                    tasks.append(agent.run(ctx))
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, AgentOutput):
+                        outputs.append(result)
+                    elif isinstance(result, Exception):
+                        logger.error("Agent failed: %s", result)
+
+        # Step 4: Assemble response
+        assembled_text = self._assembler.assemble(
+            outputs,
+            in_crisis=crisis_flag,
+            user_name=user_name,
+        )
+
+        return {
+            "eos": eos.model_dump(),
+            "agents": agent_names,
+            "crisis_flag": crisis_flag,
+            "assembled_text": assembled_text,
+            "agent_outputs": [
+                {"agent": o.agent_name, "text": o.text, "metadata": o.metadata}
+                for o in outputs
+            ],
+        }
+
+    # -----------------------------------------------------------------------
+    # Public entry point (backward compatible)
     # -----------------------------------------------------------------------
 
     async def process_turn(self, user_text: str) -> dict[str, Any]:
@@ -104,7 +224,9 @@ class Orchestrator:
         eos.run_mindfulness = "mindfulness" in agents
         eos.run_music = "music" in agents
         eos.run_challenge = "challenge" in agents
-        eos.run_journaling = "reflection" in agents
+        eos.run_journaling = "journaling" in agents
+        eos.run_distortion = "distortion" in agents
+        eos.run_routine = "routine" in agents
 
         return {
             "eos": eos.model_dump(),
@@ -199,22 +321,52 @@ class Orchestrator:
         Cost-optimized agent dispatch.
         $0 agents run every turn; paid agents gated by thresholds.
         """
+        if crisis_flag:
+            return ["crisis"]
+
         agents: list[str] = ["empathy"]
 
+        # Safety-critical: mindfulness for high distress or anxiety
         if eos.distress_level > 0.5 or eos.core_emotion in {"anxiety", "fear", "nervousness"}:
             agents.append("mindfulness")
 
-        if eos.distress_level > 0.4:
+        # Music for moderate distress or music-receptive users
+        if eos.distress_level > 0.4 or eos.is_receptive_to("music"):
             agents.append("music")
 
-        if eos.distress_level > 0.3:
+        # Reflection for meaningful session depth
+        if eos.session_depth >= 0.3:
             agents.append("reflection")
 
-        trust_level = 0.5
-        if trust_level > 0.6 and eos.distress_level < 0.7:
+        # Challenge: only when trust is high and not in crisis
+        if eos.trust_level >= 0.6 and eos.emotional_stability >= 0.5 and not eos.is_in_crisis():
             agents.append("challenge")
 
-        if crisis_flag:
-            return ["crisis"]
+        # Distortion: when CBT modality is active
+        if eos.modality == Modality.CBT:
+            agents.append("distortion")
+
+        # Routine: when fatigue is high
+        if eos.mental_fatigue >= 0.7:
+            agents.append("routine")
+
+        # Journaling: when stable enough and receptive
+        if eos.emotional_stability >= 0.3 and eos.mental_fatigue < 0.8 and eos.is_receptive_to("journaling"):
+            agents.append("journaling")
+
+        # Progress: periodic insight (every 5 turns or at end of session)
+        if eos.session_turn_count > 0 and eos.session_turn_count % 5 == 0:
+            agents.append("progress")
+
+        # Personality: tone adaptation (invisible, runs for context)
+        if eos.session_turn_count > 2:
+            agents.append("personality")
+
+        # Check-in scheduler: background job scheduling
+        if eos.session_turn_count > 0 and eos.session_turn_count % 3 == 0:
+            agents.append("checkin_scheduler")
+
+        # Session memory save: always runs at end of turn
+        agents.append("session_memory_save")
 
         return agents
