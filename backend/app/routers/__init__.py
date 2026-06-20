@@ -1,5 +1,8 @@
 from app.routers.auth import router as auth_router
+<<<<<<< HEAD
 from app.routers.chat import router as chat_router
+=======
+>>>>>>> dev
 from app.routers.dashboard import router as dashboard_router
 from app.routers.session import router as session_router
 
