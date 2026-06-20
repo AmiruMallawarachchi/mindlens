@@ -1,4 +1,5 @@
 import json
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,7 +18,10 @@ class Settings(BaseSettings):
     mongodb_db_name: str = "mindlens"
     jwt_secret_key: str = "dev-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 10080
+    jwt_expire_minutes: int = 15
+    jwt_refresh_expire_minutes: int = 10080  # 7 days
+    admin_jwt_secret: str = "admin-dev-secret-key-change-in-production"
+    admin_jwt_expire_minutes: int = 60
     encryption_key: str = ""
     app_env: str = "development"
     cors_origins: list[str] = ["http://localhost:3000"]
@@ -40,6 +44,24 @@ class Settings(BaseSettings):
         "https://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+    
+    # --- Rate Limiting (in-memory, no Redis) ------------------------------
+    RATE_LIMIT_PER_IP_MINUTE: int = 100
+    RATE_LIMIT_PER_USER_HOUR: int = 60
+    RATE_LIMIT_LOGIN_LOCKOUT_MINUTES: int = 15
+    RATE_LIMIT_MAX_LOGIN_ATTEMPTS: int = 5
+    
+    # --- WebSocket ----------------------------------------------------------
+    WS_HEARTBEAT_INTERVAL_SECONDS: int = 30
+    WS_MESSAGE_TIMEOUT_SECONDS: int = 300
+    WS_MAX_CONCURRENT_PER_USER: int = 1
+    
+    # --- Anonymization ------------------------------------------------------
+    ANONYMIZER_ENABLED: bool = True
+    
+    # --- Admin --------------------------------------------------------------
+    ADMIN_ROLE_NAME: str = "admin"
+    USER_ROLE_NAME: str = "user"
     
     @field_validator('cors_origins', mode='before')
     @classmethod
