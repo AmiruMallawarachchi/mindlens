@@ -11,3 +11,4 @@ router = APIRouter()
 @router.get("/mood")
 async def get_mood_logs() -> dict[str, list]:
     return {"moods": []}
+

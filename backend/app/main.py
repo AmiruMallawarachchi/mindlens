@@ -17,7 +17,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db import connect_db, disconnect_db, get_db_client
-from app.routers import auth, dashboard, session
+from app.middleware import MindLensAuthMiddleware
+from app.routers import auth_router, chat_router, dashboard_router, session_router
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,7 +47,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="MindLens API",
         description="Multi-agent AI system for personalized mental health support",
-        version="0.3.0-alpha",
+        version="0.4.0-alpha",
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         lifespan=lifespan,
@@ -61,10 +62,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # --- Auth Middleware (request ID, rate limiting, JWT extraction) ----------
+    app.add_middleware(MindLensAuthMiddleware)
+
     # --- Routers ------------------------------------------------------------
-    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-    app.include_router(session.router, prefix="/api/v1/session", tags=["Session"])
-    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(session_router, prefix="/api/v1/sessions", tags=["Session"])
+    app.include_router(chat_router, prefix="/ws", tags=["WebSocket"])
+    app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 
     # --- Global exception handler -------------------------------------------
     @app.exception_handler(Exception)
@@ -80,7 +85,7 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["System"])
     async def health_check() -> dict[str, str]:
         """Liveness probe."""
-        return {"status": "ok", "version": "0.3.0-alpha"}
+        return {"status": "ok", "version": "0.4.0-alpha"}
 
     # --- Ready probe --------------------------------------------------------
     @app.get("/ready", tags=["System"])
