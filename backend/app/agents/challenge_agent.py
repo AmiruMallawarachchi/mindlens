@@ -53,12 +53,20 @@ class ChallengeAgent(BaseAgent):
         )
 
     def _build_system_prompt(self, ctx: AgentContext) -> str:
+        rag_context = ""
+        if ctx.rag_chunks:
+            rag_context = (
+                "\nRELEVANT THERAPY KNOWLEDGE:\n"
+                + "\n---\n".join(ctx.rag_chunks[:3])
+                + "\n---\n"
+            )
         return (
             f"You are the Challenge Agent of MindLens.\n"
             f"Your role: {self.description}\n"
             f"User's name: {ctx.user_name}\n"
             f"Core emotion: {ctx.eos.core_emotion or 'unknown'}\n"
             f"Trust level: {ctx.eos.trust_level:.2f}\n"
+            f"{rag_context}"
             "\nINSTRUCTIONS:\n"
             "1. Ask ONE gentle, curious question.\n"
             "2. Invite the user to examine their thought, not attack it.\n"

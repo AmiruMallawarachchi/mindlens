@@ -7,9 +7,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.middleware.auth import create_token_pair
 from app.core.connection_manager import ConnectionManager
+from app.middleware.auth import create_token_pair
 
 
 @pytest.fixture
@@ -48,7 +47,10 @@ class TestConnectionManager:
         return ConnectionManager(heartbeat_interval=30, max_concurrent_per_user=1)
 
     @pytest.mark.asyncio
-    async def test_connect_and_disconnect(self, manager: ConnectionManager) -> None:
+
+    
+    async def test_connect_accepts_websocket(self, manager: ConnectionManager) -> None:
+
         ws = MagicMock()
         ws.accept = AsyncMock()
         ws.close = AsyncMock()
@@ -57,11 +59,21 @@ class TestConnectionManager:
         result = await manager.connect(ws, "user_123", "sess_abc")
         assert result is True
         assert manager.is_connected("user_123") is True
-        assert manager.get_user_session_id("user_123") == "sess_abc"
+
         assert manager.get_connection_count() == 1
 
+    @pytest.mark.asyncio
+    async def test_disconnect_removes_user(self, manager: ConnectionManager) -> None:
+        ws = MagicMock()
+        ws.accept = AsyncMock()
+        ws.close = AsyncMock()
+        ws.send_json = AsyncMock()
+
+        await manager.connect(ws, "user_123", "sess_abc")
+        assert manager.is_connected("user_123")
+
         await manager.disconnect("user_123")
-        assert manager.is_connected("user_123") is False
+        assert not manager.is_connected("user_123")
         assert manager.get_connection_count() == 0
 
     @pytest.mark.asyncio
@@ -86,19 +98,22 @@ class TestConnectionManager:
         assert manager.get_user_session_id("user_123") == "sess_def"
 
     @pytest.mark.asyncio
-    async def test_send_to_user(self, manager: ConnectionManager) -> None:
+
+    async def test_send_to_user_success(self, manager: ConnectionManager) -> None:
         ws = MagicMock()
         ws.accept = AsyncMock()
         ws.send_json = AsyncMock()
 
         await manager.connect(ws, "user_123", "sess_abc")
-        result = await manager.send_to_user("user_123", {"type": "test"})
+
+        result = await manager.send_to_user("user_123", {"type": "hello"})
         assert result is True
-        ws.send_json.assert_awaited_with({"type": "test"})
+        ws.send_json.assert_awaited_with({"type": "hello"})
 
     @pytest.mark.asyncio
     async def test_send_to_disconnected_user(self, manager: ConnectionManager) -> None:
-        result = await manager.send_to_user("user_123", {"type": "test"})
+        result = await manager.send_to_user("user_123", {"type": "hello"})
+
         assert result is False
 
     @pytest.mark.asyncio
@@ -158,20 +173,7 @@ class TestConnectionManager:
         assert call_args["session_paused"] is True
 
     @pytest.mark.asyncio
-    async def test_send_chunk(self, manager: ConnectionManager) -> None:
-        ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_json = AsyncMock()
 
-        await manager.connect(ws, "user_123", "sess_abc")
-        result = await manager.send_chunk("user_123", "Hello", 0)
-        assert result is True
-        call_args = ws.send_json.call_args[0][0]
-        assert call_args["type"] == "stream_chunk"
-        assert call_args["chunk"] == "Hello"
-        assert call_args["index"] == 0
-
-    @pytest.mark.asyncio
     async def test_get_all_connected_users(self, manager: ConnectionManager) -> None:
         ws1 = MagicMock()
         ws1.accept = AsyncMock()

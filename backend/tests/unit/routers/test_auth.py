@@ -9,11 +9,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import status
-
 from app.middleware.auth import create_token_pair, verify_access_token
 from app.routers.auth import hash_password, verify_password
-
+from fastapi import status
 
 # --- Helper fixtures ---
 
@@ -173,6 +171,7 @@ class TestLogin:
         assert data["token_type"] == "bearer"
         assert data["role"] == "user"
         assert "refresh_token" in response.cookies or True  # httponly cookie may not be visible in test client
+
 
     async def test_login_wrong_password(self, auth_client: Any, mock_db: MagicMock, sample_user_doc: dict) -> None:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)

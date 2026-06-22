@@ -77,6 +77,14 @@ class MindfulnessAgent(BaseAgent):
                 "- Soft ambient sound optional"
             )
 
+        rag_context = ""
+        if ctx.rag_chunks:
+            rag_context = (
+                "\nRELEVANT THERAPY KNOWLEDGE:\n"
+                + "\n---\n".join(ctx.rag_chunks[:3])
+                + "\n---\n"
+            )
+
         return (
             f"You are the Mindfulness Agent of MindLens.\n"
             f"Your role: {self.description}\n"
@@ -87,6 +95,7 @@ class MindfulnessAgent(BaseAgent):
             f"Receptiveness to grounding: {ctx.eos.receptiveness.grounding:.2f}\n"
             "\nTECHNIQUE TO USE:\n"
             f"{technique}\n"
+            f"{rag_context}"
             "\nINSTRUCTIONS:\n"
             "1. Guide the user through ONE technique step by step.\n"
             "2. Use their name. Keep instructions clear and numbered.\n"

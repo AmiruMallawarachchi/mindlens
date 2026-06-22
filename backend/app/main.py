@@ -18,7 +18,14 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.db import connect_db, disconnect_db, get_db_client
 from app.middleware import MindLensAuthMiddleware
-from app.routers import auth_router, chat_router, dashboard_router, session_router
+from app.routers import (
+    auth_router,
+    chat_router,
+    dashboard_router,
+    memory_router,
+    onboarding_router,
+    session_router,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -70,6 +77,9 @@ def create_app() -> FastAPI:
     app.include_router(session_router, prefix="/api/v1/sessions", tags=["Session"])
     app.include_router(chat_router, prefix="/ws", tags=["WebSocket"])
     app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    app.include_router(onboarding_router, prefix="/api/v1/onboarding", tags=["Onboarding"])
+    app.include_router(memory_router, prefix="/api/v1/memory", tags=["Memory"])
+
 
     # --- Global exception handler -------------------------------------------
     @app.exception_handler(Exception)

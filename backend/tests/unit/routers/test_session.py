@@ -7,9 +7,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import status
-
 from app.middleware.auth import create_token_pair
+from fastapi import status
 
 
 def _make_async_cursor(docs: list[dict]) -> Any:
@@ -136,8 +135,6 @@ class TestListSessions:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
         mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
         mock_db.safety_events = MagicMock()
-
-        # Create mock cursor
         cursor = _make_async_cursor([sample_session_doc])
         mock_db.sessions.find = MagicMock(return_value=cursor)
 
@@ -210,6 +207,7 @@ class TestGetSession:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
     async def test_get_session_wrong_owner(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)

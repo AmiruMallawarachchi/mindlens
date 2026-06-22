@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"  # <-- ADD THIS: ignores extra fields in .env
+        extra="ignore"
     )
     
     openai_api_key: str = ""
@@ -33,19 +33,22 @@ class Settings(BaseSettings):
     # --- Debug --------------------------------------------------------------
     DEBUG: bool = False
 
-    # --- Model IDs (must match your HuggingFace Hub repos) -----------------
+    # --- Model IDs ----------------------------------------------------------
     EMOTION_MODEL_ID: str = "SamLowe/roberta-base-go_emotions"
     CRISIS_MODEL_ID: str = "AmiruMallawarachchi/mindlens-crisis"
     MH_MODEL_ID: str = "AmiruMallawarachchi/mindlens-mh-classifier"
 
-    # --- CORS (canonical list — used by main.py) ----------------------------
+    # --- CORS ---------------------------------------------------------------
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "https://localhost:3000",
         "http://127.0.0.1:3000",
     ]
     
-    # --- Rate Limiting (in-memory, no Redis) ------------------------------
+
+
+    # --- Rate Limiting (in-memory) ----------------------------------------
+
     RATE_LIMIT_PER_IP_MINUTE: int = 100
     RATE_LIMIT_PER_USER_HOUR: int = 60
     RATE_LIMIT_LOGIN_LOCKOUT_MINUTES: int = 15
@@ -63,6 +66,19 @@ class Settings(BaseSettings):
     ADMIN_ROLE_NAME: str = "admin"
     USER_ROLE_NAME: str = "user"
     
+
+    # --- RAG / ChromaDB -----------------------------------------------------
+    RAG_COLLECTION_NAME: str = "mindlens_therapy_knowledge"
+    RAG_EMBED_MODEL: str = "all-MiniLM-L6-v2"
+    RAG_K_RESULTS: int = 5
+    RAG_FETCH_K: int = 20
+    RAG_LAMBDA_MULT: float = 0.5
+    RAG_CHUNK_SIZE: int = 400
+    RAG_CHUNK_OVERLAP: int = 50
+    RAG_KNOWLEDGE_PATH: str = "data/therapy_knowledge.json"
+    CHROMADB_PERSIST_DIR: str = "chroma_db"
+    
+
     @field_validator('cors_origins', mode='before')
     @classmethod
     def parse_cors_origins(cls, v):

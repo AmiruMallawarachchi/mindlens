@@ -25,6 +25,7 @@ from app.agents.progress_agent import ProgressAgent
 from app.agents.reflection_agent import ReflectionAgent
 from app.agents.response_assembler import ResponseAssembler
 from app.agents.routine_agent import RoutineAgent
+from app.agents.safety_gate import safety_gate
 from app.agents.session_memory_save import SessionMemorySave
 from app.core.emotion_labels import (
     EMOTION_LABELS,
@@ -38,6 +39,7 @@ from app.core.emotional_os import (
     Modality,
 )
 from app.models.loader import ModelManager
+from app.rag.retriever import TherapyRetriever, get_retriever
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,6 +54,7 @@ class Orchestrator:
     def __init__(self) -> None:
         self.models = ModelManager()
         self._assembler = ResponseAssembler()
+        self._retriever = get_retriever()
         self._init_registry()
 
     def _init_registry(self) -> None:
@@ -93,10 +96,11 @@ class Orchestrator:
         """
         Complete turn pipeline:
         1. Run model inference → build EOS
-        2. Select agents based on EOS
-        3. Run all agents in parallel
-        4. Assemble response
-        5. Return full result with assembled text
+        2. Retrieve RAG context (if not provided)
+        3. Select agents based on EOS
+        4. Run all agents in parallel
+        5. Assemble response
+        6. Return full result with assembled text
         """
         # Step 1: Model inference + EOS
         turn_result = await self.process_turn(user_text)
@@ -104,7 +108,18 @@ class Orchestrator:
         agent_names = turn_result["agents"]
         crisis_flag = turn_result["crisis_flag"]
 
-        # Step 2: Build agent context
+        # Step 2: Retrieve RAG context if not provided
+        if rag_chunks is None and not crisis_flag:
+            try:
+                rag_chunks = self._retriever.retrieve(user_text, eos)
+            except Exception as exc:
+                logger.warning("RAG retrieval failed: %s", exc)
+                rag_chunks = []
+        elif crisis_flag:
+            # Crisis: skip RAG, use crisis protocols directly
+            rag_chunks = []
+
+        # Step 3: Build agent context
         ctx = AgentContext(
             eos=eos,
             user_text=user_text,

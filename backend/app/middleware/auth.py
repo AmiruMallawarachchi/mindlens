@@ -6,7 +6,8 @@ Provides:
   - In-memory rate limiting (no Redis dependency)
   - PII anonymization on request body (for model inputs)
   - Request ID injection for traceability
-  - Login lockout after 5 failed attempts
+  - Login lockout after 5 failed attempts (15 min)
+
 
 All state is in-memory (per-process). Suitable for single-instance
 FastAPI deployments. For multi-instance, a Redis-backed store would be

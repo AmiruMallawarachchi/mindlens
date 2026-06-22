@@ -54,6 +54,13 @@ class EmpathyAgent(BaseAgent):
         )
 
     def _build_system_prompt(self, ctx: AgentContext) -> str:
+        rag_context = ""
+        if ctx.rag_chunks:
+            rag_context = (
+                "\nRELEVANT THERAPY KNOWLEDGE:\n"
+                + "\n---\n".join(ctx.rag_chunks[:3])
+                + "\n---\n"
+            )
         return (
             f"You are the Empathy Agent of MindLens.\n"
             f"Your role: {self.description}\n"
@@ -63,6 +70,7 @@ class EmpathyAgent(BaseAgent):
             f"Suppressed emotion: {ctx.eos.suppressed_emotion or 'none'}\n"
             f"User's name: {ctx.user_name}\n"
             f"Session depth: {ctx.eos.session_depth:.2f}\n"
+            f"{rag_context}"
             "\nINSTRUCTIONS:\n"
             "1. Validate the user's feeling directly. Use their name.\n"
             "2. Reflect back the emotion you heard.\n"

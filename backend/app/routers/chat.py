@@ -59,6 +59,8 @@ async def websocket_chat(
       new WebSocket(url, ["eyJhbG..."])
 
     Or as a query param `token=` (fallback, less secure).
+    Full path: /ws/chat/{session_id}
+
     """
     # -------------------------------------------------------------------
     # 1. Extract and validate JWT
