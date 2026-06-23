@@ -1,10 +1,18 @@
 """
-Mindfulness Agent
-=================
-Generates grounding exercises, breathing techniques, and sensory
-anchors based on the user's distress level.
-Runs when distress > 0.5 or core emotion is anxiety/fear.
-Uses Groq 8B (max 250 tokens for structured exercises).
+Mindfulness Agent — MindLens v3 SYSTEM.md §5.8
+=================================================
+Runs when distress > 0.5 OR core_emotion in [anxiety, fear, panic].
+Uses Groq 8B (fast, lightweight). Max 250 tokens.
+
+Purpose: Generate a SHORT, personalized guided exercise (not a static script).
+Rules:
+- Maximum 5 steps
+- Use their name once
+- Speak directly to them: "Close your eyes, {nickname}..."
+- Choose: 4-7-8 breathing / box breathing / 5-4-3-2-1 grounding / body scan
+  (pick the best for surface_emotion)
+- Sound like a calm friend, not a YouTube wellness video
+- Do NOT say "I'd like to guide you through..." or "Let's begin our session"
 """
 
 from __future__ import annotations
@@ -13,25 +21,42 @@ from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
 
 
+# Emotion → best technique mapping (SYSTEM.md §5.8 + §5.11)
+EMOTION_TECHNIQUE = {
+    "anxiety": "4-7-8 breathing or 5-4-3-2-1 grounding (gentle, anchoring)",
+    "fear": "box breathing (steady, predictable rhythm)",
+    "panic": "5-4-3-2-1 grounding (immediate sensory anchoring)",
+    "anger": "box breathing (cooling down, steady rhythm)",
+    "sadness": "body scan (gentle awareness, self-compassion)",
+    "grief": "body scan (gentle awareness, self-compassion)",
+    "stress": "4-7-8 breathing (slowing down the nervous system)",
+    "overwhelm": "5-4-3-2-1 grounding (reduce sensory overload)",
+    "neutral": "4-7-8 breathing (gentle relaxation)",
+}
+
+
 class MindfulnessAgent(BaseAgent):
     """
-    Delivers evidence-based grounding techniques: 4-7-8 breathing,
-    5-4-3-2-1 senses, body scan, progressive muscle relaxation.
+    Delivers personalized, short grounding exercises based on distress
+    level and current emotion. NOT a static script — LLM-generated
+    with user name and context.
+
+    Trigger: distress > 0.5 OR core_emotion in [anxiety, fear, panic].
     """
 
     def __init__(self) -> None:
         super().__init__(
             name="mindfulness",
-            description="Provide grounding and breathing exercises",
+            description="Provide personalized grounding and breathing exercises",
             llm_tier="8B",
             max_tokens=250,
             always_runs=False,
         )
 
     async def run(self, ctx: AgentContext) -> AgentOutput:
-        """Generate a grounding exercise tailored to distress level."""
-        system = self._build_system_prompt(ctx)
-        user = self._build_user_prompt(ctx)
+        """Generate a personalized, warm mindfulness exercise."""
+        system = self._build_system_prompt_v3(ctx)
+        user = self._build_user_prompt_v3(ctx)
 
         client = get_groq_client()
         result = await client.chat(
@@ -44,7 +69,7 @@ class MindfulnessAgent(BaseAgent):
 
         return AgentOutput(
             agent_name=self.name,
-            text=result.text,
+            text=result.text.strip(),
             metadata={
                 "llm_tier": self.llm_tier,
                 "tokens_used": result.tokens_used,
@@ -52,57 +77,50 @@ class MindfulnessAgent(BaseAgent):
             },
         )
 
-    def _build_system_prompt(self, ctx: AgentContext) -> str:
+    def _build_system_prompt_v3(self, ctx: AgentContext) -> str:
+        """SYSTEM.md §5.8: Short, warm, personalized mindfulness exercise."""
+        name = ctx.user_name or "friend"
         distress = ctx.eos.distress_level
+        emotion = ctx.eos.surface_emotion or "neutral"
 
+        # Pick technique based on emotion
+        technique = EMOTION_TECHNIQUE.get(
+            emotion.lower(),
+            "4-7-8 breathing or 5-4-3-2-1 grounding"
+        )
+
+        # Time guidance based on distress
+        time_note = "about 2 minutes"
         if distress >= 0.8:
-            technique = (
-                "EMERGENCY GROUNDING (severe distress):\n"
-                "- 5-4-3-2-1 senses technique (name 5 things you see, 4 you hear, etc.)\n"
-                "- Cold water on wrists or ice cube holding\n"
-                "- Grounding statement: 'I am here, I am safe, this feeling will pass'"
-            )
+            time_note = "quick — 1 minute, emergency grounding"
         elif distress >= 0.6:
-            technique = (
-                "BOX BREATHING (moderate distress):\n"
-                "- Inhale 4 counts, hold 4, exhale 4, hold 4\n"
-                "- Repeat 4 cycles\n"
-                "- Focus on the square pattern of breath"
-            )
+            time_note = "about 2 minutes"
         else:
-            technique = (
-                "4-7-8 RELAXATION BREATH (mild distress):\n"
-                "- Inhale 4 counts, hold 7, exhale 8\n"
-                "- Gentle belly breathing\n"
-                "- Soft ambient sound optional"
-            )
-
-        rag_context = ""
-        if ctx.rag_chunks:
-            rag_context = (
-                "\nRELEVANT THERAPY KNOWLEDGE:\n"
-                + "\n---\n".join(ctx.rag_chunks[:3])
-                + "\n---\n"
-            )
+            time_note = "about 3 minutes, gentle relaxation"
 
         return (
-            f"You are the Mindfulness Agent of MindLens.\n"
-            f"Your role: {self.description}\n"
-            f"User's name: {ctx.user_name}\n"
-            f"Distress level: {distress:.2f}\n"
-            f"Core emotion: {ctx.eos.core_emotion or 'unknown'}\n"
-            f"Receptiveness to breathing: {ctx.eos.receptiveness.breathing:.2f}\n"
-            f"Receptiveness to grounding: {ctx.eos.receptiveness.grounding:.2f}\n"
-            "\nTECHNIQUE TO USE:\n"
-            f"{technique}\n"
-            f"{rag_context}"
-            "\nINSTRUCTIONS:\n"
-            "1. Guide the user through ONE technique step by step.\n"
-            "2. Use their name. Keep instructions clear and numbered.\n"
-            "3. Be gentle — no pressure. They can skip any step.\n"
-            "4. Aim for 4-6 sentences total.\n"
-            "5. Never diagnose.\n"
+            f"You are MindLens — a calm, warm wellbeing coach.\n"
+            f"\nUSER CONTEXT:\n"
+            f"- Name: {name}\n"
+            f"- Age group: {ctx.eos.age_group.value}\n"
+            f"- Current emotion: {emotion} (distress: {distress:.2f})\n"
+            f"- Preferred technique: {technique}\n"
+            f"\nINSTRUCTIONS (follow ALL of them):\n"
+            f"1. Generate a SHORT, warm mindfulness exercise for {name} RIGHT NOW.\n"
+            f"2. Maximum 5 steps. Number them (1., 2., 3., 4., 5.).\n"
+            f"3. Use their name ONCE, naturally.\n"
+            f"4. Speak directly to them: 'Close your eyes, {name}...' or 'Breathe in slowly, {name}...'\n"
+            f"5. Choose the technique based on their emotion: {technique}.\n"
+            f"6. Sound like a calm friend, NOT a YouTube wellness video.\n"
+            f"7. Do NOT say: 'I'd like to guide you through...' or 'Let's begin our session' or 'Welcome to this meditation.'\n"
+            f"8. Keep it warm, simple, and actionable. No jargon.\n"
+            f"9. This should take {time_note}.\n"
+            f"10. End with a gentle encouragement, not a sales pitch.\n"
+            f"\nRespond ONLY with the exercise. No intro, no outro, no meta-commentary.\n"
         )
+
+    def _build_user_prompt_v3(self, ctx: AgentContext) -> str:
+        return f"User is feeling {ctx.eos.surface_emotion} (distress: {ctx.eos.distress_level:.2f}). Please give them a grounding exercise."
 
     def _build_user_prompt(self, ctx: AgentContext) -> str:
         return f"User said: {ctx.user_text}"
