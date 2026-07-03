@@ -30,11 +30,9 @@ class TestCrisisAgent:
 
     @pytest.mark.asyncio
     async def test_moderate_distress_template(self, agent: CrisisAgent) -> None:
-        from app.core.emotional_os import EmotionalOperatingState
-        eos = EmotionalOperatingState(distress_level=0.6)
-        ctx = EmotionalOperatingState.__new__(EmotionalOperatingState)
         # Use a proper context with moderate distress
         from app.agents.base_agent import AgentContext
+        from app.core.emotional_os import EmotionalOperatingState
         ctx = AgentContext(
             eos=EmotionalOperatingState(distress_level=0.6),
             user_text="I feel hopeless",

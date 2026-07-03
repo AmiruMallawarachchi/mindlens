@@ -53,7 +53,7 @@ def load_therapy_knowledge(path: str | None = None) -> list[dict[str, Any]]:
         logger.warning("Knowledge file not found: %s", path)
         return []
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     logger.info("Loaded %d knowledge entries from %s", len(data), path)
     return data

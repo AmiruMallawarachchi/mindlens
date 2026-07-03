@@ -21,8 +21,6 @@ Security:
 from __future__ import annotations
 
 import datetime
-import time
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -38,7 +36,6 @@ from app.middleware.auth import (
     create_token_pair,
     get_rate_limit_store,
     require_user,
-    verify_access_token,
     verify_refresh_token,
 )
 from app.utils.logger import get_logger

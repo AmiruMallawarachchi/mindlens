@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
-from app.config import settings
 from app.db import get_db
 from app.middleware.auth import require_user
 from app.utils.logger import get_logger

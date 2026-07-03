@@ -44,14 +44,14 @@ class TestMindfulnessAgent:
     @pytest.mark.asyncio
     async def test_system_prompt_adapts_to_distress(self, agent: MindfulnessAgent, agent_context: EmotionalOperatingState) -> None:
         # Default distress in fixture is 0.5 → box breathing
-        prompt = agent._build_system_prompt(agent_context)
-        assert "BOX BREATHING" in prompt or "4-7-8" in prompt or "EMERGENCY" in prompt
+        prompt = agent._build_system_prompt_v3(agent_context)
+        assert "box breathing" in prompt.lower() or "4-7-8" in prompt.lower() or "emergency" in prompt.lower()
 
     @pytest.mark.asyncio
     async def test_high_distress_emergency(self, agent: MindfulnessAgent, crisis_agent_context: EmotionalOperatingState) -> None:
-        prompt = agent._build_system_prompt(crisis_agent_context)
-        assert "EMERGENCY GROUNDING" in prompt
-        assert "5-4-3-2-1" in prompt
+        prompt = agent._build_system_prompt_v3(crisis_agent_context)
+        assert "emergency grounding" in prompt.lower()
+        assert "5-4-3-2-1" in prompt.lower()
 
     def test_max_tokens(self, agent: MindfulnessAgent) -> None:
         assert agent.max_tokens == 250

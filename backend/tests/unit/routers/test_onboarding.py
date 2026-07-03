@@ -12,7 +12,7 @@ from fastapi import status
 
 
 @pytest.fixture
-def onboarding_client(mock_db: MagicMock):
+async def onboarding_client(mock_db: MagicMock):
     from app.main import app
     from httpx import AsyncClient
 

@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.agents.base_agent import AgentOutput
 from app.agents.streaming import (
     StreamingResponse,
     stream_agent_output,
     stream_pipeline_result,
 )
-from app.core.emotional_os import EmotionalOperatingState
 from app.core.connection_manager import ConnectionManager
+from app.core.emotional_os import EmotionalOperatingState
 
 
 class TestStreamingResponseChunking:

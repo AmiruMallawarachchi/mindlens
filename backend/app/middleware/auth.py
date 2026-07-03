@@ -26,12 +26,14 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
-from fastapi import Request, Response
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPBearer
 from jose import JWTError, jwt
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
+from app.db import get_db
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -367,10 +369,7 @@ def _get_client_ip(request: Request) -> str:
 # FastAPI Dependencies
 # ---------------------------------------------------------------------------
 
-from fastapi import Depends, HTTPException, status
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.db import get_db
 
 
 async def require_user(

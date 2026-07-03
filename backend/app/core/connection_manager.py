@@ -10,10 +10,9 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from collections.abc import Callable
 from typing import Any
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 
 from app.utils.logger import get_logger
 

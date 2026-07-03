@@ -22,9 +22,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.agents.base_agent import AgentContext, AgentOutput
-from app.agents.groq_client import GroqClient, get_groq_client
-from app.config import settings
+from app.agents.base_agent import AgentOutput
 from app.core.connection_manager import get_connection_manager
 from app.core.emotional_os import EmotionalOperatingState
 from app.utils.logger import get_logger

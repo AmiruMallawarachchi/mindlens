@@ -2,30 +2,25 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import Request, Response
-from jose import jwt
-from starlette.datastructures import Headers
-
 from app.config import settings
 from app.middleware.auth import (
     JWTUser,
     MindLensAuthMiddleware,
     RateLimitStore,
-    anonymize_text,
     anonymize_request_body,
+    anonymize_text,
     create_admin_token,
     create_token_pair,
     verify_access_token,
     verify_admin_token,
     verify_refresh_token,
 )
-
+from fastapi import Request, Response
+from jose import JWTError, jwt
 
 # --- Token creation / verification tests ---
 
@@ -75,7 +70,7 @@ class TestTokenVerification:
 
     def test_verify_access_token_wrong_type_fails(self) -> None:
         result = create_token_pair("user_123", "test@example.com", role="user")
-        with pytest.raises(Exception):
+        with pytest.raises(JWTError):
             verify_access_token(result["refresh_token"])
 
     def test_verify_refresh_token_success(self) -> None:
@@ -91,7 +86,7 @@ class TestTokenVerification:
 
     def test_verify_admin_token_with_user_token_fails(self) -> None:
         result = create_token_pair("user_123", "test@example.com", role="user")
-        with pytest.raises(Exception):
+        with pytest.raises(JWTError):
             verify_admin_token(result["access_token"])
 
     def test_verify_expired_token_fails(self) -> None:
@@ -107,7 +102,7 @@ class TestTokenVerification:
             "exp": now,
         }
         token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
-        with pytest.raises(Exception):
+        with pytest.raises(JWTError):
             verify_access_token(token)
 
 

@@ -24,7 +24,6 @@ from __future__ import annotations
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
 
-
 # Forbidden phrases — must NEVER appear in output (SYSTEM.md §5.4 Rule 7)
 FORBIDDEN_PHRASES = [
     "I understand your feelings",

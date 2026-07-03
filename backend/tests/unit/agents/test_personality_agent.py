@@ -5,10 +5,10 @@ from __future__ import annotations
 import pytest
 from app.agents.base_agent import AgentContext
 from app.agents.personality_agent import (
-    PersonalityAgent,
+    SOCIAL_DRAIN_KEYWORDS,
     SOCIAL_POSITIVE_KEYWORDS,
     SOLO_POSITIVE_KEYWORDS,
-    SOCIAL_DRAIN_KEYWORDS,
+    PersonalityAgent,
 )
 from app.core.emotional_os import EmotionalOperatingState
 

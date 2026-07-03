@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from app.rag.ingest import chunk_text, ingest_documents, load_therapy_knowledge
 
 

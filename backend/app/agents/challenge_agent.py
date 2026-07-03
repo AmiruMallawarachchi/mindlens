@@ -97,8 +97,8 @@ class ChallengeAgent(BaseAgent):
         """SYSTEM.md §5.6: One Socratic question based on detected distortion."""
         name = ctx.user_name or "friend"
         age_group = ctx.eos.age_group.value
-        distortion_label = ctx.eos.get("distortion_label", "unknown")  # From distortion agent
-        distortion_confidence = ctx.eos.get("distortion_confidence", 0.0)
+        distortion_label = getattr(ctx.eos, "distortion_label", "unknown")  # From distortion agent
+        distortion_confidence = getattr(ctx.eos, "distortion_confidence", 0.0)
 
         # Age tone
         tone = "warm and curious" if age_group == "adult" else "casual and curious"

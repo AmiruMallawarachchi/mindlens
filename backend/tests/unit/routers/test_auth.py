@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import datetime
-import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from app.middleware.auth import create_token_pair, verify_access_token
+from app.middleware.auth import create_token_pair
 from app.routers.auth import hash_password, verify_password
 from fastapi import status
 
@@ -17,7 +15,7 @@ from fastapi import status
 
 
 @pytest.fixture
-def auth_client(mock_db: MagicMock):
+async def auth_client(mock_db: MagicMock):
     """FastAPI test client with mocked DB dependency injection."""
     from app.main import app
     from httpx import AsyncClient

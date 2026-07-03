@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.agents.base_agent import (
@@ -12,7 +12,7 @@ from app.agents.base_agent import (
     BaseAgent,
     get_registry,
 )
-from app.core.emotional_os import EmotionalOperatingState, Modality
+from app.core.emotional_os import EmotionalOperatingState
 
 
 class DummyAgent(BaseAgent):

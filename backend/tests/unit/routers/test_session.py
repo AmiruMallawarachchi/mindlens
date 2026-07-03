@@ -22,13 +22,13 @@ def _make_async_cursor(docs: list[dict]) -> Any:
         def __init__(self, docs: list[dict]) -> None:
             self._docs = docs
 
-        def skip(self, n: int) -> "_Cursor":
+        def skip(self, n: int) -> _Cursor:
             return self
 
-        def limit(self, n: int) -> "_Cursor":
+        def limit(self, n: int) -> _Cursor:
             return self
 
-        def sort(self, *args, **kwargs) -> "_Cursor":
+        def sort(self, *args, **kwargs) -> _Cursor:
             return self
 
         def __aiter__(self) -> Any:
@@ -38,7 +38,7 @@ def _make_async_cursor(docs: list[dict]) -> Any:
 
 
 @pytest.fixture
-def session_client(mock_db: MagicMock):
+async def session_client(mock_db: MagicMock):
     """FastAPI test client with mocked DB for session tests."""
     from app.main import app
     from httpx import AsyncClient

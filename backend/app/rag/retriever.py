@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.config import settings
 from app.core.emotional_os import EmotionalOperatingState
 from app.rag.vector_store import TherapyVectorStore, get_vector_store
 from app.utils.logger import get_logger
@@ -131,9 +130,9 @@ class TherapyRetriever:
         )
 
         # Rebuild metadata list in same order as ranked docs
-        ranked_set = {d for d in ranked}
+        ranked_set = set(ranked)
         output = []
-        for doc, meta, doc_id, dist in zip(docs, metas, ids, distances):
+        for doc, meta, doc_id, dist in zip(docs, metas, ids, distances, strict=False):
             if doc in ranked_set:
                 output.append(
                     {
@@ -212,7 +211,7 @@ class TherapyRetriever:
             return documents
 
         scored = []
-        for doc, meta in zip(documents, metadatas):
+        for doc, meta in zip(documents, metadatas, strict=False):
             tags = meta.get("tags", "")
             category = meta.get("category", "")
             text = f"{tags} {category}".lower()

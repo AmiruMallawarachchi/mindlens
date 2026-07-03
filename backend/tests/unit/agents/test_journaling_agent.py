@@ -38,9 +38,9 @@ class TestJournalingAgent:
 
     @pytest.mark.asyncio
     async def test_system_prompt_three_questions(self, agent: JournalingAgent, agent_context: EmotionalOperatingState) -> None:
-        prompt = agent._build_system_prompt(agent_context)
+        prompt = agent._build_system_prompt_v3(agent_context)
         assert "exactly 3" in prompt.lower()
         assert "never diagnose" in prompt.lower()
 
     def test_max_tokens(self, agent: JournalingAgent) -> None:
-        assert agent.max_tokens == 150
+        assert agent.max_tokens == 120

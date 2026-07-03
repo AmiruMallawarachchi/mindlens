@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.connection_manager import ConnectionManager
-from app.middleware.auth import create_token_pair
 
 
 @pytest.fixture

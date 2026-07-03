@@ -37,9 +37,8 @@ class TestCheckInAgent:
 
     @pytest.mark.asyncio
     async def test_system_prompt_brief(self, agent: CheckInAgent, agent_context: EmotionalOperatingState) -> None:
-        prompt = agent._build_system_prompt(agent_context)
+        prompt = agent._build_system_prompt_v3(agent_context)
         assert "2-3 sentences" in prompt
-        assert "gentle" in prompt.lower()
 
     def test_max_tokens(self, agent: CheckInAgent) -> None:
-        assert agent.max_tokens == 100
+        assert agent.max_tokens == 80

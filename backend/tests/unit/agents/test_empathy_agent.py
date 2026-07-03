@@ -5,9 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from app.agents.empathy_agent import EmpathyAgent, FORBIDDEN_PHRASES
-from app.core.emotional_os import AgeGroup, EmotionalOperatingState, Modality
 from app.agents.base_agent import AgentContext
+from app.agents.empathy_agent import FORBIDDEN_PHRASES, EmpathyAgent
+from app.core.emotional_os import AgeGroup, EmotionalOperatingState
 
 
 class TestEmpathyAgent:

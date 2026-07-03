@@ -20,7 +20,6 @@ from __future__ import annotations
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
 
-
 # Emotion → best technique mapping (SYSTEM.md §5.8 + §5.11)
 EMOTION_TECHNIQUE = {
     "anxiety": "4-7-8 breathing or 5-4-3-2-1 grounding (gentle, anchoring)",

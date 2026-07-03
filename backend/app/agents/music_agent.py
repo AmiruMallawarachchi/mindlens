@@ -21,7 +21,6 @@ EMOTION → AUDIO FEATURES (SYSTEM.md §5.11):
 from __future__ import annotations
 
 import os
-from typing import Any
 
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
@@ -49,7 +48,7 @@ EMOTION_AUDIO_FEATURES = {
 STATIC_FALLBACK = {
     "anxiety": [
         {"name": "Weightless", "artist": "Marconi Union", "spotify_url": "https://open.spotify.com/track/6k3KWxKmnJ8e", "youtube_url": "https://www.youtube.com/watch?v=UfcAVejslrU"},
-        {"name": "Clair de Lune", "artist": "Claude Debussy", "spotify_url": "https://open.spotify.com/track/6CuJQ3WlX", "youtube_url": "https://www.youtube.com/watch?v=WNcsurk", "youtube_url": "https://www.youtube.com/watch?v=WNcsurk"},
+        {"name": "Clair de Lune", "artist": "Claude Debussy", "spotify_url": "https://open.spotify.com/track/6CuJQ3WlX", "youtube_url": "https://www.youtube.com/watch?v=WNcsurk"},
     ],
     "sadness": [
         {"name": "Holocene", "artist": "Bon Iver", "spotify_url": "https://open.spotify.com/track/1", "youtube_url": "https://www.youtube.com/watch?v=2"},

@@ -4,7 +4,7 @@ Unit tests for session memory management
 
 import datetime
 
-from backend.app.memory.session import SessionMemory, SessionSnapshot, Turn
+from app.memory.session import SessionMemory, SessionSnapshot, Turn
 
 
 class TestSessionMemory:

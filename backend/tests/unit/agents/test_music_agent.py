@@ -37,9 +37,10 @@ class TestMusicAgent:
 
     @pytest.mark.asyncio
     async def test_system_prompt_maps_emotion(self, agent: MusicAgent, agent_context: EmotionalOperatingState) -> None:
-        prompt = agent._build_system_prompt(agent_context)
-        assert "MUSIC TYPE" in prompt
-        assert "ambient" in prompt.lower() or "binaural" in prompt.lower() or "instrumental" in prompt.lower()
+        audio_features = {"genres": ["ambient", "classical"], "tempo": (60, 75), "energy": (0.2, 0.4)}
+        prompt = agent._build_music_wrapper_prompt(agent_context, "anxiety", audio_features)
+        assert "tempo ~67 BPM" in prompt
+        assert "ambient" in prompt.lower()
 
     def test_max_tokens(self, agent: MusicAgent) -> None:
         assert agent.max_tokens == 200

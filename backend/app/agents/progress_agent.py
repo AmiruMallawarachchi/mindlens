@@ -33,26 +33,14 @@ class ProgressAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             name="progress",
-            description="Provide weekly emotional insight and trend summary",
-            llm_tier="70B",  # SYSTEM.md: "needs pattern synthesis across sessions"
+            description="Provide weekly insights into progress and growth",
+            llm_tier="70B",  # SYSTEM.md: "needs pattern synthesis"
             max_tokens=350,
             always_runs=False,
         )
 
     async def run(self, ctx: AgentContext) -> AgentOutput:
         """Generate a progress insight based on session history."""
-        # Gate: needs at least 7 sessions to generate meaningful insight
-        session_count = ctx.eos.session_turn_count
-        if session_count < 7:
-            return AgentOutput(
-                agent_name=self.name,
-                text="",
-                metadata={
-                    "skipped": True,
-                    "reason": f"insufficient_sessions ({session_count} < 7)",
-                    "llm_tier": "none",
-                },
-            )
 
         system = self._build_system_prompt_v3(ctx)
         user = self._build_user_prompt_v3(ctx)
@@ -90,7 +78,7 @@ class ProgressAgent(BaseAgent):
             f"1. Generate a weekly insight summary for {name}.\n"
             f"2. Structure it as 4-5 short paragraphs:\n"
             f"   - Mood trend: how emotions shifted over the last 7 sessions.\n"
-            f"   - Most common emotion: what showed up most.\n"
+            f"3. MAX 6 items total across the whole day. Keep it tiny routine.\n"
             f"   - Most effective coping strategy: what seemed to help them most.\n"
             f"   - One observation about growth: what you notice they're getting better at.\n"
             f"   - Suggestion for next week: one gentle, practical idea.\n"
@@ -99,7 +87,9 @@ class ProgressAgent(BaseAgent):
             f"5. If age group is 'teen': keep it casual, relatable.\n"
             f"6. If age group is 'adult': slightly deeper, more structured.\n"
             f"7. NEVER diagnose. Never compare to others.\n"
-            f"8. Never use: 'I understand your feelings', 'That must be hard', 'I hear you'.\n"
+            f"8. Never use: 'I understand ...'\n"
+            f"9. NEVER use the word 'celebrate' in the prompt.\n"
+            f"10. NEVER use the phrase 'celebrate' when describing progress.\n"
             f"\nRespond ONLY with the insight summary. No bullet points. Use simple paragraphs.\n"
         )
 

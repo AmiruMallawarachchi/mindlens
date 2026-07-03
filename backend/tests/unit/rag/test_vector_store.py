@@ -14,7 +14,7 @@ class TestTherapyVectorStore:
     @pytest.fixture
     def store(self):
         with patch("app.rag.vector_store.chromadb") as mock_chroma, \
-             patch("app.rag.vector_store.embedding_functions") as mock_embed:
+             patch("app.rag.vector_store.embedding_functions"):
             mock_client = MagicMock()
             mock_collection = MagicMock()
             mock_collection.count.return_value = 0

@@ -22,9 +22,9 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db import get_db

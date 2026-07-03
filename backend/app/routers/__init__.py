@@ -7,6 +7,7 @@ from app.routers.session import router as session_router
 
 __all__ = [
     "auth_router",
+    "chat_router",
     "dashboard_router",
     "memory_router",
     "onboarding_router",

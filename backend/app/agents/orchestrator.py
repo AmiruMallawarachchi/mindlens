@@ -25,7 +25,6 @@ from app.agents.progress_agent import ProgressAgent
 from app.agents.reflection_agent import ReflectionAgent
 from app.agents.response_assembler import ResponseAssembler
 from app.agents.routine_agent import RoutineAgent
-from app.agents.safety_gate import safety_gate
 from app.agents.session_memory_save import SessionMemorySave
 from app.core.emotion_labels import (
     EMOTION_LABELS,
@@ -39,7 +38,7 @@ from app.core.emotional_os import (
     Modality,
 )
 from app.models.loader import ModelManager
-from app.rag.retriever import TherapyRetriever, get_retriever
+from app.rag.retriever import get_retriever
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

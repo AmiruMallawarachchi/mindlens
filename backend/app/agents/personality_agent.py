@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 
-
 # Keywords for detecting social/introvert/extrovert tendencies
 SOCIAL_POSITIVE_KEYWORDS = [
     "hanging out", "met up with", "party", "group", "friends", "fun with",

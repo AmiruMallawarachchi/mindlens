@@ -21,19 +21,17 @@ Security:
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from jose import JWTError, jwt
+from jose import JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.agents.orchestrator import Orchestrator
 from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.core.connection_manager import get_connection_manager
-from app.core.emotional_os import EmotionalOperatingState
 from app.db import get_db
 from app.middleware.auth import verify_access_token
 from app.utils.logger import get_logger
@@ -130,7 +128,7 @@ async def websocket_chat(
                     websocket.receive_json(),
                     timeout=WS_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.info("WebSocket timeout for user %s", user_id)
                 await websocket.close(code=1000, reason="Session timeout")
                 break
@@ -206,7 +204,7 @@ async def websocket_chat(
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected: user=%s session=%s", user_id, session_id)
-    except Exception as exc:
+    except Exception:
         logger.exception("WebSocket loop error: user=%s session=%s", user_id, session_id)
     finally:
         # Cleanup
