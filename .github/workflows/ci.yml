@@ -2,13 +2,16 @@ name: MindLens CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, feat/**]
   pull_request:
     branches: [main, dev]
 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
     steps:
       - uses: actions/checkout@v4
 
@@ -18,20 +21,45 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install -r backend/requirements.txt
-          pip install pytest pytest-cov pytest-asyncio
+        run: python -m pip install -r requirements.txt
+
+      - name: Backend import smoke test
+        run: python -m pytest backend/tests/unit/test_import_smoke.py -v
 
       - name: Run tests
-        run: pytest tests/ -v || true
+        run: python -m pytest backend/tests -v
 
       - name: Run security scan
         run: |
-          pip install bandit
-          bandit -r backend/app -f json -o bandit-report.json || true
+          python -m pip install bandit
+          bandit -r backend/app -f json -o bandit-report.json
 
       - name: Check for hardcoded secrets
         run: |
-          pip install detect-secrets
+          python -m pip install detect-secrets
           detect-secrets scan --all-files --force-use-all-plugins
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
 
