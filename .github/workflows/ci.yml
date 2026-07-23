@@ -2,7 +2,7 @@ name: MindLens CI
 
 on:
   push:
-    branches: [main, dev, "feat/**", "agent/**"]
+    branches: [main, dev]
   pull_request:
     branches: [main, dev, "feat/**"]
 

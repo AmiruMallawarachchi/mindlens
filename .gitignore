@@ -27,6 +27,7 @@ notebooks/data/
 *.csv
 *.json
 !backend/data/therapy_knowledge.json
+!frontend/package-lock.json
 !data/reports/*.json
 !data/figures/*.png
 *.pt
