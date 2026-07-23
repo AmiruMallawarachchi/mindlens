@@ -21,16 +21,20 @@ Security:
 from __future__ import annotations
 
 import datetime
+import hashlib
+import hmac
+import secrets
 
+import bcrypt
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.config import settings
-from app.db import get_db
+from app.db import document_id_filter, get_db
 from app.middleware.auth import (
     create_admin_token,
     create_token_pair,
@@ -42,10 +46,9 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter()
 
 # --- Security Setup ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
 
 
@@ -60,6 +63,13 @@ class UserRegister(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     age: int = Field(..., ge=13, le=100)
     nickname: str | None = Field(None, max_length=100)
+
+    @field_validator("password")
+    @classmethod
+    def validate_bcrypt_length(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must not exceed 72 UTF-8 bytes")
+        return value
 
 
 class UserLogin(BaseModel):
@@ -77,6 +87,7 @@ class TokenResponse(BaseModel):
     expires_in: int  # seconds
     user_id: str
     role: str = "user"
+    csrf_token: str
 
 
 class TokenRefreshResponse(BaseModel):
@@ -85,6 +96,7 @@ class TokenRefreshResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    csrf_token: str
 
 
 class UserResponse(BaseModel):
@@ -118,16 +130,80 @@ class AdminTokenResponse(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    """Hash a plain password using bcrypt. Truncates to 72 bytes if needed."""
+    """Hash a plain password using bcrypt without silent truncation."""
     password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
-        password = password_bytes[:72].decode("utf-8", errors="ignore")
-    return pwd_context.hash(password)
+        raise ValueError("Password must not exceed 72 UTF-8 bytes")
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _audit_ip_hash(ip_address: str) -> str:
+    """Create a stable, non-reversible identifier for login audit correlation."""
+    return hmac.new(
+        settings.jwt_secret_key.encode("utf-8"),
+        ip_address.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _set_auth_cookies(response: Response, token_pair: dict[str, str]) -> str:
+    """Set secure authentication cookies and return the CSRF token."""
+    cookie_options = {
+        "httponly": True,
+        "secure": settings.effective_cookie_secure,
+        "samesite": settings.effective_cookie_samesite,
+        "domain": settings.cookie_domain,
+    }
+    response.set_cookie(
+        key="access_token",
+        value=token_pair["access_token"],
+        max_age=settings.jwt_expire_minutes * 60,
+        path="/",
+        **cookie_options,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=token_pair["refresh_token"],
+        max_age=settings.jwt_refresh_expire_minutes * 60,
+        path="/api/v1/auth",
+        **cookie_options,
+    )
+    csrf_token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        httponly=False,
+        secure=settings.effective_cookie_secure,
+        samesite=settings.effective_cookie_samesite,
+        domain=settings.cookie_domain,
+        max_age=settings.jwt_refresh_expire_minutes * 60,
+        path="/",
+    )
+    return csrf_token
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    """Expire all browser authentication state."""
+    common = {
+        "secure": settings.effective_cookie_secure,
+        "samesite": settings.effective_cookie_samesite,
+        "domain": settings.cookie_domain,
+    }
+    response.delete_cookie("access_token", path="/", httponly=True, **common)
+    response.delete_cookie(
+        "refresh_token", path="/api/v1/auth", httponly=True, **common
+    )
+    response.delete_cookie("csrf_token", path="/", httponly=False, **common)
 
 
 # --- Routes ---
@@ -187,16 +263,7 @@ async def register(
     # Create token pair
     token_pair = create_token_pair(user_id, user_data.email, role=settings.USER_ROLE_NAME)
 
-    # Set refresh token as httpOnly cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=token_pair["refresh_token"],
-        httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
-        max_age=settings.jwt_refresh_expire_minutes * 60,
-        path="/",
-    )
+    csrf_token = _set_auth_cookies(response, token_pair)
 
     return TokenResponse(
         access_token=token_pair["access_token"],
@@ -204,6 +271,7 @@ async def register(
         expires_in=settings.jwt_expire_minutes * 60,
         user_id=user_id,
         role=settings.USER_ROLE_NAME,
+        csrf_token=csrf_token,
     )
 
 
@@ -271,23 +339,14 @@ async def login(
     role = user.get("role", settings.USER_ROLE_NAME)
     token_pair = create_token_pair(user_id, credentials.email, role=role)
 
-    # Set refresh token as httpOnly cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=token_pair["refresh_token"],
-        httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
-        max_age=settings.jwt_refresh_expire_minutes * 60,
-        path="/",
-    )
+    csrf_token = _set_auth_cookies(response, token_pair)
 
     # Log login event (anonymized IP)
     ip = request.client.host if request.client else "unknown"
     await db.audit_log.insert_one({
         "event": "user_login",
         "user_id": user_id,
-        "ip_hash": hash(ip) % (2**32),  # simple hash, not PII
+        "ip_hash": _audit_ip_hash(ip),
         "timestamp": datetime.datetime.now(datetime.UTC),
     })
 
@@ -297,6 +356,7 @@ async def login(
         expires_in=settings.jwt_expire_minutes * 60,
         user_id=user_id,
         role=role,
+        csrf_token=csrf_token,
     )
 
 
@@ -341,7 +401,9 @@ async def refresh_token(
         )
 
     # Verify user still exists and is active
-    user = await db.users.find_one({"_id": jwt_user.id, "is_active": True})
+    user_filter = document_id_filter(jwt_user.id)
+    user_filter["is_active"] = True
+    user = await db.users.find_one(user_filter)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -353,21 +415,13 @@ async def refresh_token(
         jwt_user.id, jwt_user.email, role=jwt_user.role
     )
 
-    # Set new refresh token cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=token_pair["refresh_token"],
-        httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
-        max_age=settings.jwt_refresh_expire_minutes * 60,
-        path="/",
-    )
+    csrf_token = _set_auth_cookies(response, token_pair)
 
     return TokenRefreshResponse(
         access_token=token_pair["access_token"],
         token_type="bearer",
         expires_in=settings.jwt_expire_minutes * 60,
+        csrf_token=csrf_token,
     )
 
 
@@ -405,7 +459,7 @@ async def logout(
             if jti:
                 await db.token_blocklist.insert_one({
                     "token_jti": jti,
-                    "exp": exp,
+                    "expires_at": datetime.datetime.fromtimestamp(exp, datetime.UTC),
                     "created_at": now,
                 })
         except JWTError:
@@ -417,7 +471,7 @@ async def logout(
         try:
             payload = jwt.decode(
                 refresh_token,
-                settings.jwt_secret_key,
+                settings.jwt_refresh_secret_key,
                 algorithms=[settings.jwt_algorithm],
             )
             jti = payload.get("jti")
@@ -425,20 +479,13 @@ async def logout(
             if jti:
                 await db.token_blocklist.insert_one({
                     "token_jti": jti,
-                    "exp": exp,
+                    "expires_at": datetime.datetime.fromtimestamp(exp, datetime.UTC),
                     "created_at": now,
                 })
         except JWTError:
             pass
 
-    # Clear cookie
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
-        path="/",
-    )
+    _clear_auth_cookies(response)
 
     return {"message": "Logged out successfully"}
 

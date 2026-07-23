@@ -87,6 +87,11 @@ class EmotionalOperatingState(BaseModel):
         description="Emotion user might be hiding",
     )
 
+    distortion_label: str | None = Field(
+        default=None,
+        description="Detected cognitive distortion, when available",
+    )
+
     # --- Distress & Stability ---
     distress_level: float = Field(
         default=0.5,

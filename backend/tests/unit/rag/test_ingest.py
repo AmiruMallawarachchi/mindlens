@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 from app.rag.ingest import chunk_text, ingest_documents, load_therapy_knowledge
 
@@ -39,7 +39,7 @@ class TestChunkText:
 class TestLoadTherapyKnowledge:
     def test_load_existing_file(self) -> None:
         with patch("app.rag.ingest.os.path.exists") as mock_exists, \
-             patch("builtins.open", patch.mock_open(read_data='[{"id": "test", "content": "hello"}]')):
+             patch("builtins.open", mock_open(read_data='[{"id": "test", "content": "hello"}]')):
             mock_exists.return_value = True
             result = load_therapy_knowledge("/fake/path.json")
             assert len(result) == 1
@@ -55,7 +55,7 @@ class TestLoadTherapyKnowledge:
 class TestIngestDocuments:
     def test_ingest_empty_knowledge(self) -> None:
         with patch("app.rag.ingest.load_therapy_knowledge") as mock_load, \
-             patch("app.rag.vector_store.get_vector_store") as mock_get_store:
+             patch("app.rag.ingest.get_vector_store") as mock_get_store:
             mock_load.return_value = []
             mock_store = MagicMock()
             mock_get_store.return_value = mock_store
@@ -74,7 +74,7 @@ class TestIngestDocuments:
             }
         ]
         with patch("app.rag.ingest.load_therapy_knowledge") as mock_load, \
-             patch("app.rag.vector_store.get_vector_store") as mock_get_store:
+             patch("app.rag.ingest.get_vector_store") as mock_get_store:
             mock_load.return_value = knowledge
             mock_store = MagicMock()
             mock_get_store.return_value = mock_store
@@ -88,7 +88,7 @@ class TestIngestDocuments:
             {"id": "empty", "title": "Empty", "category": "Test", "content": "   "}
         ]
         with patch("app.rag.ingest.load_therapy_knowledge") as mock_load, \
-             patch("app.rag.vector_store.get_vector_store") as mock_get_store:
+             patch("app.rag.ingest.get_vector_store") as mock_get_store:
             mock_load.return_value = knowledge
             mock_store = MagicMock()
             mock_get_store.return_value = mock_store

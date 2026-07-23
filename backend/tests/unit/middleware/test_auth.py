@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
 from app.config import settings
 from app.middleware.auth import (
@@ -20,7 +21,7 @@ from app.middleware.auth import (
     verify_refresh_token,
 )
 from fastapi import Request, Response
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 # --- Token creation / verification tests ---
 
@@ -44,7 +45,9 @@ class TestTokenCreation:
         assert access_payload["type"] == "access"
 
         refresh_payload = jwt.decode(
-            result["refresh_token"], settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+            result["refresh_token"],
+            settings.jwt_refresh_secret_key,
+            algorithms=[settings.jwt_algorithm],
         )
         assert refresh_payload["type"] == "refresh"
         assert "access_jti" in refresh_payload

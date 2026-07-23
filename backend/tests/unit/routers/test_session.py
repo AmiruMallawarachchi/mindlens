@@ -41,7 +41,7 @@ def _make_async_cursor(docs: list[dict]) -> Any:
 async def session_client(mock_db: MagicMock):
     """FastAPI test client with mocked DB for session tests."""
     from app.main import app
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
 
     async def override_get_db():
         return mock_db
@@ -50,7 +50,9 @@ async def session_client(mock_db: MagicMock):
     from app.db import get_db
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client
 
     app.dependency_overrides.clear()

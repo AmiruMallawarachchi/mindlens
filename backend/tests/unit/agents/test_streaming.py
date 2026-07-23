@@ -39,9 +39,10 @@ class TestStreamingResponseChunking:
         text = "Hello world this is a test"
         chunks = StreamingResponse._chunk_text(text, 12)
         # Should break at spaces when possible
+        boundary = 0
         for chunk in chunks[:-1]:
-            # Last character should be end of a word (or space)
-            assert chunk[-1] in " " or chunk[-1] == text[len(chunk) - 1]
+            boundary += len(chunk)
+            assert text[boundary] in " \n"
 
     def test_chunk_text_no_spaces(self) -> None:
         text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

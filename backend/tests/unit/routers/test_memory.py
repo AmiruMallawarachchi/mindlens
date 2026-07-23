@@ -14,7 +14,7 @@ from fastapi import status
 @pytest.fixture
 async def memory_client(mock_db: MagicMock):
     from app.main import app
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
 
     async def override_get_db():
         return mock_db
@@ -23,7 +23,9 @@ async def memory_client(mock_db: MagicMock):
     from app.db import get_db
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client
 
     app.dependency_overrides.clear()
@@ -235,4 +237,4 @@ class TestDeleteEntry:
             json={"section": "invalid", "key": "test"},
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

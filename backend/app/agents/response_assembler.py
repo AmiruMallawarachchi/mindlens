@@ -9,6 +9,7 @@ NIMH resources when in crisis mode.
 from __future__ import annotations
 
 from app.agents.base_agent import AgentOutput
+from app.agents.response_validator import ResponseValidator
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,8 +42,7 @@ MANDATORY_DISCLAIMER = (
 # Crisis-specific resources (always included in crisis mode)
 CRISIS_RESOURCES = (
     "\n\n🚨 URGENT SUPPORT:\n"
-    "• NIMH Sri Lanka (24/7): 1926\n"
-    "• Suicide Prevention Line: 1333\n"
+    "• NIMH National Mental Health Helpline: 1926\n"
     "• Emergency: 119\n"
     "\nYou are not alone. These are real people trained to help."
 )
@@ -52,6 +52,9 @@ class ResponseAssembler:
     """
     Stateless assembler. Thread-safe.
     """
+
+    def __init__(self) -> None:
+        self._validator = ResponseValidator()
 
     def assemble(
         self,
@@ -83,7 +86,9 @@ class ResponseAssembler:
                 text = crisis_output.text
             else:
                 text = self._fallback_crisis_response()
-            return text + CRISIS_RESOURCES
+            return self._validated_or_fallback(
+                text + CRISIS_RESOURCES, crisis=True, user_name=user_name
+            )
 
         # Normal mode: sort by priority, concatenate with line breaks
         sorted_outputs = sorted(
@@ -111,7 +116,22 @@ class ResponseAssembler:
         # Add disclaimer
         text = text + MANDATORY_DISCLAIMER
 
-        return text
+        return self._validated_or_fallback(text, crisis=False, user_name=user_name)
+
+    def _validated_or_fallback(
+        self, text: str, *, crisis: bool, user_name: str
+    ) -> str:
+        report = self._validator.validate(text)
+        if report.passed:
+            return text
+        logger.error(
+            "Blocked assembled response: categories=%s severity=%s",
+            report.blocked_categories,
+            report.severity,
+        )
+        if crisis:
+            return self._fallback_crisis_response() + CRISIS_RESOURCES
+        return self._fallback_response(user_name)
 
     def _fallback_response(self, user_name: str) -> str:
         """If no agents produced output, return a safe fallback."""
@@ -125,7 +145,7 @@ class ResponseAssembler:
         return (
             "I can hear how much pain you're in right now. "
             "You're not alone, and there are people trained to help. "
-            "Please reach out to NIMH at 1926 — they're available 24/7."
+            "Please reach out to the National Mental Health Helpline at 1926."
         )
 
 

@@ -52,7 +52,6 @@ class CheckInScheduler(BaseAgent):
                 "llm_tier": "none",
                 "scheduled_at": scheduled_at.isoformat(),
                 "hours_until": hours_until,
-                "user_id": ctx.eos.session_id,
                 "action": "schedule_checkin",
             },
         )

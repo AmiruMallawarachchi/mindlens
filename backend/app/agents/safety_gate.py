@@ -1,13 +1,7 @@
-"""
-Safety Gate — Three-Layer Crisis Detection
+"""Deterministic crisis screening that runs before all model inference.
 
-Layer 1: Regex patterns (40 crisis indicators)
-Layer 2: DistilBERT crisis classifier (ML-based)
-Layer 3: FAISS semantic search (semantic similarity to crisis corpus)
-
-ANY layer triggering → Crisis mode (zero LLM response)
-
-This gate cannot be bypassed by any other system component.
+The orchestrator follows this high-recall regex screen with the isolated crisis
+classifier. Either trigger enters crisis mode without calling a generative model.
 """
 
 import re
@@ -20,26 +14,17 @@ class SafetyGateResult(BaseModel):
     """Result of safety gate evaluation."""
 
     is_crisis: bool
-    layer_triggered: str | None = None  # "regex" | "distilbert" | "faiss"
+    layer_triggered: str | None = None  # "regex" | "classifier"
     confidence: float  # 0-1
     reason: str
     user_message_snippet: str
 
 
 class SafetyGate:
-    """
-    Three-layer crisis detection system.
-
-    Runs on EVERY message before any agent inference.
-    Cannot be disabled or bypassed.
-    """
+    """High-recall deterministic screen that runs before model inference."""
 
     def __init__(self):
         self.name = "safety_gate"
-        self.distilbert_model = None  # Loaded lazily
-        self.faiss_index = None  # Loaded lazily
-
-        # Layer 1: Regex patterns
         self.crisis_patterns = self._build_crisis_patterns()
 
     def _build_crisis_patterns(self) -> list[re.Pattern]:
@@ -132,7 +117,7 @@ class SafetyGate:
         user_id: str | None = None,
     ) -> SafetyGateResult:
         """
-        Run all three layers of crisis detection.
+        Run deterministic crisis screening.
 
         Args:
             user_message: User's message to evaluate
@@ -143,7 +128,7 @@ class SafetyGate:
         """
         snippet = user_message[:100]  # For logging
 
-        # Layer 1: Regex (fast, <1ms)
+        # Regex screening is intentionally first and independent of model health.
         regex_result = self._layer_regex(user_message)
         if regex_result["triggered"]:
             return SafetyGateResult(
@@ -154,19 +139,7 @@ class SafetyGate:
                 user_message_snippet=snippet,
             )
 
-        # Layer 2: DistilBERT (medium, ~50ms)
-        # TODO: Implement when model is deployed
-        # distilbert_result = await self._layer_distilbert(user_message)
-        # if distilbert_result["triggered"]:
-        #     return SafetyGateResult(...)
-
-        # Layer 3: FAISS semantic search (~100ms)
-        # TODO: Implement when FAISS index is built
-        # faiss_result = await self._layer_faiss(user_message)
-        # if faiss_result["triggered"]:
-        #     return SafetyGateResult(...)
-
-        # All layers clear → not in crisis
+        # The orchestrator runs the classifier after this screen clears.
         return SafetyGateResult(
             is_crisis=False,
             layer_triggered=None,
@@ -189,31 +162,6 @@ class SafetyGate:
                 }
         return {"triggered": False}
 
-    async def _layer_distilbert(self, user_message: str) -> dict[str, Any]:
-        """
-        Layer 2: DistilBERT crisis classifier.
-
-        TODO: Load model from HuggingFace.
-        Threshold: 0.45 (maximize recall, minimize false negatives).
-
-        Returns dict with 'triggered' bool and confidence.
-        """
-        # TODO: Implement
-        return {"triggered": False, "confidence": 0.0}
-
-    async def _layer_faiss(self, user_message: str) -> dict[str, Any]:
-        """
-        Layer 3: FAISS semantic search.
-
-        TODO: Load FAISS index with crisis corpus.
-        Threshold: 0.85 similarity.
-
-        Returns dict with 'triggered' bool and confidence.
-        """
-        # TODO: Implement
-        return {"triggered": False, "confidence": 0.0}
-
-
 # --- Singleton instance ---
 safety_gate = SafetyGate()
 
@@ -231,6 +179,6 @@ async def layer1_keyword_scan(text: str) -> dict[str, Any]:
 
 # Crisis templates (ZERO LLM - as per SYSTEM.md)
 CRISIS_TEMPLATES = {
-    "moderate": "I can hear how much pain you're in right now. You're not alone, and there are people trained to help. Please reach out to NIMH at 1926 — they're available 24/7.",
+    "moderate": "I can hear how much pain you're in right now. You're not alone, and there are people trained to help. Please contact Sri Lanka's National Mental Health Helpline at 1926.",
     "severe": "What you're describing sounds incredibly serious. Your safety is the most important thing right now. Please call NIMH Sri Lanka immediately at 1926, or dial 119 for emergency. You deserve support, and these are real people trained for exactly this.",
 }

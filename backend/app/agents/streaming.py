@@ -277,5 +277,4 @@ async def stream_agent_output(
         assembled_text=agent_output.text,
         agents_used=[agent_output.agent_name],
         eos_snapshot=eos,
-        metadata=agent_output.metadata,
     )

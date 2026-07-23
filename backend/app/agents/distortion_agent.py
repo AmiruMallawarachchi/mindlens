@@ -12,18 +12,13 @@ Output: { distortion_label: str, confidence: float, explanation: str }
 
 Used by: Challenge agent (what to challenge), UI badge (shows user their pattern).
 
-NOTE: Until the model is trained (scripts/train_distortion_model.py),
-      this agent falls back to Groq-based detection. After training,
-      swap to the fine-tuned model for inference.
+The shared model registry populates the EOS distortion label before this agent
+runs. A deterministic keyword heuristic is retained as a degraded fallback.
 """
 
 from __future__ import annotations
 
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
-from app.agents.groq_client import get_groq_client
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
 
 # 10 distortion classes (SYSTEM.md §5.7)
 DISTORTION_LABELS = [
@@ -58,9 +53,6 @@ class DistortionAgent(BaseAgent):
     """
     Identifies cognitive distortions using a fine-tuned model.
 
-    TEMPORARY: Uses keyword-based fallback + Groq LLM fallback until
-    the fine-tuned model is trained and published to HF Hub.
-
     Trigger: modality == CBT.
     """
 
@@ -92,24 +84,13 @@ class DistortionAgent(BaseAgent):
                 },
             )
 
-        # Try fine-tuned model first (if loaded)
-        if self._model is not None:
-            # TODO: Add model inference once training is complete
-            # This will be wired after scripts/train_distortion_model.py is run
-            pass
-
-        # Fallback: keyword-based heuristic + Groq LLM
-        label, confidence = self._keyword_detect(ctx.user_text)
-
-        # If confidence is too low, use Groq LLM for richer detection
-        if confidence < 0.4:
-            llm_result = await self._llm_fallback(ctx)
-            if llm_result:
-                label, confidence, explanation = llm_result
-            else:
-                explanation = "No clear distortion detected."
-        else:
-            explanation = self._build_explanation(label, ctx.user_text)
+        label = ctx.eos.distortion_label
+        model_used = "distortion_classifier"
+        confidence = 0.5 if label else 0.0
+        if not label:
+            label, confidence = self._keyword_detect(ctx.user_text)
+            model_used = "keyword_fallback"
+        explanation = self._build_explanation(label, ctx.user_text)
 
         return AgentOutput(
             agent_name=self.name,
@@ -117,8 +98,8 @@ class DistortionAgent(BaseAgent):
             metadata={
                 "distortion_label": label,
                 "confidence": confidence,
-                "llm_tier": "8B" if confidence < 0.4 else "none",
-                "model_used": "keyword_fallback" if confidence >= 0.4 else "llm_fallback",
+                "llm_tier": "none",
+                "model_used": model_used,
             },
         )
 
@@ -154,55 +135,3 @@ class DistortionAgent(BaseAgent):
             "none": "No clear thinking pattern detected. That's okay — sometimes feelings are just feelings.",
         }
         return explanations.get(label, explanations["none"])
-
-    async def _llm_fallback(self, ctx: AgentContext) -> tuple[str, float, str] | None:
-        """Groq LLM fallback for richer detection when keyword confidence is low."""
-        try:
-            client = get_groq_client()
-            system = (
-                f"You are a cognitive distortion detection expert.\n"
-                f"Analyze the user's message and identify any cognitive distortion.\n"
-                f"Available distortions: {', '.join(DISTORTION_LABELS)}\n"
-                f"If none fit, return 'none'.\n"
-                f"\nRespond ONLY in this exact format:\n"
-                f"LABEL: <distortion_name>\n"
-                f"CONFIDENCE: <0.0-1.0>\n"
-                f"EXPLANATION: <one gentle sentence explaining the distortion>\n"
-            )
-            user = f"User said: {ctx.user_text}"
-
-            result = await client.chat(
-                system_prompt=system,
-                user_prompt=user,
-                model_tier="8B",
-                max_tokens=150,
-                temperature=0.6,
-            )
-
-            # Parse the response
-            lines = result.text.strip().split("\n")
-            label = "none"
-            confidence = 0.0
-            explanation = "No clear distortion detected."
-
-            for line in lines:
-                if line.startswith("LABEL:"):
-                    label = line.replace("LABEL:", "").strip()
-                elif line.startswith("CONFIDENCE:"):
-                    try:
-                        confidence = float(line.replace("CONFIDENCE:", "").strip())
-                    except ValueError:
-                        confidence = 0.0
-                elif line.startswith("EXPLANATION:"):
-                    explanation = line.replace("EXPLANATION:", "").strip()
-
-            # Validate label
-            if label not in DISTORTION_LABELS and label != "none":
-                label = "none"
-                confidence = 0.0
-
-            return label, confidence, explanation
-
-        except Exception as exc:
-            logger.warning("Distortion LLM fallback failed: %s", exc)
-            return None

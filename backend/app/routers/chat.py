@@ -21,19 +21,20 @@ Security:
 from __future__ import annotations
 
 import asyncio
-import time
+import datetime
+import hashlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from jose import JWTError
+from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.agents.orchestrator import Orchestrator
 from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.core.connection_manager import get_connection_manager
-from app.db import get_db
-from app.middleware.auth import verify_access_token
+from app.db import document_id_filter, get_db
+from app.middleware.auth import get_rate_limit_store, verify_access_token
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,17 +54,20 @@ async def websocket_chat(
     """
     WebSocket endpoint for real-time therapy chat.
 
-    JWT must be passed in the `Authorization` subprotocol header:
-      new WebSocket(url, ["eyJhbG..."])
-
-    Or as a query param `token=` (fallback, less secure).
+    JWT must be supplied through the secure cookie, server Authorization header,
+    or the `mindlens.jwt.<token>` WebSocket subprotocol. URL query tokens are
+    deliberately rejected to keep credentials out of access logs.
     Full path: /ws/chat/{session_id}
 
     """
     # -------------------------------------------------------------------
     # 1. Extract and validate JWT
     # -------------------------------------------------------------------
-    token = _extract_token(websocket)
+    if not _origin_allowed(websocket):
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
+
+    token, selected_subprotocol = _extract_token(websocket)
     if not token:
         logger.warning("WebSocket connection rejected: no token (session=%s)", session_id)
         await websocket.close(code=4001, reason="Missing authorization token")
@@ -97,7 +101,9 @@ async def websocket_chat(
     # 3. ConnectionManager: accept and enforce single connection
     # -------------------------------------------------------------------
     conn_manager = get_connection_manager()
-    connected = await conn_manager.connect(websocket, user_id, session_id)
+    connected = await conn_manager.connect(
+        websocket, user_id, session_id, subprotocol=selected_subprotocol
+    )
     if not connected:
         logger.warning("WebSocket connection failed for user %s", user_id)
         await websocket.close(code=1013, reason="Try again later")
@@ -107,7 +113,7 @@ async def websocket_chat(
     orchestrator = Orchestrator()
 
     # Load user profile for personalization
-    user = await db.users.find_one({"_id": user_id})
+    user = await db.users.find_one(document_id_filter(user_id))
     user_name = user.get("nickname", user.get("name", "friend")) if user else "friend"
 
     # Send welcome / check-in if pending
@@ -145,13 +151,26 @@ async def websocket_chat(
             if not user_text:
                 continue
 
+            allowed = await get_rate_limit_store().check_user(
+                user_id, settings.RATE_LIMIT_PER_USER_HOUR
+            )
+            if not allowed:
+                await conn_manager.send_to_user(
+                    user_id,
+                    {"type": "error", "detail": "Hourly message limit exceeded"},
+                )
+                continue
+
             # Message length cap (2000 chars per SYSTEM.md §22.3)
-            if len(user_text) > 2000:
+            if len(user_text) > settings.ws_max_message_chars:
                 await conn_manager.send_to_user(
                     user_id,
                     {
                         "type": "error",
-                        "detail": "Message too long (max 2000 characters)",
+                        "detail": (
+                            "Message too long "
+                            f"(max {settings.ws_max_message_chars} characters)"
+                        ),
                     },
                 )
                 continue
@@ -165,7 +184,8 @@ async def websocket_chat(
                     user_text=user_text,
                     user_name=user_name,
                     session_history=session_history,
-                    rag_chunks=[],  # TODO: wire RAG when ready
+                    rag_chunks=None,
+                    user_id=user_id,
                 )
             except Exception as exc:
                 logger.exception("Pipeline error for user %s: %s", user_id, exc)
@@ -201,6 +221,8 @@ async def websocket_chat(
 
             # Persist turn to session
             await _save_turn(db, session_id, user_id, user_text, result)
+            await _save_safety_event(db, session_id, user_id, user_text, result)
+            await _save_pending_checkin(db, session_id, user_id, result)
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected: user=%s session=%s", user_id, session_id)
@@ -218,15 +240,26 @@ async def websocket_chat(
 # ---------------------------------------------------------------------------
 
 
-def _extract_token(websocket: WebSocket) -> str | None:
-    """Extract JWT from subprotocol header or query param."""
-    # Prefer subprotocol (most secure for WebSocket)
+def _extract_token(websocket: WebSocket) -> tuple[str | None, str | None]:
+    """Extract JWT from a cookie, server client header, or WebSocket subprotocol."""
+    cookie_token = websocket.cookies.get("access_token")
+    if cookie_token:
+        return cookie_token, None
     if websocket.headers.get("authorization"):
         auth = websocket.headers.get("authorization", "")
         if auth.startswith("Bearer "):
-            return auth[7:]
-    # Fallback: check query params
-    return websocket.query_params.get("token")
+            return auth[7:], None
+    offered = websocket.headers.get("sec-websocket-protocol", "")
+    for protocol in (item.strip() for item in offered.split(",")):
+        if protocol.startswith("mindlens.jwt."):
+            return protocol.removeprefix("mindlens.jwt."), protocol
+    return None, None
+
+
+def _origin_allowed(websocket: WebSocket) -> bool:
+    """Reject browser WebSocket handshakes from untrusted origins."""
+    origin = websocket.headers.get("origin")
+    return not origin or origin in settings.cors_origins
 
 
 async def _load_session_history(
@@ -252,7 +285,7 @@ async def _save_turn(
     result: dict[str, Any],
 ) -> None:
     """Append the turn to the session document."""
-    now = time.time()
+    now = datetime.datetime.now(datetime.UTC)
     turn_doc = {
         "role": "user",
         "text": user_text,
@@ -292,7 +325,7 @@ async def _save_session_on_disconnect(
     # For now, just update last_activity. Ending is explicit via REST DELETE.
     await db.sessions.update_one(
         {"session_id": session_id, "user_id": user_id},
-        {"$set": {"last_activity": time.time()}},
+        {"$set": {"last_activity": datetime.datetime.now(datetime.UTC)}},
     )
 
 
@@ -303,7 +336,11 @@ async def _send_pending_checkin(
 ) -> None:
     """Send any pending check-in message when user opens WebSocket."""
     checkin = await db.pending_checkins.find_one(
-        {"user_id": user_id, "delivered": False}
+        {
+            "user_id": user_id,
+            "delivered": False,
+            "scheduled_at": {"$lte": datetime.datetime.now(datetime.UTC)},
+        }
     )
     if checkin:
         await conn_manager.send_checkin(
@@ -314,5 +351,69 @@ async def _send_pending_checkin(
         # Mark as delivered
         await db.pending_checkins.update_one(
             {"_id": checkin["_id"]},
-            {"$set": {"delivered": True, "delivered_at": time.time()}},
+            {
+                "$set": {
+                    "delivered": True,
+                    "delivered_at": datetime.datetime.now(datetime.UTC),
+                }
+            },
         )
+
+
+async def _save_safety_event(
+    db: AsyncIOMotorDatabase,
+    session_id: str,
+    user_id: str,
+    user_text: str,
+    result: dict[str, Any],
+) -> None:
+    """Persist privacy-preserving crisis audit metadata."""
+    if not result.get("crisis_flag"):
+        return
+    await db.safety_events.insert_one(
+        {
+            "user_id": user_id,
+            "session_id": session_id,
+            "message_sha256": hashlib.sha256(user_text.encode("utf-8")).hexdigest(),
+            "safety": result.get("safety", {}),
+            "timestamp": datetime.datetime.now(datetime.UTC),
+        }
+    )
+
+
+async def _save_pending_checkin(
+    db: AsyncIOMotorDatabase,
+    session_id: str,
+    user_id: str,
+    result: dict[str, Any],
+) -> None:
+    """Persist scheduler-agent output so it survives process restarts."""
+    for output in result.get("agent_outputs", []):
+        metadata = output.get("metadata", {})
+        if metadata.get("action") != "schedule_checkin":
+            continue
+        scheduled_at = datetime.datetime.fromisoformat(metadata["scheduled_at"])
+        if scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=datetime.UTC)
+        await db.pending_checkins.update_one(
+            {
+                "user_id": user_id,
+                "from_session": session_id,
+                "delivered": False,
+            },
+            {
+                "$set": {
+                    "scheduled_at": scheduled_at,
+                    "expires_at": scheduled_at + datetime.timedelta(days=7),
+                    "text": "How are you feeling since our last conversation?",
+                },
+                "$setOnInsert": {
+                    "user_id": user_id,
+                    "from_session": session_id,
+                    "delivered": False,
+                    "created_at": datetime.datetime.now(datetime.UTC),
+                },
+            },
+            upsert=True,
+        )
+        break

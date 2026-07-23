@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.agents.distortion_agent import DistortionAgent
@@ -30,10 +30,14 @@ class TestDistortionAgent:
 
     @pytest.mark.asyncio
     async def test_run(self, agent: DistortionAgent, stable_agent_context: EmotionalOperatingState, mock_groq: MagicMock) -> None:
-        with patch("app.agents.distortion_agent.get_groq_client", return_value=mock_groq):
-            result = await agent.run(stable_agent_context)
+        stable_agent_context.user_text = "I always fail, so everything is ruined."
+        result = await agent.run(stable_agent_context)
         assert result.agent_name == "distortion"
-        assert "all-or-nothing" in result.text.lower() or "thinking" in result.text.lower()
+        assert result.metadata["distortion_label"] in {
+            "all_or_nothing",
+            "catastrophizing",
+        }
+        mock_groq.chat.assert_not_awaited()
 
     def test_max_tokens(self, agent: DistortionAgent) -> None:
         assert agent.max_tokens == 0

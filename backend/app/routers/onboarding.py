@@ -27,13 +27,13 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.db import get_db
+from app.db import document_id_filter, get_db
 from app.middleware.auth import create_token_pair, require_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
+router = APIRouter()
 
 
 # --- Pydantic Schemas ---
@@ -112,7 +112,7 @@ async def get_onboarding_status(
 ):
     """Check the user's current onboarding progress."""
     user_id = str(current_user["_id"])
-    user = await db.users.find_one({"_id": user_id})
+    user = await db.users.find_one(document_id_filter(user_id))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -167,16 +167,18 @@ async def submit_onboarding_step(
     if step_number == 1:
         req = OnboardingStep1(**data)
         await db.users.update_one(
-            {"_id": user_id},
+            document_id_filter(user_id),
             {"$set": {"name": req.name, "updated_at": now}},
         )
         return {"step": 1, "status": "ok", "next_step": 2}
 
     elif step_number == 2:
         req = OnboardingStep2(**data)
-        nickname = req.nickname or (await db.users.find_one({"_id": user_id}, {"name": 1})).get("name", "friend")
+        nickname = req.nickname or (
+            await db.users.find_one(document_id_filter(user_id), {"name": 1})
+        ).get("name", "friend")
         await db.users.update_one(
-            {"_id": user_id},
+            document_id_filter(user_id),
             {"$set": {"nickname": nickname, "updated_at": now}},
         )
         return {"step": 2, "status": "ok", "next_step": 3}
@@ -185,7 +187,7 @@ async def submit_onboarding_step(
         req = OnboardingStep3(**data)
         age_group = _age_group(req.age)
         await db.users.update_one(
-            {"_id": user_id},
+            document_id_filter(user_id),
             {"$set": {"age": req.age, "age_group": age_group, "updated_at": now}},
         )
         return {"step": 3, "status": "ok", "next_step": 4}
@@ -193,7 +195,7 @@ async def submit_onboarding_step(
     elif step_number == 4:
         req = OnboardingStep4(**data)
         await db.users.update_one(
-            {"_id": user_id},
+            document_id_filter(user_id),
             {"$set": {"onboarding_people": req.people, "updated_at": now}},
         )
         return {"step": 4, "status": "ok", "next_step": 5}
@@ -201,7 +203,7 @@ async def submit_onboarding_step(
     elif step_number == 5:
         req = OnboardingStep5(**data)
         await db.users.update_one(
-            {"_id": user_id},
+            document_id_filter(user_id),
             {
                 "$set": {
                     "checkin_preferred_time": req.checkin_preferred_time,
@@ -212,7 +214,7 @@ async def submit_onboarding_step(
         )
 
         # Create user_memory document
-        user = await db.users.find_one({"_id": user_id})
+        user = await db.users.find_one(document_id_filter(user_id))
         people_graph = _build_people_graph(user.get("onboarding_people", []))
         await db.user_memory.update_one(
             {"user_id": user_id},
@@ -276,7 +278,7 @@ async def complete_onboarding(
 
     # Update user
     await db.users.update_one(
-        {"_id": user_id},
+        document_id_filter(user_id),
         {
             "$set": {
                 "name": req.name,
@@ -348,7 +350,7 @@ async def complete_onboarding(
     })
 
     # Generate new token
-    user = await db.users.find_one({"_id": user_id})
+    user = await db.users.find_one(document_id_filter(user_id))
     role = user.get("role", settings.USER_ROLE_NAME)
     tokens = create_token_pair(user_id, user.get("email", ""), role=role)
 

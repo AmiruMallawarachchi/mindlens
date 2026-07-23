@@ -52,6 +52,7 @@ class ConnectionManager:
         websocket: WebSocket,
         user_id: str,
         session_id: str | None = None,
+        subprotocol: str | None = None,
     ) -> bool:
         """
         Accept a new WebSocket connection.
@@ -66,14 +67,14 @@ class ConnectionManager:
                 try:
                     await old_ws.close(code=4009, reason="New connection opened")
                     logger.info("Closed previous connection for user %s", user_id)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Previous WebSocket was already closed: %s", exc)
                 # Cancel old heartbeat
                 old_task = self._heartbeat_tasks.pop(user_id, None)
                 if old_task:
                     old_task.cancel()
 
-            await websocket.accept()
+            await websocket.accept(subprotocol=subprotocol)
             self._connections[user_id] = websocket
             self._metadata[user_id] = {
                 "connected_at": time.time(),
@@ -107,8 +108,8 @@ class ConnectionManager:
         if ws:
             try:
                 await ws.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("WebSocket close completed with an error: %s", exc)
 
         if meta:
             logger.info(
@@ -117,6 +118,11 @@ class ConnectionManager:
                 meta.get("session_id", "unknown"),
                 time.time() - meta.get("connected_at", time.time()),
             )
+
+    async def shutdown(self) -> None:
+        """Close every active socket and cancel heartbeat tasks."""
+        for user_id in list(self._connections):
+            await self.disconnect(user_id)
 
     # -----------------------------------------------------------------------
     # Messaging
@@ -284,7 +290,17 @@ def get_connection_manager(
 ) -> ConnectionManager:
     """Return the global ConnectionManager singleton."""
     global _manager
-    if _manager is None:
+    requested_heartbeat = heartbeat_interval
+    requested_max = max_concurrent_per_user
+    should_reconfigure = (
+        _manager is not None
+        and not _manager._connections
+        and (
+            (requested_heartbeat is not None and requested_heartbeat != _manager._heartbeat_interval)
+            or (requested_max is not None and requested_max != _manager._max_concurrent)
+        )
+    )
+    if _manager is None or should_reconfigure:
         from app.config import settings
         _manager = ConnectionManager(
             heartbeat_interval=heartbeat_interval or settings.WS_HEARTBEAT_INTERVAL_SECONDS,
