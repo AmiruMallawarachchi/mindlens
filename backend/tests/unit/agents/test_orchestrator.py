@@ -32,6 +32,7 @@ def orchestrator(mock_model_manager: MagicMock) -> Orchestrator:
     orch.models = mock_model_manager
     orch._retriever = MagicMock()
     orch._retriever.retrieve.return_value = []
+    orch._retriever.last_status = {"mode": "vector", "status": "ready", "chunks": 0}
     return orch
 
 
@@ -76,6 +77,15 @@ class TestOrchestratorProcessTurn:
         assert result["crisis_flag"] is True
         assert result["agents"] == ["crisis"]
 
+    @pytest.mark.asyncio
+    async def test_regex_crisis_bypasses_models(self, orchestrator: Orchestrator) -> None:
+        """Deterministic crisis screening short-circuits classifiers."""
+        result = await orchestrator.process_turn("I want to end my life")
+
+        assert result["crisis_flag"] is True
+        assert result["agents"] == ["crisis"]
+        orchestrator.models.predict_all.assert_not_awaited()
+
 
 class TestOrchestratorFullPipeline:
     """Validate the complete agent execution pipeline."""
@@ -92,6 +102,7 @@ class TestOrchestratorFullPipeline:
         assert "crisis_flag" in result
         assert "assembled_text" in result
         assert "agent_outputs" in result
+        assert result["rag"]["mode"] in {"vector", "lexical", "provided", "none", "unknown"}
         assert len(result["assembled_text"]) > 0
 
     @pytest.mark.asyncio
@@ -106,6 +117,7 @@ class TestOrchestratorFullPipeline:
         })
         result = await orchestrator.run_full_pipeline("suicidal text")
         assert result["crisis_flag"] is True
+        assert result["rag"] == {"mode": "none", "status": "bypassed_crisis"}
         assert "1926" in result["assembled_text"] or "NIMH" in result["assembled_text"]
         # Empathy should NOT be in the assembled text during crisis
         assert "I hear you" not in result["assembled_text"] or "1926" in result["assembled_text"]

@@ -1,0 +1,28 @@
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/backend \
+    DEPLOYMENT_MODE=render_free_demo \
+    MODEL_BACKEND=onnx \
+    PRELOAD_MODELS=false \
+    PRELOAD_RAG=false \
+    CHROMADB_PERSIST_DIR=/tmp/mindlens/chroma
+
+WORKDIR /app
+
+RUN addgroup --system mindlens && adduser --system --ingroup mindlens mindlens
+
+COPY requirements-render-free.txt ./requirements-render-free.txt
+RUN python -m pip install --upgrade pip && \
+    python -m pip install --no-cache-dir -r requirements-render-free.txt
+
+COPY backend ./backend
+RUN mkdir -p /tmp/mindlens/chroma /tmp/mindlens/models && \
+    chown -R mindlens:mindlens /app /tmp/mindlens
+
+USER mindlens
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --workers 1"]

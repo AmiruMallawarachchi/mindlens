@@ -1,12 +1,14 @@
+# WARNING: DO NOT DEPLOY THIS BLUEPRINT WITHOUT EXPLICIT APPROVAL.
+# It uses paid Render compute and persistent storage. The zero-cost demo
+# deployment is the root render.yaml and must stay on Render Free.
+
 services:
   - type: web
     name: mindlens-api
     runtime: docker
     region: singapore
-    plan: free
-    branch: chore/render-free-deployment
-    numInstances: 1
-    dockerfilePath: ./backend/Dockerfile.render-free
+    plan: standard
+    dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /ready
     autoDeployTrigger: checksPass
@@ -14,31 +16,23 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: DEPLOYMENT_MODE
-        value: render_free_demo
       - key: USE_OPENAI_STUBS
         value: "false"
       - key: PRELOAD_MODELS
         value: "false"
       - key: PRELOAD_RAG
-        value: "false"
-      - key: MODEL_BACKEND
-        value: onnx
+        value: "true"
       - key: CHROMADB_PERSIST_DIR
-        value: /tmp/mindlens/chroma
-      - key: RAG_RETRIEVAL_MODE
-        value: auto
-      - key: MONGODB_DB_NAME
-        value: mindlens
-      - key: CORS_ORIGINS
-        value: '["https://mindlens.vercel.app","https://mindlens-git-chore-render-free-deployment-amirumallawarachchis-projects.vercel.app"]'
+        value: /var/data/chroma
       - key: MONGODB_URL
         sync: false
+      - key: MONGODB_DB_NAME
+        value: mindlens
       - key: GROQ_API_KEY
         sync: false
       - key: HF_TOKEN
         sync: false
-      - key: ENCRYPTION_KEY
+      - key: CORS_ORIGINS
         sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
@@ -46,3 +40,9 @@ services:
         generateValue: true
       - key: ADMIN_JWT_SECRET
         generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+    disk:
+      name: mindlens-data
+      mountPath: /var/data
+      sizeGB: 10

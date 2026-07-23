@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import tempfile
+from pathlib import Path
 from typing import Literal
 
 from pydantic import field_validator, model_validator
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     encryption_key: str = ""
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
+    deployment_mode: Literal["local", "full", "render_free_demo"] = "local"
     debug: bool = False
     cors_origins: list[str] = [
         "http://localhost:3000",
@@ -57,7 +60,9 @@ class Settings(BaseSettings):
     distortion_model_id: str = "AmiruMallawarachchi/mindlens-distortion-classifier"
     rag_reranker_model_id: str = "AmiruMallawarachchi/mindlens-rag-reranker"
     preload_models: bool = False
+    model_backend: Literal["pytorch", "onnx", "disabled"] = "pytorch"
     model_inference_timeout_seconds: float = 30.0
+    render_free_model_dir: str = str(Path(tempfile.gettempdir()) / "mindlens" / "models")
     preload_rag: bool = False
     render_git_commit: str = "local"
 
@@ -84,6 +89,7 @@ class Settings(BaseSettings):
     rag_chunk_overlap: int = 50
     rag_knowledge_path: str = "backend/data/therapy_knowledge.json"
     chromadb_persist_dir: str = "backend/data/chroma_db"
+    rag_retrieval_mode: Literal["auto", "vector", "lexical", "disabled"] = "auto"
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -131,11 +137,28 @@ class Settings(BaseSettings):
             raise ValueError("GROQ_API_KEY is required in production")
         if not self.cors_origins or "*" in self.cors_origins:
             raise ValueError("Production CORS_ORIGINS must contain explicit origins")
+        if self.is_render_free_demo and self.preload_models:
+            raise ValueError("PRELOAD_MODELS must stay false in render_free_demo")
+        if self.is_render_free_demo and self.preload_rag:
+            raise ValueError("PRELOAD_RAG must stay false in render_free_demo")
+        ephemeral_root = str(Path(tempfile.gettempdir()).resolve())
+        chroma_path = str(Path(self.chromadb_persist_dir).resolve())
+        render_tmp_prefix = "/" + "tmp" + "/"
+        configured_chroma = self.chromadb_persist_dir.replace("\\", "/")
+        if self.is_render_free_demo and not (
+            chroma_path.startswith(ephemeral_root)
+            or configured_chroma.startswith(render_tmp_prefix)
+        ):
+            raise ValueError("render_free_demo must use ephemeral temp Chroma storage")
         return self
 
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def is_render_free_demo(self) -> bool:
+        return self.deployment_mode == "render_free_demo"
 
     @property
     def effective_cookie_secure(self) -> bool:
@@ -155,6 +178,8 @@ class Settings(BaseSettings):
     MH_MODEL_ID = property(lambda self: self.mh_model_id)
     DISTORTION_MODEL_ID = property(lambda self: self.distortion_model_id)
     RAG_RERANKER_MODEL_ID = property(lambda self: self.rag_reranker_model_id)
+    DEPLOYMENT_MODE = property(lambda self: self.deployment_mode)
+    MODEL_BACKEND = property(lambda self: self.model_backend)
     RATE_LIMIT_PER_IP_MINUTE = property(lambda self: self.rate_limit_per_ip_minute)
     RATE_LIMIT_PER_USER_HOUR = property(lambda self: self.rate_limit_per_user_hour)
     RATE_LIMIT_LOGIN_LOCKOUT_MINUTES = property(

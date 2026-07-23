@@ -11,9 +11,11 @@ emergency services.
 - `backend/app`: API, WebSocket chat, authentication, agents, models, and RAG
 - `backend/tests`: unit and integration coverage
 - `frontend`: web client (deployed separately to Vercel)
-- `render.yaml`: Render Blueprint for the backend and persistent Chroma storage
+- `render.yaml`: zero-cost Render Free demonstration Blueprint
+- `deploy/render.paid.example.yaml`: paid Render example, not for deployment
 - `docs/API.md`: HTTP/WebSocket contract
-- `docs/DEPLOYMENT.md`: Render and Vercel deployment runbook
+- `docs/DEPLOYMENT.md`: full Render and Vercel deployment runbook
+- `docs/RENDER_FREE_DEPLOYMENT.md`: zero-cost demo deployment runbook
 
 ## Backend Development
 
@@ -37,10 +39,14 @@ python -m ruff check backend
 python -m pytest backend/tests --cov=backend/app --cov-report=term-missing
 python -m pip_audit -r requirements.txt
 python -m bandit -q -r backend/app -ll
-python -m detect_secrets scan backend/app .env.example render.yaml
+python -m detect_secrets scan backend/app .env.example render.yaml deploy .github/workflows
 ```
 
 Production configuration fails closed when secrets, CORS origins, MongoDB, or
 the live LLM provider are missing. Start with [.env.example](.env.example) and
 follow [the deployment runbook](docs/DEPLOYMENT.md) before creating the Render
 service.
+
+For the no-card, no-paid-resource demo path, follow
+[the Render Free runbook](docs/RENDER_FREE_DEPLOYMENT.md). It keeps one Render
+Free service, no disk, no Redis, no cron, and no paid model endpoint.

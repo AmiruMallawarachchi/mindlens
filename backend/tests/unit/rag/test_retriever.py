@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app.core.emotional_os import EmotionalOperatingState, Modality
+from app.rag import retriever as retriever_module
 from app.rag.retriever import TherapyRetriever, get_retriever
 
 
@@ -104,7 +105,13 @@ class TestTherapyRetriever:
         ranked = retriever._rerank_by_age_group(docs, metas, age_group=None)
         assert ranked == docs  # No change
 
-    def test_retrieve_graceful_failure(self, retriever: TherapyRetriever, mock_store: MagicMock) -> None:
+    def test_retrieve_graceful_failure(
+        self,
+        retriever: TherapyRetriever,
+        mock_store: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(retriever_module.settings, "rag_retrieval_mode", "vector")
         mock_store.query_mmr.side_effect = RuntimeError("ChromaDB error")
         eos = EmotionalOperatingState(
             surface_emotion="anxiety",
@@ -114,7 +121,13 @@ class TestTherapyRetriever:
         chunks = retriever.retrieve("test", eos)
         assert chunks == []  # Graceful fallback
 
-    def test_retrieve_with_metadata_graceful_failure(self, retriever: TherapyRetriever, mock_store: MagicMock) -> None:
+    def test_retrieve_with_metadata_graceful_failure(
+        self,
+        retriever: TherapyRetriever,
+        mock_store: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(retriever_module.settings, "rag_retrieval_mode", "vector")
         mock_store.query_mmr.side_effect = RuntimeError("ChromaDB error")
         eos = EmotionalOperatingState(
             surface_emotion="anxiety",
@@ -123,6 +136,39 @@ class TestTherapyRetriever:
         )
         results = retriever.retrieve_with_metadata("test", eos)
         assert results == []  # Graceful fallback
+
+    def test_lexical_fallback_when_vector_store_fails(
+        self,
+        retriever: TherapyRetriever,
+        mock_store: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(retriever_module.settings, "rag_retrieval_mode", "auto")
+        mock_store.query_mmr.side_effect = RuntimeError("embedding model unavailable")
+        monkeypatch.setattr(
+            retriever_module,
+            "load_therapy_knowledge",
+            lambda: [
+                {
+                    "id": "cbt_anxiety",
+                    "title": "CBT Anxiety",
+                    "category": "CBT",
+                    "tags": ["anxiety", "adult"],
+                    "content": "Anxiety can be supported with slow breathing and thought records.",
+                }
+            ],
+        )
+        eos = EmotionalOperatingState(
+            surface_emotion="anxiety",
+            modality=Modality.CBT,
+            age_group="adult",
+        )
+
+        chunks = retriever.retrieve("anxiety breathing", eos)
+
+        assert chunks == ["Anxiety can be supported with slow breathing and thought records."]
+        assert retriever.last_status["mode"] == "lexical"
+        assert retriever.last_status["status"] == "ready"
 
 
 class TestSingleton:

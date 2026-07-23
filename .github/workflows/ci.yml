@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           detect-secrets scan --force-use-all-plugins \
-            backend/app backend/Dockerfile .env.example render.yaml .github/workflows \
+            backend/app backend/Dockerfile backend/Dockerfile.render-free .env.example render.yaml deploy docs scripts .github/workflows \
             | python -c 'import json, sys; results=json.load(sys.stdin)["results"]; print(json.dumps(results, indent=2) if results else "No secrets detected"); raise SystemExit(1 if results else 0)'
 
   frontend:

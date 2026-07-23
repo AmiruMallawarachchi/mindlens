@@ -67,3 +67,38 @@ def test_cors_origins_accept_json_environment_format() -> None:
         "https://one.example",
         "https://two.example",
     ]
+
+
+def test_render_free_demo_rejects_model_preload() -> None:
+    with pytest.raises(ValidationError, match="PRELOAD_MODELS"):
+        _production_settings(
+            deployment_mode="render_free_demo",
+            preload_models=True,
+            preload_rag=False,
+            chromadb_persist_dir="/tmp/mindlens/chroma",
+        )
+
+
+def test_render_free_demo_rejects_persistent_chroma_path() -> None:
+    with pytest.raises(ValidationError, match="ephemeral temp"):
+        _production_settings(
+            deployment_mode="render_free_demo",
+            preload_models=False,
+            preload_rag=False,
+            chromadb_persist_dir="/var/data/chroma",
+        )
+
+
+def test_render_free_demo_uses_ephemeral_chroma_without_preload() -> None:
+    configured = _production_settings(
+        deployment_mode="render_free_demo",
+        preload_models=False,
+        preload_rag=False,
+        chromadb_persist_dir="/tmp/mindlens/chroma",
+        model_backend="onnx",
+    )
+
+    assert configured.is_render_free_demo is True
+    assert configured.preload_models is False
+    assert configured.preload_rag is False
+    assert configured.chromadb_persist_dir.startswith("/tmp/")

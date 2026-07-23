@@ -126,7 +126,11 @@ def create_app() -> FastAPI:
             model_ready = not settings.preload_models or all(
                 item["status"] == "ready" for item in models.values()
             )
-            rag_status: dict[str, object] = {"status": "lazy"}
+            rag_status: dict[str, object] = {
+                "status": "lazy",
+                "mode": settings.rag_retrieval_mode,
+                "persist_dir": settings.chromadb_persist_dir,
+            }
             if settings.preload_rag:
                 rag_count = await asyncio.to_thread(get_vector_store().count)
                 rag_status = {"status": "ready" if rag_count else "empty", "chunks": rag_count}
@@ -135,8 +139,10 @@ def create_app() -> FastAPI:
                 status_code=200 if model_ready else 503,
                 content={
                     "ready": model_ready,
+                    "deployment_mode": settings.deployment_mode,
                     "database": "connected",
                     "models": models,
+                    "resident_models": model_manager.resident_model_count(),
                     "rag": rag_status,
                 },
             )

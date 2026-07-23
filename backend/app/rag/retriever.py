@@ -15,9 +15,12 @@ Usage:
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
+from app.config import settings
 from app.core.emotional_os import EmotionalOperatingState
+from app.rag.ingest import chunk_text, load_therapy_knowledge
 from app.rag.vector_store import TherapyVectorStore, get_vector_store
 from app.utils.logger import get_logger
 
@@ -44,6 +47,11 @@ class TherapyRetriever:
         self.k = k
         self.fetch_k = fetch_k
         self.lambda_mult = lambda_mult
+        self.last_status: dict[str, Any] = {
+            "mode": "not_used",
+            "status": "not_used",
+            "chunks": 0,
+        }
 
     # -----------------------------------------------------------------------
     # Core retrieval
@@ -69,6 +77,12 @@ class TherapyRetriever:
         query = self._build_query(user_text, eos)
         top_k = k or self.k
 
+        if settings.rag_retrieval_mode == "disabled":
+            self.last_status = {"mode": "disabled", "status": "disabled", "chunks": 0}
+            return []
+        if settings.rag_retrieval_mode == "lexical":
+            return self._retrieve_lexical(query, eos, top_k)
+
         try:
             self.store.connect()
             results = self.store.query_mmr(
@@ -79,6 +93,14 @@ class TherapyRetriever:
             )
         except Exception as exc:
             logger.warning("RAG retrieval failed: %s", exc)
+            if settings.rag_retrieval_mode == "auto":
+                return self._retrieve_lexical(query, eos, top_k, reason=type(exc).__name__)
+            self.last_status = {
+                "mode": "vector",
+                "status": "error",
+                "chunks": 0,
+                "error": type(exc).__name__,
+            }
             return []
 
         documents = results.get("documents", [[]])[0]
@@ -92,6 +114,7 @@ class TherapyRetriever:
         logger.info(
             "RAG retrieved %d chunks for query '%s'", len(ranked), query[:60]
         )
+        self.last_status = {"mode": "vector", "status": "ready", "chunks": len(ranked)}
         return ranked
 
     def retrieve_with_metadata(
@@ -118,6 +141,25 @@ class TherapyRetriever:
             )
         except Exception as exc:
             logger.warning("RAG retrieval failed: %s", exc)
+            if settings.rag_retrieval_mode == "auto":
+                chunks = self._retrieve_lexical(query, eos, top_k, reason=type(exc).__name__)
+                return [
+                    {
+                        "id": f"lexical_{idx}",
+                        "text": chunk,
+                        "category": "curated",
+                        "title": "Lexical fallback",
+                        "tags": "fallback",
+                        "score": 0.0,
+                    }
+                    for idx, chunk in enumerate(chunks)
+                ]
+            self.last_status = {
+                "mode": "vector",
+                "status": "error",
+                "chunks": 0,
+                "error": type(exc).__name__,
+            }
             return []
 
         docs = results.get("documents", [[]])[0]
@@ -154,6 +196,78 @@ class TherapyRetriever:
                     break
 
         return output_ordered[:top_k]
+
+    def _retrieve_lexical(
+        self,
+        query: str,
+        eos: EmotionalOperatingState,
+        top_k: int,
+        *,
+        reason: str | None = None,
+    ) -> list[str]:
+        entries = load_therapy_knowledge()
+        if not entries:
+            self.last_status = {
+                "mode": "lexical",
+                "status": "empty",
+                "chunks": 0,
+                "reason": reason,
+            }
+            return []
+
+        query_terms = self._token_counts(query)
+        candidates: list[tuple[float, str, dict[str, Any]]] = []
+        for entry in entries:
+            meta = {
+                "category": entry.get("category", "general"),
+                "tags": ", ".join(entry.get("tags", []))
+                if isinstance(entry.get("tags"), list)
+                else str(entry.get("tags", "")),
+                "title": entry.get("title", ""),
+            }
+            for chunk in chunk_text(
+                str(entry.get("content", "")),
+                chunk_size=settings.rag_chunk_size,
+                overlap=settings.rag_chunk_overlap,
+            ):
+                score = self._lexical_score(query_terms, chunk, meta)
+                if score > 0:
+                    candidates.append((score, chunk, meta))
+
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        docs = [chunk for _, chunk, _ in candidates[: max(top_k * 2, top_k)]]
+        metas = [meta for _, _, meta in candidates[: max(top_k * 2, top_k)]]
+        ranked = self._rerank_by_age_group(docs, metas, age_group=eos.age_group)[:top_k]
+        self.last_status = {
+            "mode": "lexical",
+            "status": "ready" if ranked else "empty",
+            "chunks": len(ranked),
+            "reason": reason,
+        }
+        return ranked
+
+    @staticmethod
+    def _token_counts(text: str) -> Counter[str]:
+        tokens = [
+            token.strip(".,!?;:\"'()[]{}").lower()
+            for token in text.split()
+        ]
+        return Counter(token for token in tokens if len(token) > 2)
+
+    @classmethod
+    def _lexical_score(
+        cls,
+        query_terms: Counter[str],
+        chunk: str,
+        metadata: dict[str, Any],
+    ) -> float:
+        haystack = " ".join(
+            [chunk, str(metadata.get("category", "")), str(metadata.get("tags", ""))]
+        )
+        chunk_terms = cls._token_counts(haystack)
+        return float(
+            sum(query_terms[token] * chunk_terms.get(token, 0) for token in query_terms)
+        )
 
     # -----------------------------------------------------------------------
     # Query construction
