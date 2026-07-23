@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import sys
 from pathlib import Path
 from typing import Any
@@ -154,6 +155,7 @@ def mock_model_manager() -> MagicMock:
             "emotion": await mock_predict_emotion(text),
             "crisis": await mock_predict_crisis(text),
             "mental_health": await mock_predict_mental_health(text),
+            "distortion": [],
         }
 
     manager.predict_emotion = mock_predict_emotion
@@ -179,6 +181,23 @@ def mock_db() -> MagicMock:
     mock.user_memory = MagicMock()
     mock.mood_logs = MagicMock()
     mock.safety_events = MagicMock()
+    mock.audit_log = MagicMock()
+    mock.pending_checkins = MagicMock()
+    mock.users.find_one = AsyncMock(
+        return_value={
+            "_id": "user_123",
+            "email": "test@example.com",
+            "name": "Test User",
+            "nickname": "Test",
+            "age": 22,
+            "age_group": "adult",
+            "role": "user",
+            "is_active": True,
+            "onboarding_complete": True,
+            "created_at": datetime.datetime.now(datetime.UTC),
+        }
+    )
+    mock.token_blocklist.find_one = AsyncMock(return_value=None)
     return mock
 
 
@@ -186,7 +205,9 @@ def mock_db() -> MagicMock:
 async def test_client() -> Any:
     """Async HTTP client for router testing."""
     from app.main import app
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client

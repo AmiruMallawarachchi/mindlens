@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import Optional  # noqa: F401
 from urllib.parse import parse_qs, urlparse
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.config import settings
@@ -60,11 +60,10 @@ async def connect_db() -> None:
     try:
         await db.client.admin.command("ping")
     except Exception as exc:
-        logger.error("MongoDB connection failed: %s", exc)
+        logger.error("MongoDB connection failed: %s", type(exc).__name__)
         raise RuntimeError(
-            f"Failed to connect to MongoDB at {mongo_url}. "
-            "If using Atlas, check your IP whitelist and connection string. "
-            "If on Windows with Python 3.11+, ensure tlsDisableOCSPEndpointCheck is enabled."
+            "Failed to connect to MongoDB. Check the configured network access, "
+            "credentials, TLS settings, and database availability."
         ) from exc
 
     logger.info("Connected to MongoDB: %s", settings.mongodb_db_name)
@@ -72,12 +71,17 @@ async def connect_db() -> None:
 
     await database.users.create_index("email", unique=True)
     await database.sessions.create_index("user_id")
+    await database.sessions.create_index("session_id", unique=True)
     await database.sessions.create_index("created_at")
     await database.mood_logs.create_index([("user_id", 1), ("timestamp", -1)])
     await database.safety_events.create_index("timestamp")
+    await database.audit_log.create_index("timestamp")
+    await database.audit_log.create_index([("user_id", 1), ("timestamp", -1)])
     await database.token_blocklist.create_index("token_jti", unique=True)
+    await database.token_blocklist.create_index("expires_at", expireAfterSeconds=0)
     await database.user_memory.create_index("user_id", unique=True)
     await database.pending_checkins.create_index([("user_id", 1), ("delivered", 1)])
+    await database.pending_checkins.create_index("expires_at", expireAfterSeconds=0)
 
     logger.info("Database indexes created")
 
@@ -133,3 +137,10 @@ async def get_memory_collection():
 def get_db_client() -> AsyncIOMotorClient | None:
     """Return the live Motor client (or None if not yet connected)."""
     return db.client
+
+
+def document_id_filter(document_id: str) -> dict[str, object]:
+    """Match both new string IDs and legacy MongoDB ObjectId records."""
+    if ObjectId.is_valid(document_id):
+        return {"_id": {"$in": [document_id, ObjectId(document_id)]}}
+    return {"_id": document_id}

@@ -9,15 +9,14 @@ Provides:
   - Login lockout after 5 failed attempts (15 min)
 
 
-All state is in-memory (per-process). Suitable for single-instance
-FastAPI deployments. For multi-instance, a Redis-backed store would be
-needed, but MindLens targets Railway Hobby (single instance) so this
-is sufficient and zero-cost.
+All rate-limit state is in-memory and process-local. The Render deployment runs
+one worker; a shared store such as Redis is required before horizontal scaling.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import re
 import secrets
@@ -26,14 +25,15 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
+import jwt
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
-from app.db import get_db
+from app.db import document_id_filter, get_db
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -151,7 +151,7 @@ def verify_refresh_token(token: str) -> JWTUser:
     """
     payload = jwt.decode(
         token,
-        settings.jwt_secret_key,
+        settings.jwt_refresh_secret_key,
         algorithms=[settings.jwt_algorithm],
     )
     if payload.get("type") != "refresh":
@@ -210,7 +210,9 @@ def create_token_pair(user_id: str, email: str, role: str = "user") -> dict[str,
         access_payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
     )
     refresh_token = jwt.encode(
-        refresh_payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+        refresh_payload,
+        settings.jwt_refresh_secret_key,
+        algorithm=settings.jwt_algorithm,
     )
 
     return {
@@ -307,6 +309,13 @@ class MindLensAuthMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("X-Request-ID", secrets.token_hex(8))
         request.state.request_id = request_id
 
+        if self._csrf_failed(request):
+            return Response(
+                content=json.dumps({"detail": "CSRF validation failed"}),
+                status_code=status.HTTP_403_FORBIDDEN,
+                headers={"Content-Type": "application/json", "X-Request-ID": request_id},
+            )
+
         # 2. Rate limit unauthenticated routes
         if not _is_protected_route(request.url.path):
             ip = _get_client_ip(request)
@@ -321,9 +330,8 @@ class MindLensAuthMiddleware(BaseHTTPMiddleware):
                 )
 
         # 3. JWT extraction (attach to request.state even if not enforced here)
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+        token = get_request_access_token(request)
+        if token:
             try:
                 user = verify_access_token(token)
                 request.state.user = user
@@ -336,6 +344,25 @@ class MindLensAuthMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
+
+    @staticmethod
+    def _csrf_failed(request: Request) -> bool:
+        """Protect cookie-authenticated state changes in cross-site production use."""
+        if not settings.is_production or request.method in {"GET", "HEAD", "OPTIONS"}:
+            return False
+        if request.url.path in {"/api/v1/auth/register", "/api/v1/auth/login"}:
+            return False
+        if not (
+            request.cookies.get("access_token") or request.cookies.get("refresh_token")
+        ):
+            return False
+        cookie_token = request.cookies.get("csrf_token", "")
+        header_token = request.headers.get("X-CSRF-Token", "")
+        return not (
+            cookie_token
+            and header_token
+            and hmac.compare_digest(cookie_token, header_token)
+        )
 
 
 def _is_protected_route(path: str) -> bool:
@@ -365,6 +392,14 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def get_request_access_token(request: Request) -> str | None:
+    """Read an access token from a bearer header or secure cookie."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    return request.cookies.get("access_token")
+
+
 # ---------------------------------------------------------------------------
 # FastAPI Dependencies
 # ---------------------------------------------------------------------------
@@ -380,14 +415,12 @@ async def require_user(
     FastAPI dependency: require valid user JWT.
     Returns user document from MongoDB.
     """
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+    token = get_request_access_token(request)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header",
+            detail="Missing authorization token",
         )
-
-    token = auth_header[7:]
     try:
         jwt_user = verify_access_token(token)
     except JWTError as exc:
@@ -405,21 +438,11 @@ async def require_user(
         )
 
     # Fetch full user
-    user = await db.users.find_one({"_id": jwt_user.id})
+    user = await db.users.find_one(document_id_filter(jwt_user.id))
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
-        )
-
-    # Rate limit authenticated user messages
-    allowed = await get_rate_limit_store().check_user(
-        jwt_user.id, settings.RATE_LIMIT_PER_USER_HOUR
-    )
-    if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Hourly message limit exceeded. Please try again later.",
         )
 
     return user
@@ -433,14 +456,12 @@ async def require_admin(
     FastAPI dependency: require valid admin JWT.
     Returns admin user document.
     """
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+    token = get_request_access_token(request)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header",
+            detail="Missing authorization token",
         )
-
-    token = auth_header[7:]
     try:
         jwt_user = verify_admin_token(token)
     except JWTError as exc:
@@ -457,7 +478,9 @@ async def require_admin(
             detail="Token has been revoked",
         )
 
-    user = await db.users.find_one({"_id": jwt_user.id, "role": settings.ADMIN_ROLE_NAME})
+    user_filter = document_id_filter(jwt_user.id)
+    user_filter["role"] = settings.ADMIN_ROLE_NAME
+    user = await db.users.find_one(user_filter)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -472,10 +495,9 @@ async def optional_user(request: Request) -> dict[str, Any] | None:
     FastAPI dependency: optionally extract user from JWT.
     Returns None if no valid token.
     """
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+    token = get_request_access_token(request)
+    if not token:
         return None
-    token = auth_header[7:]
     try:
         jwt_user = verify_access_token(token)
     except JWTError:

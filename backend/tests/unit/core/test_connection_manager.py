@@ -12,8 +12,10 @@ class TestConnectionManagerBasics:
     """Unit tests for ConnectionManager."""
 
     @pytest.fixture
-    def manager(self) -> ConnectionManager:
-        return ConnectionManager(heartbeat_interval=30, max_concurrent_per_user=1)
+    async def manager(self) -> ConnectionManager:
+        manager = ConnectionManager(heartbeat_interval=30, max_concurrent_per_user=1)
+        yield manager
+        await manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_connect_accepts_websocket(self, manager: ConnectionManager) -> None:

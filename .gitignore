@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .venv/
+.coverage
+coverage.xml
+htmlcov/
 venv-train/
 venv/
 ENV/
@@ -16,11 +19,14 @@ env/
 
 # Data & Models (HUGE files - NEVER commit)
 data/
+!backend/data/
+backend/data/*
 notebooks/data/
 *.arrow
 *.parquet
 *.csv
 *.json
+!backend/data/therapy_knowledge.json
 !data/reports/*.json
 !data/figures/*.png
 *.pt

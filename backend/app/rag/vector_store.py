@@ -20,6 +20,7 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 from chromadb.utils import embedding_functions
 
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -48,9 +49,7 @@ class TherapyVectorStore:
 
         self._client: chromadb.Client | None = None
         self._collection: chromadb.Collection | None = None
-        self._embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=embedding_model
-        )
+        self._embedding_function = None
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -61,12 +60,14 @@ class TherapyVectorStore:
         if self._client is not None:
             return
 
-        self._client = chromadb.Client(
-            ChromaSettings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=self.persist_directory,
-                anonymized_telemetry=False,
+        self._embedding_function = (
+            embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=self.embedding_model
             )
+        )
+        self._client = chromadb.PersistentClient(
+            path=self.persist_directory,
+            settings=ChromaSettings(anonymized_telemetry=False),
         )
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
@@ -82,12 +83,9 @@ class TherapyVectorStore:
     def disconnect(self) -> None:
         """Close client."""
         if self._client is not None:
-            try:
-                self._client.persist()
-            except Exception:
-                pass
             self._client = None
             self._collection = None
+            self._embedding_function = None
             logger.info("ChromaDB disconnected.")
 
     # -----------------------------------------------------------------------
@@ -101,9 +99,8 @@ class TherapyVectorStore:
         metadatas: list[dict[str, Any]] | None = None,
     ) -> None:
         """Add or upsert documents into the collection."""
-        self._ensure_connected()
-        assert self._collection is not None
-        self._collection.upsert(
+        collection = self._connected_collection()
+        collection.upsert(
             documents=documents,
             ids=ids,
             metadatas=metadatas,
@@ -112,9 +109,8 @@ class TherapyVectorStore:
 
     def delete_documents(self, ids: list[str]) -> None:
         """Delete documents by ID."""
-        self._ensure_connected()
-        assert self._collection is not None
-        self._collection.delete(ids=ids)
+        collection = self._connected_collection()
+        collection.delete(ids=ids)
         logger.info("Deleted %d documents from ChromaDB", len(ids))
 
     def query(
@@ -127,9 +123,8 @@ class TherapyVectorStore:
         Basic similarity search.
         Returns raw ChromaDB result dict: {ids, distances, documents, metadatas}.
         """
-        self._ensure_connected()
-        assert self._collection is not None
-        return self._collection.query(
+        collection = self._connected_collection()
+        return collection.query(
             query_texts=query_texts,
             n_results=n_results,
             where=where,
@@ -150,11 +145,10 @@ class TherapyVectorStore:
         then greedily selects `n_results` that maximize:
           lambda * relevance - (1 - lambda) * max_similarity_to_already_selected
         """
-        self._ensure_connected()
-        assert self._collection is not None
+        collection = self._connected_collection()
 
         # Fetch top-k by similarity
-        results = self._collection.query(
+        results = collection.query(
             query_texts=query_texts,
             n_results=fetch_k,
             where=where,
@@ -171,14 +165,10 @@ class TherapyVectorStore:
         return mmr_results
 
     def count(self) -> int:
-        self._ensure_connected()
-        assert self._collection is not None
-        return self._collection.count()
+        return self._connected_collection().count()
 
     def peek(self, limit: int = 5) -> dict[str, Any]:
-        self._ensure_connected()
-        assert self._collection is not None
-        return self._collection.peek(limit=limit)
+        return self._connected_collection().peek(limit=limit)
 
     # -----------------------------------------------------------------------
     # MMR helper
@@ -251,6 +241,12 @@ class TherapyVectorStore:
         if self._client is None:
             self.connect()
 
+    def _connected_collection(self) -> chromadb.Collection:
+        self._ensure_connected()
+        if self._collection is None:
+            raise RuntimeError("ChromaDB collection failed to initialize")
+        return self._collection
+
 
 # ---------------------------------------------------------------------------
 # Singleton
@@ -262,5 +258,9 @@ def get_vector_store() -> TherapyVectorStore:
     """Return the global TherapyVectorStore singleton."""
     global _vector_store
     if _vector_store is None:
-        _vector_store = TherapyVectorStore()
+        _vector_store = TherapyVectorStore(
+            persist_directory=settings.chromadb_persist_dir,
+            collection_name=settings.rag_collection_name,
+            embedding_model=settings.rag_embed_model,
+        )
     return _vector_store

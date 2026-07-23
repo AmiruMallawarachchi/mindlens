@@ -14,7 +14,7 @@ from fastapi import status
 @pytest.fixture
 async def onboarding_client(mock_db: MagicMock):
     from app.main import app
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
 
     async def override_get_db():
         return mock_db
@@ -23,7 +23,9 @@ async def onboarding_client(mock_db: MagicMock):
     from app.db import get_db
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client
 
     app.dependency_overrides.clear()

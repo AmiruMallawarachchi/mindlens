@@ -30,6 +30,8 @@ def orchestrator(mock_model_manager: MagicMock) -> Orchestrator:
     """Return Orchestrator with injected mock."""
     orch = Orchestrator()
     orch.models = mock_model_manager
+    orch._retriever = MagicMock()
+    orch._retriever.retrieve.return_value = []
     return orch
 
 

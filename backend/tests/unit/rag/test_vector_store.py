@@ -19,7 +19,7 @@ class TestTherapyVectorStore:
             mock_collection = MagicMock()
             mock_collection.count.return_value = 0
             mock_client.get_or_create_collection.return_value = mock_collection
-            mock_chroma.Client.return_value = mock_client
+            mock_chroma.PersistentClient.return_value = mock_client
             store = TherapyVectorStore(
                 persist_directory="/tmp/test_chroma",
                 collection_name="test_collection",

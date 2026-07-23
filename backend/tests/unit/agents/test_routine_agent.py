@@ -39,7 +39,7 @@ class TestRoutineAgent:
     async def test_system_prompt_tiny_routine(self, agent: RoutineAgent, agent_context: EmotionalOperatingState) -> None:
         prompt = agent._build_system_prompt(agent_context)
         assert "tiny routine" in prompt.lower()
-        assert "2-3 steps max" in prompt
+        assert "MAX 6 items" in prompt
 
     def test_max_tokens(self, agent: RoutineAgent) -> None:
         assert agent.max_tokens == 350

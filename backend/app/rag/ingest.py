@@ -18,18 +18,17 @@ import json
 import os
 from typing import Any
 
+from app.config import settings
 from app.rag.vector_store import get_vector_store
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_KNOWLEDGE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "therapy_knowledge.json"
-)
+_KNOWLEDGE_PATH = settings.rag_knowledge_path
 
 # Chunking parameters (approximate: 400 chars / 50 overlap)
-_CHUNK_SIZE = 400
-_CHUNK_OVERLAP = 50
+_CHUNK_SIZE = settings.rag_chunk_size
+_CHUNK_OVERLAP = settings.rag_chunk_overlap
 
 
 def load_therapy_knowledge(path: str | None = None) -> list[dict[str, Any]]:
@@ -75,7 +74,7 @@ def chunk_text(text: str, chunk_size: int = _CHUNK_SIZE, overlap: int = _CHUNK_O
 
         # Try to break at sentence boundary
         if end < text_len:
-            for pos in range(end, start + chunk_size // 2, -1):
+            for pos in range(end, start + chunk_size // 3, -1):
                 if pos < text_len and text[pos] in ".!?" and pos + 1 < text_len and text[pos + 1] in " \n":
                     end = pos + 1
                     break
@@ -120,6 +119,7 @@ def ingest_documents(
         tags = entry.get("tags", [])
         content = entry.get("content", "")
         title = entry.get("title", "")
+        source_url = entry.get("source_url", "")
 
         if not content.strip():
             continue
@@ -137,6 +137,7 @@ def ingest_documents(
                     "tags": ", ".join(tags) if isinstance(tags, list) else str(tags),
                     "chunk_index": idx,
                     "total_chunks": len(chunks),
+                    "source_url": source_url,
                 }
             )
 

@@ -87,6 +87,8 @@ class MindfulnessAgent(BaseAgent):
             emotion.lower(),
             "4-7-8 breathing or 5-4-3-2-1 grounding"
         )
+        if distress >= 0.8:
+            technique = "5-4-3-2-1 grounding (immediate sensory anchoring)"
 
         # Time guidance based on distress
         time_note = "about 2 minutes"

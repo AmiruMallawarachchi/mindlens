@@ -39,6 +39,12 @@ class ProgressAgent(BaseAgent):
             always_runs=False,
         )
 
+    def _build_system_prompt(self, ctx: AgentContext) -> str:
+        return self._build_system_prompt_v3(ctx)
+
+    def _build_user_prompt(self, ctx: AgentContext) -> str:
+        return self._build_user_prompt_v3(ctx)
+
     async def run(self, ctx: AgentContext) -> AgentOutput:
         """Generate a progress insight based on session history."""
 
@@ -88,8 +94,7 @@ class ProgressAgent(BaseAgent):
             f"6. If age group is 'adult': slightly deeper, more structured.\n"
             f"7. NEVER diagnose. Never compare to others.\n"
             f"8. Never use: 'I understand ...'\n"
-            f"9. NEVER use the word 'celebrate' in the prompt.\n"
-            f"10. NEVER use the phrase 'celebrate' when describing progress.\n"
+            f"9. Celebrate specific small wins without exaggerating them.\n"
             f"\nRespond ONLY with the insight summary. No bullet points. Use simple paragraphs.\n"
         )
 

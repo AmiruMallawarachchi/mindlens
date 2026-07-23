@@ -68,10 +68,13 @@ class SessionMemory:
 
         If buffer exceeds max_turns, oldest turn is dropped.
         """
+        timestamp = datetime.datetime.utcnow()
+        if self.turns and timestamp <= self.turns[-1].timestamp:
+            timestamp = self.turns[-1].timestamp + datetime.timedelta(microseconds=1)
         turn = Turn(
             role=role,
             content=content,
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=timestamp,
             emotion=emotion,
             distress=distress,
         )

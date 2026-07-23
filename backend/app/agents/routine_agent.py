@@ -32,9 +32,15 @@ class RoutineAgent(BaseAgent):
             name="routine",
             description="Build small, structured daily routines",
             llm_tier="70B",  # SYSTEM.md: "needs pattern synthesis"
-            max_tokens=400,
+            max_tokens=350,
             always_runs=False,
         )
+
+    def _build_system_prompt(self, ctx: AgentContext) -> str:
+        return self._build_system_prompt_v3(ctx)
+
+    def _build_user_prompt(self, ctx: AgentContext) -> str:
+        return self._build_user_prompt_v3(ctx)
 
     async def run(self, ctx: AgentContext) -> AgentOutput:
         """Generate a micro-routine suggestion."""
@@ -97,7 +103,7 @@ class RoutineAgent(BaseAgent):
             f"\nINSTRUCTIONS (follow ALL of them):\n"
             f"1. Generate a personalised daily wellness plan for {name}.\n"
             f"2. Structure it as: Morning → Afternoon → Evening.\n"
-            f"3. MAX 6 items total across the whole day. Keep it tiny.\n"
+            f"3. MAX 6 items total across the whole day. Keep it a tiny routine.\n"
             f"4. ALWAYS include a 7-hour sleep block in the evening.\n"
             f"5. Reference their specific situation if known (e.g., exams, work deadline, relationship stress).\n"
             f"6. Make it practical, not generic. Use their name.\n"
