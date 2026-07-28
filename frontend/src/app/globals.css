@@ -2749,6 +2749,219 @@ button:disabled {
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Auth gate                                                               */
+/* ---------------------------------------------------------------------- */
+
+.auth-gate {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  display: flex;
+  width: min(380px, 100%);
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px;
+  border-radius: 24px;
+}
+
+.auth-card .brand-lockup {
+  margin: 0 auto 4px;
+}
+
+.auth-loading {
+  align-items: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.auth-tabs button {
+  flex: 1;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.auth-tabs button.is-active {
+  background: var(--glass-hover);
+  color: #fff;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--faint);
+}
+
+.auth-field:focus-within {
+  border-color: rgba(154, 203, 255, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.auth-field input {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+}
+
+.auth-field input::placeholder {
+  color: rgba(255, 255, 255, 0.34);
+}
+
+.auth-field-suffix {
+  font-size: 9px;
+  font-weight: 620;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.auth-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #ff8a8a;
+  font-size: 10px;
+}
+
+.auth-submit {
+  width: 100%;
+  min-height: 44px;
+  font-size: 11px;
+}
+
+.auth-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-disclaimer {
+  margin: 0;
+  color: var(--faint);
+  font-size: 8px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Live connection + crisis state                                         */
+/* ---------------------------------------------------------------------- */
+
+.connection-pill {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--faint);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.crisis-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 max(20px, calc((100% - 820px) / 2)) 14px;
+  padding: 16px 18px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 18px;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.crisis-banner strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #ffb3b3;
+  font-size: 11px;
+}
+
+.crisis-banner ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.message-bubble.is-crisis {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 16px;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 14px 17px;
+}
+
+.message-bubble.is-error {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px 17px;
+  color: var(--faint);
+  font-style: italic;
+}
+
+.activity-step.is-degraded strong {
+  color: #f5b95c;
+}
+
+.settings-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

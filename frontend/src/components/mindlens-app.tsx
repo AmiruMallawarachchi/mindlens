@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertCircle,
   ArrowUpRight,
   Bell,
   BookOpenText,
@@ -8,7 +9,6 @@ import {
   CalendarDays,
   ChartNoAxesCombined,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Circle,
@@ -29,7 +29,6 @@ import {
   Paperclip,
   Play,
   Plus,
-  RotateCcw,
   Search,
   Send,
   Settings2,
@@ -49,15 +48,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mood, ShaderAtmosphere } from "./shader-atmosphere";
+import { MindLensMark } from "./mindlens-mark";
+import { AuthGate } from "./auth-gate";
+import { useMindLensClient } from "../lib/use-mindlens-client";
+import type { ChatMessage, ConnectionStatus, CrisisResource, EosSnapshot } from "../lib/types";
 
 type View = "chat" | "progress" | "journal" | "memory";
 type InspectorTab = "progress" | "music" | "memory";
-
-type Message = {
-  id: number;
-  role: "user" | "assistant";
-  body: string;
-};
 
 const MOODS: {
   id: Mood;
@@ -73,6 +70,44 @@ const MOODS: {
   { id: "hopeful", label: "Hopeful", note: "Open and bright", icon: SunMedium },
 ];
 
+// Maps the backend's go-emotions surface_emotion (28-class taxonomy, see
+// backend/app/core/emotion_labels.py) onto the six atmosphere moods.
+const MOOD_BY_EMOTION: Record<string, Mood> = {
+  anger: "angry",
+  annoyance: "angry",
+  disapproval: "angry",
+  disgust: "angry",
+  fear: "anxious",
+  nervousness: "anxious",
+  embarrassment: "anxious",
+  sadness: "sad",
+  grief: "sad",
+  disappointment: "sad",
+  remorse: "sad",
+  relief: "calm",
+  approval: "calm",
+  caring: "calm",
+  joy: "hopeful",
+  amusement: "hopeful",
+  excitement: "hopeful",
+  gratitude: "hopeful",
+  love: "hopeful",
+  pride: "hopeful",
+  admiration: "hopeful",
+  optimism: "hopeful",
+  desire: "hopeful",
+  curiosity: "hopeful",
+  neutral: "neutral",
+  confusion: "neutral",
+  surprise: "neutral",
+  realization: "neutral",
+};
+
+function moodFromEmotion(surfaceEmotion: string | undefined): Mood | null {
+  if (!surfaceEmotion) return null;
+  return MOOD_BY_EMOTION[surfaceEmotion] ?? null;
+}
+
 const SESSION_GROUPS = [
   {
     label: "Today",
@@ -84,70 +119,12 @@ const SESSION_GROUPS = [
   },
 ];
 
-const ACTIVITY_STEPS = [
-  {
-    label: "Safety check",
-    detail: "No immediate risk detected",
-    icon: ShieldCheck,
-    state: "complete",
-  },
-  {
-    label: "Emotional context",
-    detail: "Anxiety · pressure · low sleep",
-    icon: Brain,
-    state: "complete",
-  },
-  {
-    label: "Relevant memory",
-    detail: "Ravi is taking the same exam",
-    icon: Database,
-    state: "complete",
-  },
-  {
-    label: "Support approach",
-    detail: "CBT + practical planning",
-    icon: Wrench,
-    state: "complete",
-  },
-];
-
 const NAV_ITEMS: { id: View; label: string; icon: typeof MessageCircleMore }[] = [
   { id: "chat", label: "Chat", icon: MessageCircleMore },
   { id: "progress", label: "Progress", icon: ChartNoAxesCombined },
   { id: "journal", label: "Journal", icon: BookOpenText },
   { id: "memory", label: "Memory", icon: Brain },
 ];
-
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: 1,
-    role: "user",
-    body: "My final exam is next Sunday and I haven’t studied at all. I can’t sleep because I keep thinking I’ll fail.",
-  },
-  {
-    id: 2,
-    role: "assistant",
-    body: "Okay, Amiru — that is real pressure, but seven days is still something we can work with. Tonight, the useful question isn’t “can I learn everything?”; it’s “what will give me the biggest chance of walking in prepared?” Ravi is sitting the same exam, right? Let’s ask him what topics matter most, protect seven hours of sleep, and build a realistic plan around the time you actually have.",
-  },
-];
-
-function MindLensMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`brand-lockup ${compact ? "is-compact" : ""}`}>
-      <div className="brand-mark" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      {!compact && (
-        <div>
-          <strong>MindLens</strong>
-          <small>Think clearly. Feel fully.</small>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function StatusDot({ active = false }: { active?: boolean }) {
   return <span className={`status-dot ${active ? "is-active" : ""}`} />;
@@ -159,13 +136,24 @@ function Sidebar({
   open,
   close,
   openSettings,
+  userName,
+  onNewConversation,
 }: {
   view: View;
   setView: (view: View) => void;
   open: boolean;
   close: () => void;
   openSettings: () => void;
+  userName: string;
+  onNewConversation: () => void;
 }) {
+  const initials = userName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+
   return (
     <>
       <button
@@ -181,7 +169,13 @@ function Sidebar({
           </button>
         </div>
 
-        <button className="new-chat-button" onClick={() => setView("chat")}>
+        <button
+          className="new-chat-button"
+          onClick={() => {
+            setView("chat");
+            onNewConversation();
+          }}
+        >
           <Plus size={18} />
           New conversation
           <span className="key-hint">⌘ K</span>
@@ -237,9 +231,9 @@ function Sidebar({
 
         <div className="sidebar-footer">
           <button className="profile-card" onClick={openSettings}>
-            <span className="avatar">AM</span>
+            <span className="avatar">{initials}</span>
             <span>
-              <strong>Amiru</strong>
+              <strong>{userName}</strong>
               <small>Personal space</small>
             </span>
             <MoreHorizontal size={17} />
@@ -250,13 +244,25 @@ function Sidebar({
   );
 }
 
+/** Renders the actual agents/EOS/degradation metadata for one assistant turn
+ * — this is real orchestration telemetry, not illustrative content. */
 function ActivityPanel({
   expanded,
   setExpanded,
+  agentsUsed,
+  eos,
+  degraded,
 }: {
   expanded: boolean;
   setExpanded: (value: boolean) => void;
+  agentsUsed: string[];
+  eos?: EosSnapshot;
+  degraded?: string[];
 }) {
+  const summary = agentsUsed.length
+    ? `${agentsUsed.length} agent${agentsUsed.length > 1 ? "s" : ""} · ${eos?.modality ?? "—"} approach`
+    : "Agent activity";
+
   return (
     <div className={`activity-card ${expanded ? "is-expanded" : ""}`}>
       <button
@@ -269,28 +275,67 @@ function ActivityPanel({
         </span>
         <span className="activity-copy">
           <strong>MindLens activity</strong>
-          <small>4 steps completed · CBT approach</small>
+          <small>{summary}</small>
         </span>
         <ChevronDown size={17} />
       </button>
 
       {expanded && (
         <div className="activity-steps">
-          {ACTIVITY_STEPS.map((step) => {
-            const Icon = step.icon;
-            return (
-              <div className="activity-step" key={step.label}>
-                <span className="step-icon">
-                  <Icon size={15} />
-                </span>
-                <span>
-                  <strong>{step.label}</strong>
-                  <small>{step.detail}</small>
-                </span>
-                <Check size={15} className="step-check" />
-              </div>
-            );
-          })}
+          <div className="activity-step">
+            <span className="step-icon">
+              <ShieldCheck size={15} />
+            </span>
+            <span>
+              <strong>Safety check</strong>
+              <small>No crisis indicators detected</small>
+            </span>
+            <Check size={15} className="step-check" />
+          </div>
+
+          {eos && (
+            <div className="activity-step">
+              <span className="step-icon">
+                <Brain size={15} />
+              </span>
+              <span>
+                <strong>Emotional context</strong>
+                <small>
+                  {eos.surface_emotion ?? "neutral"}
+                  {typeof eos.distress_level === "number"
+                    ? ` · distress ${eos.distress_level.toFixed(2)}`
+                    : ""}
+                </small>
+              </span>
+              <Check size={15} className="step-check" />
+            </div>
+          )}
+
+          {agentsUsed.length > 0 && (
+            <div className="activity-step">
+              <span className="step-icon">
+                <Wrench size={15} />
+              </span>
+              <span>
+                <strong>Agents engaged</strong>
+                <small>{agentsUsed.join(", ")}</small>
+              </span>
+              <Check size={15} className="step-check" />
+            </div>
+          )}
+
+          {degraded && degraded.length > 0 && (
+            <div className="activity-step is-degraded">
+              <span className="step-icon">
+                <AlertCircle size={15} />
+              </span>
+              <span>
+                <strong>Degraded response</strong>
+                <small>Fell back to a template ({degraded.join(", ")})</small>
+              </span>
+            </div>
+          )}
+
           <p className="activity-note">
             <Info size={13} />
             This is a useful activity summary—not the model&apos;s private reasoning.
@@ -301,180 +346,142 @@ function ActivityPanel({
   );
 }
 
-function Checkpoint() {
-  return (
-    <div className="checkpoint">
-      <span />
-      <button>
-        <RotateCcw size={13} />
-        Checkpoint · Before creating your study plan
-      </button>
-      <span />
-    </div>
-  );
-}
-
-function ConfirmationCard() {
-  const [decision, setDecision] = useState<"pending" | "accepted" | "declined">(
-    "pending",
-  );
-
-  if (decision !== "pending") {
-    return (
-      <div className={`confirmation-card result-${decision}`}>
-        <CheckCircle2 size={18} />
-        <span>
-          <strong>{decision === "accepted" ? "Plan saved" : "Not saved"}</strong>
-          <small>
-            {decision === "accepted"
-              ? "You can change or delete this from Memory at any time."
-              : "This conversation remains private to the current session."}
-          </small>
-        </span>
-        <button onClick={() => setDecision("pending")}>Undo</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="confirmation-card">
-      <div className="confirmation-icon">
-        <Database size={18} />
-      </div>
-      <div className="confirmation-copy">
-        <strong>Remember this study plan?</strong>
-        <p>
-          MindLens can bring it back during your next check-in. You stay in control
-          of what is remembered.
-        </p>
-        <div className="confirmation-actions">
-          <button className="button-primary" onClick={() => setDecision("accepted")}>
-            Allow once
-          </button>
-          <button className="button-secondary" onClick={() => setDecision("declined")}>
-            Not now
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ChatView({
   activityExpanded,
   setActivityExpanded,
   mood,
-  setMood,
   adaptive,
+  messages,
+  sendMessage,
+  thinking,
+  activeAgents,
+  connectionStatus,
+  crisis,
+  dismissCrisis,
 }: {
   activityExpanded: boolean;
   setActivityExpanded: (value: boolean) => void;
   mood: Mood;
-  setMood: (mood: Mood) => void;
   adaptive: boolean;
+  messages: ChatMessage[];
+  sendMessage: (text: string) => void;
+  thinking: boolean;
+  activeAgents: string[];
+  connectionStatus: ConnectionStatus;
+  crisis: { text: string; resources: CrisisResource[] } | null;
+  dismissCrisis: () => void;
 }) {
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const canSend = connectionStatus === "open" && !thinking;
 
-  const sendMessage = () => {
+  const submit = () => {
     const clean = draft.trim();
-    if (!clean || thinking) return;
-    if (adaptive) {
-      const normalized = clean.toLowerCase();
-      if (/(angry|furious|mad|hate|frustrat)/.test(normalized)) setMood("angry");
-      else if (/(anxious|nervous|panic|worried|afraid|stress)/.test(normalized)) setMood("anxious");
-      else if (/(sad|empty|lonely|low|cry)/.test(normalized)) setMood("sad");
-      else if (/(hopeful|better|excited|proud|possible)/.test(normalized)) setMood("hopeful");
-      else if (/(calm|peaceful|relaxed|okay now)/.test(normalized)) setMood("calm");
-    }
-    const nextId = Date.now();
-    setMessages((current) => [
-      ...current,
-      { id: nextId, role: "user", body: clean },
-    ]);
+    if (!clean || !canSend) return;
+    sendMessage(clean);
     setDraft("");
-    setThinking(true);
-
-    window.setTimeout(() => {
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextId + 1,
-          role: "assistant",
-          body: "Let’s slow this down together. What feels most urgent right now—the amount of work, the fear of disappointing someone, or getting enough rest tonight? Pick the closest one and we’ll take the next step from there.",
-        },
-      ]);
-      setThinking(false);
-    }, 1450);
   };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, thinking]);
 
+  const latestModality = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.eos?.modality)
+    ?.eos?.modality;
+
   return (
     <div className="chat-view">
       <div className="conversation-header">
         <div>
           <span className="eyebrow">A safe space for what&apos;s real</span>
-          <h1>Exam pressure and sleep</h1>
+          <h1>Current conversation</h1>
         </div>
         <div className="conversation-meta">
-          <span className="approach-badge">
-            <Sparkles size={13} />
-            CBT approach
-          </span>
+          {latestModality && (
+            <span className="approach-badge">
+              <Sparkles size={13} />
+              {latestModality} approach
+            </span>
+          )}
+          {connectionStatus !== "open" && (
+            <span className="connection-pill" data-status={connectionStatus}>
+              <StatusDot active={false} />
+              {connectionStatus === "connecting" && "Connecting…"}
+              {connectionStatus === "reconnecting" && "Reconnecting…"}
+              {connectionStatus === "closed" && "Disconnected"}
+              {connectionStatus === "idle" && "Starting session…"}
+            </span>
+          )}
           <button className="icon-button" aria-label="Conversation options">
             <MoreHorizontal size={18} />
           </button>
         </div>
       </div>
 
-      <div className="message-stream" aria-live="polite">
-        <div className="day-divider"><span>Today · 9:42 AM</span></div>
+      {crisis && (
+        <div className="crisis-banner glass-card" role="alert">
+          <div>
+            <strong>Please reach out to someone who can help right now</strong>
+            <ul>
+              {crisis.resources.map((resource) => (
+                <li key={resource.name}>
+                  {resource.name}: <strong>{resource.number}</strong>
+                  {resource.available ? ` · ${resource.available}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button className="button-secondary" onClick={dismissCrisis}>
+            I&apos;ve seen this
+          </button>
+        </div>
+      )}
 
-        {messages.map((message, index) => (
-          <div
-            className={`message-row is-${message.role}`}
-            key={message.id}
-          >
+      <div className="message-stream" aria-live="polite">
+        {messages.length === 0 && !thinking && (
+          <div className="day-divider">
+            <span>Tell MindLens what&apos;s on your mind to begin</span>
+          </div>
+        )}
+
+        {messages.map((message) => (
+          <div className={`message-row is-${message.role}`} key={message.id}>
             {message.role === "assistant" && (
               <div className={`assistant-avatar mood-${mood}`} aria-hidden="true">
                 <span />
               </div>
             )}
             <div className="message-column">
-              <div className="message-bubble">
-                {message.body}
+              <div
+                className={`message-bubble ${message.crisis ? "is-crisis" : ""} ${
+                  message.kind === "error" ? "is-error" : ""
+                }`}
+              >
+                {message.text}
               </div>
-              {message.role === "assistant" && (
+              {message.role === "assistant" && !message.pending && !message.crisis && (
                 <div className="message-actions">
-                  <button aria-label="Copy response"><Copy size={14} /></button>
-                  <button aria-label="Regenerate response"><RotateCcw size={14} /></button>
+                  <button aria-label="Copy response" onClick={() => navigator.clipboard?.writeText(message.text)}>
+                    <Copy size={14} />
+                  </button>
                   <button aria-label="Helpful response"><ThumbsUp size={14} /></button>
                   <button aria-label="Unhelpful response"><ThumbsDown size={14} /></button>
                 </div>
               )}
-              {index === 1 && message.role === "assistant" && (
-                <>
+              {message.role === "assistant" &&
+                !message.pending &&
+                message.agentsUsed &&
+                message.agentsUsed.length > 0 && (
                   <ActivityPanel
                     expanded={activityExpanded}
                     setExpanded={setActivityExpanded}
+                    agentsUsed={message.agentsUsed}
+                    eos={message.eos}
+                    degraded={message.degraded}
                   />
-                  <div className="choice-prompt">
-                    <strong>What would help most right now?</strong>
-                    <div>
-                      <button><CalendarDays size={15} /> Make the 7-day plan</button>
-                      <button onClick={() => setMood("calm")}><Wind size={15} /> Calm down first</button>
-                      <button><MessageCircleMore size={15} /> Keep talking</button>
-                    </div>
-                  </div>
-                  <Checkpoint />
-                  <ConfirmationCard />
-                </>
-              )}
+                )}
             </div>
           </div>
         ))}
@@ -488,7 +495,11 @@ function ChatView({
               <span className="thinking-orb"><span /></span>
               <span>
                 <strong>Thinking with you</strong>
-                <small>Understanding what matters most…</small>
+                <small>
+                  {activeAgents.length > 0
+                    ? activeAgents.join(", ")
+                    : "Understanding what matters most…"}
+                </small>
               </span>
               <span className="thinking-dots"><i /><i /><i /></span>
             </div>
@@ -505,12 +516,17 @@ function ChatView({
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                sendMessage();
+                submit();
               }
             }}
-            placeholder="Tell MindLens what’s on your mind…"
+            placeholder={
+              connectionStatus === "open"
+                ? "Tell MindLens what’s on your mind…"
+                : "Connecting to MindLens…"
+            }
             aria-label="Message MindLens"
             rows={1}
+            maxLength={2000}
           />
           <div className="composer-toolbar">
             <div>
@@ -522,14 +538,14 @@ function ChatView({
               </button>
               <button className="composer-mode">
                 <Sparkles size={14} />
-                Adaptive
+                {adaptive ? "Adaptive" : "Manual"}
                 <ChevronDown size={13} />
               </button>
             </div>
             <button
               className="send-button"
-              onClick={sendMessage}
-              disabled={!draft.trim() || thinking}
+              onClick={submit}
+              disabled={!draft.trim() || !canSend}
               aria-label="Send message"
             >
               <Send size={17} />
@@ -840,6 +856,7 @@ function SettingsDialog({
   setAdaptive,
   motionEnabled,
   setMotionEnabled,
+  onLogout,
 }: {
   open: boolean;
   close: () => void;
@@ -849,6 +866,7 @@ function SettingsDialog({
   setAdaptive: (value: boolean) => void;
   motionEnabled: boolean;
   setMotionEnabled: (value: boolean) => void;
+  onLogout: () => void;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -945,7 +963,10 @@ function SettingsDialog({
 
         <div className="settings-footer">
           <p><ShieldCheck size={14} /> Crisis support always uses a stable, high-clarity view.</p>
-          <button className="button-primary" onClick={close}>Save preferences</button>
+          <div className="settings-footer-actions">
+            <button className="button-secondary" onClick={onLogout}>Log out</button>
+            <button className="button-primary" onClick={close}>Save preferences</button>
+          </div>
         </div>
       </section>
     </div>
@@ -953,8 +974,9 @@ function SettingsDialog({
 }
 
 export function MindLensApp() {
+  const client = useMindLensClient();
   const [view, setView] = useState<View>("chat");
-  const [mood, setMood] = useState<Mood>("angry");
+  const [mood, setMood] = useState<Mood>("neutral");
   const [adaptive, setAdaptive] = useState(true);
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -971,6 +993,41 @@ export function MindLensApp() {
   useEffect(() => {
     setInspectorOpen(window.matchMedia("(min-width: 981px)").matches);
   }, []);
+
+  // Let real backend emotion detection drive the atmosphere when adaptive
+  // mode is on, rather than a client-side keyword guess.
+  useEffect(() => {
+    if (!adaptive) return;
+    const mapped = moodFromEmotion(client.liveEos?.surface_emotion);
+    if (mapped) setMood(mapped);
+  }, [adaptive, client.liveEos]);
+
+  if (client.authStatus !== "ready") {
+    return (
+      <main className={`mindlens-app mood-${mood}`}>
+        <ShaderAtmosphere mood={mood} motionEnabled={motionEnabled} />
+        <div className="atmosphere-overlay" aria-hidden="true" />
+        <div className="noise-layer" aria-hidden="true" />
+        {client.authStatus === "checking" ? (
+          <div className="auth-gate">
+            <div className="auth-card glass-panel auth-loading">
+              <MindLensMark />
+              <p>Loading your space…</p>
+            </div>
+          </div>
+        ) : (
+          <AuthGate
+            busy={client.authBusy}
+            error={client.authError}
+            onLogin={client.login}
+            onRegister={client.register}
+          />
+        )}
+      </main>
+    );
+  }
+
+  const userName = client.user?.nickname || client.user?.name || "You";
 
   return (
     <main className={`mindlens-app mood-${mood}`}>
@@ -994,6 +1051,8 @@ export function MindLensApp() {
         open={sidebarOpen}
         close={() => setSidebarOpen(false)}
         openSettings={() => setSettingsOpen(true)}
+        userName={userName}
+        onNewConversation={client.startNewConversation}
       />
 
       <section className={`workspace ${inspectorOpen && view === "chat" ? "with-inspector" : ""}`}>
@@ -1002,7 +1061,7 @@ export function MindLensApp() {
             <Menu size={19} />
           </button>
           <div className="presence">
-            <StatusDot active />
+            <StatusDot active={client.connectionStatus === "open"} />
             <span>MindLens is here with you</span>
           </div>
           <div className="topbar-actions">
@@ -1030,8 +1089,14 @@ export function MindLensApp() {
               activityExpanded={activityExpanded}
               setActivityExpanded={setActivityExpanded}
               mood={mood}
-              setMood={setMood}
               adaptive={adaptive}
+              messages={client.messages}
+              sendMessage={client.sendMessage}
+              thinking={client.thinking}
+              activeAgents={client.activeAgents}
+              connectionStatus={client.connectionStatus}
+              crisis={client.crisis}
+              dismissCrisis={client.dismissCrisis}
             />
           )}
           {view === "progress" && <ProgressView />}
@@ -1078,6 +1143,7 @@ export function MindLensApp() {
         setAdaptive={setAdaptive}
         motionEnabled={motionEnabled}
         setMotionEnabled={setMotionEnabled}
+        onLogout={client.logout}
       />
     </main>
   );
