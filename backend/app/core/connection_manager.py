@@ -173,6 +173,7 @@ class ConnectionManager:
         music: dict[str, Any] | None = None,
         crisis_flag: bool = False,
         resources: list[dict] | None = None,
+        degraded: list[str] | None = None,
     ) -> bool:
         """Send the final assembled response to the client."""
         return await self.send_to_user(
@@ -185,6 +186,9 @@ class ConnectionManager:
                 "music": music,
                 "crisis_flag": crisis_flag,
                 "resources": resources or [],
+                # Reasons this turn fell back to canned text ("stub",
+                # "timeout", "api_error"). Empty on a healthy turn.
+                "degraded": degraded or [],
             },
         )
 

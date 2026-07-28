@@ -15,6 +15,7 @@ Secrets are read from env only — never hardcoded.
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,6 +44,37 @@ GROQ_MODELS = {
 
 # Per-agent max tokens (from SYSTEM.md §25.2)
 DEFAULT_MAX_TOKENS = 200
+
+
+# ---------------------------------------------------------------------------
+# Degradation tracking
+# ---------------------------------------------------------------------------
+# When Groq is unreachable, rate-limited or misconfigured, chat() falls back to
+# a canned template. That is the correct fallback, but silently serving
+# hardcoded text as if it were generated therapy is not acceptable — a wrong
+# API key during a live demo would look exactly like a working system.
+#
+# The sink is a mutable set held in a ContextVar. asyncio tasks copy the
+# context at creation but share the referenced object, so degradations recorded
+# inside agents dispatched via asyncio.gather remain visible to the caller.
+
+_degradation_sink: ContextVar[set[str] | None] = ContextVar(
+    "groq_degradation_sink", default=None
+)
+
+
+def begin_degradation_tracking() -> set[str]:
+    """Start a fresh degradation sink for one pipeline run. Returns the sink."""
+    sink: set[str] = set()
+    _degradation_sink.set(sink)
+    return sink
+
+
+def _record_degradation(reason: str) -> None:
+    """Note that this turn's output is not fully model-generated."""
+    sink = _degradation_sink.get()
+    if sink is not None:
+        sink.add(reason)
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +163,7 @@ class GroqClient:
             )
         except TimeoutError:
             logger.error("Groq call timed out after %.1fs", timeout)
+            _record_degradation("timeout")
             return GroqResponse(
                 text="I'm having a moment — please try again in a few seconds.",
                 model_used=model_id,
@@ -140,6 +173,7 @@ class GroqClient:
             )
         except Exception as exc:
             logger.exception("Groq API error: %s", exc)
+            _record_degradation("api_error")
             return self._stub_response(
                 system_prompt, user_prompt, model_tier, max_tokens
             )
@@ -197,6 +231,7 @@ class GroqClient:
         Generate a development-mode stub response.
         Uses the system prompt intent to produce a plausible fake reply.
         """
+        _record_degradation("stub")
         # Detect agent type from system prompt
         agent_name = "agent"
         if "empathy" in system_prompt.lower():

@@ -17,6 +17,7 @@ from app.agents.checkin_scheduler import CheckInScheduler
 from app.agents.crisis_agent import CrisisAgent
 from app.agents.distortion_agent import DistortionAgent
 from app.agents.empathy_agent import EmpathyAgent
+from app.agents.groq_client import begin_degradation_tracking
 from app.agents.journaling_agent import JournalingAgent
 from app.agents.mindfulness_agent import MindfulnessAgent
 from app.agents.music_agent import MusicAgent
@@ -118,6 +119,9 @@ class Orchestrator:
         5. Assemble response
         6. Return full result with assembled text
         """
+        # Track LLM fallbacks for the whole turn, across every agent.
+        degradation = begin_degradation_tracking()
+
         # Step 1: Model inference + EOS
         turn_result = await self.process_turn(user_text, user_id=user_id)
         eos = EmotionalOperatingState(**turn_result["eos"])
@@ -187,6 +191,10 @@ class Orchestrator:
                 for o in outputs
             ],
             "safety": turn_result["safety"],
+            # Non-empty when any agent served fallback text instead of model
+            # output. Surfaced in the thinking panel so a degraded turn is never
+            # mistaken for a working one.
+            "degraded": sorted(degradation),
         }
 
     # -----------------------------------------------------------------------

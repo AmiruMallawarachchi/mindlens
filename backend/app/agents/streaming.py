@@ -117,6 +117,7 @@ class StreamingResponse:
         music: dict[str, Any] | None = None,
         crisis_flag: bool = False,
         resources: list[dict] | None = None,
+        degraded: list[str] | None = None,
     ) -> None:
         """
         Send final response payload.
@@ -146,6 +147,7 @@ class StreamingResponse:
                 music=music,
                 crisis_flag=crisis_flag,
                 resources=resources,
+                degraded=degraded,
             )
 
     # -----------------------------------------------------------------------
@@ -209,6 +211,7 @@ async def stream_pipeline_result(
     crisis_flag = pipeline_result.get("crisis_flag", False)
     assembled_text = pipeline_result.get("assembled_text", "")
     agent_outputs = pipeline_result.get("agent_outputs", [])
+    degraded = pipeline_result.get("degraded", [])
 
     # Step 1: Thinking update
     await streamer.begin_thinking(
@@ -241,6 +244,7 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
+            degraded=degraded,
         )
     else:
         # Short response or streaming disabled: send final directly
@@ -248,6 +252,7 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
+            degraded=degraded,
         )
 
 
