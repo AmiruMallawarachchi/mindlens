@@ -10,7 +10,7 @@ Implements regex-first + optional NER fallback.
 from __future__ import annotations
 
 import re
-from typing import Pattern
+from re import Pattern
 
 from app.utils.logger import get_logger
 

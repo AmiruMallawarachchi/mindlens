@@ -1,0 +1,58 @@
+[
+  {
+    "id": "who_grounding",
+    "title": "Grounding during stress",
+    "category": "Mindfulness",
+    "tags": ["grounding", "stress", "anxiety", "teen", "adult"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "Grounding can help during an emotional storm. Slow down and notice where you are. Feel your feet against the floor, gently stretch, and look around. Name a few things you can see, hear, touch, taste, or smell. The aim is not to force a feeling away. It is to reconnect with the present moment so you can choose the next small action with more awareness. Practising for a few minutes during ordinary moments can make the skill easier to use under stress."
+  },
+  {
+    "id": "who_notice_and_name",
+    "title": "Notice and name difficult experiences",
+    "category": "ACT",
+    "tags": ["thoughts", "feelings", "unhooking", "stress", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "When a difficult thought or feeling shows up, try noticing it and naming it gently: there is a worried thought, or there is sadness. This creates a little distance between you and the experience. You do not need to argue with the thought or treat it as a fact. After noticing it, reconnect with what you are doing and choose an action that matters to you."
+  },
+  {
+    "id": "who_values_actions",
+    "title": "Small actions guided by values",
+    "category": "ACT",
+    "tags": ["values", "action", "motivation", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "Values describe how you want to treat yourself and other people, even when circumstances are difficult. Pick one value that matters now, such as kindness, patience, courage, or connection. Then choose a small realistic action that expresses it today. The action can be brief. Progress comes from repeatedly taking workable steps, not from waiting until every difficult feeling has disappeared."
+  },
+  {
+    "id": "who_self_kindness",
+    "title": "Practising self-kindness",
+    "category": "Self-compassion",
+    "tags": ["self-kindness", "shame", "stress", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "Stress often brings harsh self-judgment. Try responding as you would to someone you care about: acknowledge that the moment is difficult, avoid insults or absolute labels, and identify one supportive thing you can do next. Self-kindness does not deny responsibility. It creates a steadier position from which to make repairs, ask for help, and continue."
+  },
+  {
+    "id": "who_stress_routine_sleep",
+    "title": "Routine and sleep under stress",
+    "category": "Routine",
+    "tags": ["sleep", "routine", "stress", "work", "school", "exam"],
+    "source_url": "https://www.who.int/news-room/questions-and-answers/item/stress",
+    "content": "A simple daily routine can make time feel more manageable. Include regular meals, movement, responsibilities, rest, and contact with people you trust. For sleep, try to keep wake and bed times consistent, make the sleeping space comfortable when possible, reduce screens before bed, and avoid large meals, caffeine, or alcohol close to bedtime. Choose one change that is realistic rather than trying to redesign the whole day at once."
+  },
+  {
+    "id": "who_social_support",
+    "title": "Connecting with trusted people",
+    "category": "Social support",
+    "tags": ["connection", "support", "loneliness", "family", "friend", "peer"],
+    "source_url": "https://www.who.int/news-room/questions-and-answers/item/stress",
+    "content": "Keeping in contact with trusted family, friends, or community members can reduce isolation and make stress easier to carry. A request for support can be specific and small: asking someone to listen for ten minutes, sit with you, help with one task, or check in later. If distress is persistent, worsening, or disrupting daily life, consider speaking with a qualified health professional."
+  },
+  {
+    "id": "sri_lanka_crisis_support",
+    "title": "Urgent support in Sri Lanka",
+    "category": "Crisis",
+    "tags": ["crisis", "emergency", "self-harm", "suicide", "Sri Lanka"],
+    "source_url": "https://nimh.health.gov.lk/en/1926-national-mental-health-helpline/",
+    "content": "MindLens is not an emergency or clinical service. In Sri Lanka, the National Institute of Mental Health lists 1926 as the National Mental Health Helpline. If there is an immediate emergency requiring police assistance, Sri Lanka Police uses emergency hotline 119. Move toward a safer place if possible, contact a trusted person who can stay with you, and seek urgent human help."
+  }
+]

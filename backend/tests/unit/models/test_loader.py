@@ -6,7 +6,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.models.loader import ModelManager
 
 
@@ -45,13 +44,19 @@ class TestModelManagerAsyncPredictors:
             assert result[0]["label"] == "LABEL_0"
 
     @pytest.mark.asyncio
-    async def test_predict_all_returns_three_keys(self) -> None:
-        """predict_all returns dict with emotion, crisis, mental_health."""
+    async def test_predict_all_returns_classifier_keys(self) -> None:
+        """predict_all returns all per-turn classifier outputs."""
         mgr = ModelManager()
         with (
             patch.object(mgr, "predict_emotion", return_value=[{"s": 1}]),
             patch.object(mgr, "predict_crisis", return_value=[{"s": 2}]),
             patch.object(mgr, "predict_mental_health", return_value=[{"s": 3}]),
+            patch.object(mgr, "predict_distortion", return_value=[{"s": 4}]),
         ):
             result = await mgr.predict_all("text")
-            assert set(result.keys()) == {"emotion", "crisis", "mental_health"}
+            assert set(result.keys()) == {
+                "emotion",
+                "crisis",
+                "mental_health",
+                "distortion",
+            }

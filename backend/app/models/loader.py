@@ -1,36 +1,26 @@
-# backend/app/models/loader.py
-"""
-MindLens Model Loader
-======================
-Handles lazy loading, caching, and inference of all HuggingFace pipelines.
-Ensures models are loaded once and reused across the application lifespan.
-"""
+"""Lazy, observable Hugging Face model registry."""
 
 from __future__ import annotations
 
 import asyncio
+import datetime
+from collections.abc import Callable
 from typing import Any, cast
 
 import torch
-from transformers import pipeline, Pipeline
+from transformers import Pipeline, pipeline
 
 from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Hardware detection
-# ---------------------------------------------------------------------------
 _DEVICE = 0 if torch.cuda.is_available() else -1
 _TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
 
 
 class ModelManager:
-    """
-    Singleton-style manager for all HF pipelines.
-    Loads on first use; persists for the application lifetime.
-    """
+    """Process-wide model registry with lazy loading and health metadata."""
 
     _instance: ModelManager | None = None
     _lock = asyncio.Lock()
@@ -38,14 +28,9 @@ class ModelManager:
     def __new__(cls) -> ModelManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            # Initialize storage dict inside __new__ to avoid Pylance
-            # complaining about attribute access before __init__
             object.__setattr__(cls._instance, "_pipelines", {})
+            object.__setattr__(cls._instance, "_health", {})
         return cls._instance
-
-    # -----------------------------------------------------------------------
-    # Internal helpers
-    # -----------------------------------------------------------------------
 
     def _load_pipeline(
         self,
@@ -56,119 +41,186 @@ class ModelManager:
         top_k: int | None = 1,
         **kwargs: Any,
     ) -> Pipeline:
-        """
-        Load a transformers pipeline with consistent device/dtype settings.
-        `top_k=None` is REQUIRED for multi-label classifiers (go-emotions)
-        so that raw logits for all classes are returned.
-        """
-        # Use object.__getattribute__ to satisfy Pylance on the singleton
         pipelines: dict[str, Pipeline] = object.__getattribute__(self, "_pipelines")
         if name in pipelines:
             return pipelines[name]
 
-        logger.info("Loading model '%s' from %s …", name, model_id)
-        pipe = pipeline(
-            task,
-            model=model_id,
-            tokenizer=model_id,
-            device=_DEVICE,
-            torch_dtype=_TORCH_DTYPE,
-            top_k=top_k,
-            **kwargs,
-        )
-        pipelines[name] = pipe
-        logger.info("Model '%s' loaded successfully.", name)
-        return pipe
+        health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
+        health[name] = {"status": "loading", "model_id": model_id}
+        logger.info("Loading model '%s' from %s", name, model_id)
+        try:
+            loaded = pipeline(
+                task,
+                model=model_id,
+                tokenizer=model_id,
+                device=_DEVICE,
+                torch_dtype=_TORCH_DTYPE,
+                top_k=top_k,
+                **kwargs,
+            )
+        except Exception as exc:
+            health[name] = {
+                "status": "error",
+                "model_id": model_id,
+                "error": type(exc).__name__,
+            }
+            raise
 
-    # -----------------------------------------------------------------------
-    # Public accessors
-    # -----------------------------------------------------------------------
+        pipelines[name] = loaded
+        health[name] = {
+            "status": "ready",
+            "model_id": model_id,
+            "loaded_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
+        logger.info("Model '%s' loaded successfully", name)
+        return loaded
 
     def emotion(self) -> Pipeline:
-        """
-        28-class multi-label emotion classifier (go-emotions).
-        top_k=None → returns scores for ALL 28 classes simultaneously.
-        """
         return self._load_pipeline(
-            name="emotion",
-            model_id=settings.EMOTION_MODEL_ID,
-            task="text-classification",
+            "emotion",
+            settings.EMOTION_MODEL_ID,
+            "text-classification",
             top_k=None,
             truncation=True,
             max_length=512,
         )
 
     def crisis(self) -> Pipeline:
-        """
-        Binary crisis detector (DistilBERT fine-tuned).
-        top_k=1 → single highest-probability label is sufficient.
-        """
         return self._load_pipeline(
-            name="crisis",
-            model_id=settings.CRISIS_MODEL_ID,
-            task="text-classification",
+            "crisis",
+            settings.CRISIS_MODEL_ID,
+            "text-classification",
             top_k=1,
             truncation=True,
             max_length=512,
         )
 
     def mental_health(self) -> Pipeline:
-        """
-        Multi-label mental-health condition classifier (MentalBERT).
-        top_k=None → returns scores for all condition classes.
-        """
         return self._load_pipeline(
-            name="mental_health",
-            model_id=settings.MH_MODEL_ID,
-            task="text-classification",
+            "mental_health",
+            settings.MH_MODEL_ID,
+            "text-classification",
             top_k=None,
             truncation=True,
             max_length=512,
         )
 
-    # -----------------------------------------------------------------------
-    # Async wrappers (non-blocking for FastAPI)
-    # -----------------------------------------------------------------------
-
-    async def predict_emotion(self, text: str) -> list[dict[str, Any]]:
-        """Async wrapper; runs in thread pool to avoid blocking the event loop."""
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, self.emotion(), text)
-        return cast(list[dict[str, Any]], result)
-
-    async def predict_crisis(self, text: str) -> list[dict[str, Any]]:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, self.crisis(), text)
-        return cast(list[dict[str, Any]], result)
-
-    async def predict_mental_health(self, text: str) -> list[dict[str, Any]]:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, self.mental_health(), text)
-        return cast(list[dict[str, Any]], result)
-
-    # -----------------------------------------------------------------------
-    # Batch prediction helpers (used by orchestrator for parallel gather)
-    # -----------------------------------------------------------------------
-
-    async def predict_all(self, text: str) -> dict[str, list[dict[str, Any]]]:
-        """
-        Fire all three models concurrently via asyncio.gather.
-        Total latency = max(individual latency), NOT the sum.
-        """
-        emotion_task = self.predict_emotion(text)
-        crisis_task = self.predict_crisis(text)
-        mh_task = self.predict_mental_health(text)
-
-        emotion_result, crisis_result, mh_result = await asyncio.gather(
-            emotion_task, crisis_task, mh_task
+    def distortion(self) -> Pipeline:
+        return self._load_pipeline(
+            "distortion",
+            settings.DISTORTION_MODEL_ID,
+            "text-classification",
+            top_k=None,
+            truncation=True,
+            max_length=512,
         )
 
+    def rag_reranker(self) -> Pipeline:
+        return self._load_pipeline(
+            "rag_reranker",
+            settings.RAG_RERANKER_MODEL_ID,
+            "text-classification",
+            top_k=1,
+            truncation=True,
+            max_length=512,
+        )
+
+    async def _predict(
+        self, name: str, accessor: Callable[[], Pipeline], text: str
+    ) -> Any:
+        started = asyncio.get_running_loop().time()
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(lambda: accessor()(text)),
+                timeout=settings.model_inference_timeout_seconds,
+            )
+        except Exception as exc:
+            health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
+            health[name] = {
+                **health.get(name, {}),
+                "status": "error",
+                "error": type(exc).__name__,
+            }
+            raise
+
+        health = object.__getattribute__(self, "_health")
+        health[name] = {
+            **health.get(name, {}),
+            "status": "ready",
+            "last_inference_ms": round(
+                (asyncio.get_running_loop().time() - started) * 1000, 2
+            ),
+        }
+        return result
+
+    async def predict_emotion(self, text: str) -> list[dict[str, Any]]:
+        return cast(list[dict[str, Any]], await self._predict("emotion", self.emotion, text))
+
+    async def predict_crisis(self, text: str) -> list[dict[str, Any]]:
+        return cast(list[dict[str, Any]], await self._predict("crisis", self.crisis, text))
+
+    async def predict_mental_health(self, text: str) -> list[dict[str, Any]]:
+        return cast(
+            list[dict[str, Any]],
+            await self._predict("mental_health", self.mental_health, text),
+        )
+
+    async def predict_distortion(self, text: str) -> list[dict[str, Any]]:
+        return cast(
+            list[dict[str, Any]],
+            await self._predict("distortion", self.distortion, text),
+        )
+
+    async def predict_all(self, text: str) -> dict[str, list[dict[str, Any]]]:
+        """Run the three per-turn classifiers with isolated failure handling."""
+        results = await asyncio.gather(
+            self.predict_emotion(text),
+            self.predict_crisis(text),
+            self.predict_mental_health(text),
+            self.predict_distortion(text),
+            return_exceptions=True,
+        )
+        names = ("emotion", "crisis", "mental_health", "distortion")
+        output: dict[str, list[dict[str, Any]]] = {}
+        for name, result in zip(names, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.error("%s model failed: %s", name, type(result).__name__)
+                output[name] = []
+            else:
+                output[name] = result
+        return output
+
+    async def warmup_all(self) -> dict[str, dict[str, Any]]:
+        """Load all configured models before accepting traffic."""
+        accessors = (
+            self.emotion,
+            self.crisis,
+            self.mental_health,
+            self.distortion,
+            self.rag_reranker,
+        )
+        results = await asyncio.gather(
+            *(asyncio.to_thread(accessor) for accessor in accessors),
+            return_exceptions=True,
+        )
+        failures = [result for result in results if isinstance(result, BaseException)]
+        if failures:
+            raise RuntimeError(f"Failed to load {len(failures)} configured model(s)")
+        return self.health_status()
+
+    def health_status(self) -> dict[str, dict[str, Any]]:
+        health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
+        configured = {
+            "emotion": settings.EMOTION_MODEL_ID,
+            "crisis": settings.CRISIS_MODEL_ID,
+            "mental_health": settings.MH_MODEL_ID,
+            "distortion": settings.DISTORTION_MODEL_ID,
+            "rag_reranker": settings.RAG_RERANKER_MODEL_ID,
+        }
         return {
-            "emotion": emotion_result,
-            "crisis": crisis_result,
-            "mental_health": mh_result,
+            name: health.get(name, {"status": "not_loaded", "model_id": model_id})
+            for name, model_id in configured.items()
         }
 
 
-# Module-level instance
 model_manager = ModelManager()

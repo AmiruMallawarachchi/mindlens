@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: mindlens-api
+    runtime: docker
+    region: singapore
+    plan: standard
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: USE_OPENAI_STUBS
+        value: "false"
+      - key: PRELOAD_MODELS
+        value: "false"
+      - key: PRELOAD_RAG
+        value: "true"
+      - key: CHROMADB_PERSIST_DIR
+        value: /var/data/chroma
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: mindlens
+      - key: GROQ_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_REFRESH_SECRET_KEY
+        generateValue: true
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+    disk:
+      name: mindlens-data
+      mountPath: /var/data
+      sizeGB: 10

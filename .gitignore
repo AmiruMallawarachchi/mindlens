@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .venv/
+.coverage
+coverage.xml
+htmlcov/
 venv-train/
 venv/
 ENV/
@@ -16,11 +19,15 @@ env/
 
 # Data & Models (HUGE files - NEVER commit)
 data/
+!backend/data/
+backend/data/*
 notebooks/data/
 *.arrow
 *.parquet
 *.csv
 *.json
+!backend/data/therapy_knowledge.json
+!frontend/package-lock.json
 !data/reports/*.json
 !frontend/package-lock.json
 !data/figures/*.png
@@ -47,6 +54,12 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local server logs
+backend-server.log
+backend-server.err.log
+frontend-server.log
+frontend-server.err.log
 
 # Jupyter notebooks - keep code, exclude outputs
 notebooks/*.ipynb
