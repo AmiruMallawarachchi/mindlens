@@ -221,6 +221,7 @@ async def websocket_chat(
 
             # Persist turn to session
             await _save_turn(db, session_id, user_id, user_text, result)
+            await _save_mood_log(db, session_id, user_id, result)
             await _save_safety_event(db, session_id, user_id, user_text, result)
             await _save_pending_checkin(db, session_id, user_id, result)
 
@@ -313,6 +314,39 @@ async def _save_turn(
                 "updated_at": now,
             },
         },
+    )
+
+
+async def _save_mood_log(
+    db: AsyncIOMotorDatabase,
+    session_id: str,
+    user_id: str,
+    result: dict[str, Any],
+) -> None:
+    """
+    Record one mood_logs entry per turn from the EOS snapshot.
+
+    dashboard.py's /mood and /summary endpoints read this collection, but
+    nothing wrote to it — the Progress tab had a real API contract backed by
+    an always-empty collection. Crisis turns are skipped: crisis_flag turns
+    carry a template response with no real EOS inference behind it (the
+    orchestrator short-circuits before model inference), so there's no
+    genuine emotion reading to log.
+    """
+    if result.get("crisis_flag"):
+        return
+    eos = result.get("eos", {})
+    await db.mood_logs.insert_one(
+        {
+            "user_id": user_id,
+            "session_id": session_id,
+            "timestamp": datetime.datetime.now(datetime.UTC),
+            "surface_emotion": eos.get("surface_emotion"),
+            "core_emotion": eos.get("core_emotion"),
+            "distress_level": eos.get("distress_level"),
+            "valence": eos.get("valence"),
+            "modality": eos.get("modality"),
+        }
     )
 
 

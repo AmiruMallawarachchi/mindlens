@@ -434,6 +434,13 @@ button:disabled {
   margin-bottom: 13px;
 }
 
+.session-empty {
+  margin: 8px 9px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .session-group > small {
   padding: 5px 9px;
   color: rgba(255, 255, 255, 0.3);

@@ -10,7 +10,14 @@
  * so it never applies here.
  */
 
-import type { SessionSummary, UserProfile } from "./types";
+import type {
+  DashboardSummary,
+  MoodLogEntry,
+  SessionDetail,
+  SessionListItem,
+  SessionSummary,
+  UserProfile,
+} from "./types";
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
@@ -139,4 +146,23 @@ export async function createSession(
 
 export function apiBaseUrl(): string {
   return API_BASE_URL;
+}
+
+export async function listSessions(): Promise<SessionListItem[]> {
+  return request<SessionListItem[]>("/api/v1/sessions");
+}
+
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  return request<SessionDetail>(`/api/v1/sessions/${sessionId}`);
+}
+
+export async function fetchDashboardSummary(): Promise<DashboardSummary> {
+  return request<DashboardSummary>("/api/v1/dashboard/summary");
+}
+
+export async function fetchMoodLogs(limit = 30): Promise<MoodLogEntry[]> {
+  const data = await request<{ moods: MoodLogEntry[] }>(
+    `/api/v1/dashboard/mood?limit=${limit}`,
+  );
+  return data.moods;
 }

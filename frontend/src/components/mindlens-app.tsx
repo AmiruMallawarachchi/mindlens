@@ -39,7 +39,6 @@ import {
   ThumbsDown,
   ThumbsUp,
   Trash2,
-  TrendingUp,
   Volume2,
   Waves,
   Wind,
@@ -51,7 +50,16 @@ import { Mood, ShaderAtmosphere } from "./shader-atmosphere";
 import { MindLensMark } from "./mindlens-mark";
 import { AuthGate } from "./auth-gate";
 import { useMindLensClient } from "../lib/use-mindlens-client";
-import type { ChatMessage, ConnectionStatus, CrisisResource, EosSnapshot } from "../lib/types";
+import { ApiError, fetchDashboardSummary } from "../lib/api";
+import type {
+  ChatMessage,
+  ConnectionStatus,
+  CrisisResource,
+  DashboardSummary,
+  EosSnapshot,
+  MoodLogEntry,
+  SessionListItem,
+} from "../lib/types";
 
 type View = "chat" | "progress" | "journal" | "memory";
 type InspectorTab = "progress" | "music" | "memory";
@@ -108,17 +116,6 @@ function moodFromEmotion(surfaceEmotion: string | undefined): Mood | null {
   return MOOD_BY_EMOTION[surfaceEmotion] ?? null;
 }
 
-const SESSION_GROUPS = [
-  {
-    label: "Today",
-    sessions: ["Exam pressure and sleep", "A quick morning check-in"],
-  },
-  {
-    label: "Previous 7 days",
-    sessions: ["Finding focus again", "A difficult conversation", "Sunday reflection"],
-  },
-];
-
 const NAV_ITEMS: { id: View; label: string; icon: typeof MessageCircleMore }[] = [
   { id: "chat", label: "Chat", icon: MessageCircleMore },
   { id: "progress", label: "Progress", icon: ChartNoAxesCombined },
@@ -130,6 +127,42 @@ function StatusDot({ active = false }: { active?: boolean }) {
   return <span className={`status-dot ${active ? "is-active" : ""}`} />;
 }
 
+function formatSessionLabel(session: SessionListItem): string {
+  if (session.title) return session.title;
+  return new Date(session.started_at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function groupSessions(
+  sessions: SessionListItem[],
+): { label: string; sessions: SessionListItem[] }[] {
+  const now = new Date();
+  const buckets: Record<"today" | "recent" | "older", SessionListItem[]> = {
+    today: [],
+    recent: [],
+    older: [],
+  };
+  for (const session of sessions) {
+    const started = new Date(session.started_at);
+    if (started.toDateString() === now.toDateString()) {
+      buckets.today.push(session);
+    } else if ((now.getTime() - started.getTime()) / 86_400_000 <= 7) {
+      buckets.recent.push(session);
+    } else {
+      buckets.older.push(session);
+    }
+  }
+  return [
+    { label: "Today", sessions: buckets.today },
+    { label: "Previous 7 days", sessions: buckets.recent },
+    { label: "Earlier", sessions: buckets.older },
+  ].filter((group) => group.sessions.length > 0);
+}
+
 function Sidebar({
   view,
   setView,
@@ -138,6 +171,9 @@ function Sidebar({
   openSettings,
   userName,
   onNewConversation,
+  sessions,
+  activeSessionId,
+  onOpenSession,
 }: {
   view: View;
   setView: (view: View) => void;
@@ -146,6 +182,9 @@ function Sidebar({
   openSettings: () => void;
   userName: string;
   onNewConversation: () => void;
+  sessions: SessionListItem[];
+  activeSessionId: string | null;
+  onOpenSession: (sessionId: string) => void;
 }) {
   const initials = userName
     .split(/\s+/)
@@ -195,7 +234,6 @@ function Sidebar({
               >
                 <Icon size={18} />
                 <span>{item.label}</span>
-                {item.id === "progress" && <span className="nav-badge">3</span>}
               </button>
             );
           })}
@@ -209,20 +247,24 @@ function Sidebar({
         </div>
 
         <div className="session-list">
-          {SESSION_GROUPS.map((group) => (
+          {sessions.length === 0 && (
+            <p className="session-empty">Your conversations will appear here.</p>
+          )}
+          {groupSessions(sessions).map((group) => (
             <div className="session-group" key={group.label}>
               <small>{group.label}</small>
-              {group.sessions.map((session, index) => (
+              {group.sessions.map((session) => (
                 <button
-                  key={session}
-                  className={index === 0 && group.label === "Today" ? "is-current" : ""}
+                  key={session.session_id}
+                  className={session.session_id === activeSessionId ? "is-current" : ""}
                   onClick={() => {
+                    onOpenSession(session.session_id);
                     setView("chat");
                     close();
                   }}
                 >
-                  <span>{session}</span>
-                  {index === 0 && group.label === "Today" && <StatusDot active />}
+                  <span>{formatSessionLabel(session)}</span>
+                  {session.session_id === activeSessionId && <StatusDot active />}
                 </button>
               ))}
             </div>
@@ -558,67 +600,124 @@ function ChatView({
   );
 }
 
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+/** distress_level (0-1, higher = worse) -> a 0-10 "mood" scale, higher = better. */
+function distressToMoodScore(distress: number): number {
+  return Math.round((1 - distress) * 100) / 10;
+}
+
 function ProgressView() {
-  const bars = [42, 54, 48, 64, 71, 67, 79];
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDashboardSummary()
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.message : "Could not load your progress.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const moodReadings = (summary?.latest_moods ?? []).filter(
+    (entry): entry is MoodLogEntry & { distress_level: number } =>
+      typeof entry.distress_level === "number",
+  );
+
+  const averageMood = moodReadings.length
+    ? distressToMoodScore(
+        moodReadings.reduce((sum, entry) => sum + entry.distress_level, 0) / moodReadings.length,
+      )
+    : null;
+
+  // Last 7 calendar days, oldest first. A day with no readings renders as an
+  // empty bar rather than a fabricated one.
+  const today = new Date();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() - (6 - i));
+    return date;
+  });
+  const dayScores = days.map((date) => {
+    const sameDay = moodReadings.filter(
+      (entry) => new Date(entry.timestamp).toDateString() === date.toDateString(),
+    );
+    if (sameDay.length === 0) return null;
+    return (
+      sameDay.reduce((sum, entry) => sum + distressToMoodScore(entry.distress_level), 0) /
+      sameDay.length
+    );
+  });
+
   return (
     <div className="content-view">
       <div className="page-title">
         <div>
           <span className="eyebrow">Your rhythm, not a score</span>
-          <h1>A steadier week is taking shape.</h1>
-          <p>Small changes across sleep, mood and reflection—viewed with context.</p>
+          <h1>How things have been landing</h1>
+          <p>Built from what actually came up in conversation — nothing estimated.</p>
         </div>
-        <button className="button-secondary"><CalendarDays size={16} /> Last 7 days</button>
       </div>
+
+      {loadError && <p className="auth-error">{loadError}</p>}
 
       <div className="metrics-grid">
         <article className="metric-card glass-card">
           <span className="metric-icon"><Heart size={18} /></span>
           <small>Average mood</small>
-          <strong>6.8<span>/10</span></strong>
-          <em className="trend-up"><TrendingUp size={14} /> 12% steadier</em>
+          <strong>
+            {averageMood !== null ? averageMood.toFixed(1) : "—"}
+            <span>/10</span>
+          </strong>
+          <em>{moodReadings.length > 0 ? `From ${moodReadings.length} check-ins` : "No check-ins yet"}</em>
         </article>
         <article className="metric-card glass-card">
-          <span className="metric-icon"><MoonStar size={18} /></span>
-          <small>Sleep average</small>
-          <strong>6h 42m</strong>
-          <em>Goal: 7 hours</em>
-        </article>
-        <article className="metric-card glass-card">
-          <span className="metric-icon"><BookOpenText size={18} /></span>
-          <small>Reflection streak</small>
-          <strong>4 days</strong>
-          <em>Personal best: 6</em>
+          <span className="metric-icon"><MessageCircleMore size={18} /></span>
+          <small>Sessions so far</small>
+          <strong>{summary?.session_count ?? "—"}</strong>
+          <em>{summary ? "Every conversation counts" : "Loading…"}</em>
         </article>
       </div>
 
       <article className="trend-card glass-card">
         <div className="card-heading">
-          <div><small>Emotional balance</small><h2>Your mood has felt more manageable</h2></div>
-          <span className="positive-pill">Improving gently</span>
+          <div><small>Emotional balance</small><h2>Last 7 days</h2></div>
         </div>
         <div className="bar-chart" aria-label="Mood balance for the last seven days">
-          {bars.map((height, index) => (
-            <div key={index}>
-              <span style={{ height: `${height}%` }} />
-              <small>{["M", "T", "W", "T", "F", "S", "S"][index]}</small>
+          {dayScores.map((score, index) => (
+            <div key={days[index].toDateString()}>
+              <span style={{ height: `${score !== null ? Math.max(score * 10, 4) : 2}%` }} />
+              <small>{WEEKDAY_LABELS[days[index].getDay()]}</small>
             </div>
           ))}
         </div>
+        {moodReadings.length === 0 && !loadError && (
+          <p className="activity-note">
+            <Info size={13} />
+            Your rhythm will appear here after a few conversations.
+          </p>
+        )}
       </article>
 
       <div className="insight-grid">
-        <article className="insight-card glass-card warm">
-          <span className="eyebrow">Pattern noticed</span>
-          <h3>Sleep changes the tone of your mornings.</h3>
-          <p>On nights above 6½ hours, your morning check-ins were noticeably calmer.</p>
-          <button>Explore the pattern <ArrowUpRight size={15} /></button>
-        </article>
         <article className="insight-card glass-card">
-          <span className="eyebrow">A useful next step</span>
-          <h3>Protect tonight before planning tomorrow.</h3>
-          <p>A three-minute wind-down could help your study plan feel less overwhelming.</p>
-          <button>Start wind-down <Play size={14} /></button>
+          <span className="eyebrow">Weekly insights</span>
+          <h3>
+            {summary && summary.session_count >= 7
+              ? "Enough sessions to look for patterns."
+              : `${7 - (summary?.session_count ?? 0)} more session${
+                  7 - (summary?.session_count ?? 0) === 1 ? "" : "s"
+                } to unlock weekly insights.`}
+          </h3>
+          <p>MindLens looks for patterns in coping and mood once there&apos;s enough conversation to learn from — not before.</p>
         </article>
       </div>
     </div>
@@ -1053,6 +1152,9 @@ export function MindLensApp() {
         openSettings={() => setSettingsOpen(true)}
         userName={userName}
         onNewConversation={client.startNewConversation}
+        sessions={client.sessions}
+        activeSessionId={client.activeSessionId}
+        onOpenSession={client.openSession}
       />
 
       <section className={`workspace ${inspectorOpen && view === "chat" ? "with-inspector" : ""}`}>

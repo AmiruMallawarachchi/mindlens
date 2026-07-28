@@ -6,6 +6,8 @@ import {
   createSession,
   fetchMe,
   getAccessToken,
+  getSession,
+  listSessions,
   login as apiLogin,
   logoutLocal,
   register as apiRegister,
@@ -18,6 +20,8 @@ import type {
   CrisisResource,
   EosSnapshot,
   ServerFrame,
+  SessionListItem,
+  SessionTurn,
   UserProfile,
 } from "./types";
 
@@ -28,6 +32,19 @@ function makeId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** Turns a stored session_id's turns (chat.py::_save_turn's shape) into the
+ * same ChatMessage[] shape a live conversation builds up. */
+function hydrateMessages(turns: SessionTurn[]): ChatMessage[] {
+  return turns.map((turn, index) => ({
+    id: `${turn.timestamp}-${index}`,
+    role: turn.role,
+    text: turn.text,
+    eos: turn.eos_snapshot,
+    agentsUsed: turn.agents_used,
+    crisis: turn.crisis_flag,
+  }));
 }
 
 /**
@@ -54,8 +71,20 @@ export function useMindLensClient() {
 
   const socketRef = useRef<MindLensSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
-  // Bumping this tears down and re-runs the session+socket effect below.
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  // null = create a fresh session; a string = open that existing one.
+  // Re-requesting the session already open (same id, or null while already on
+  // a fresh one) wouldn't change this value, so sessionEpoch exists purely to
+  // force "New conversation" to actually create a new session in that case.
+  const [requestedSessionId, setRequestedSessionId] = useState<string | null>(null);
   const [sessionEpoch, setSessionEpoch] = useState(0);
+
+  const refreshSessions = useCallback(() => {
+    listSessions()
+      .then(setSessions)
+      .catch((err) => console.error("Failed to list sessions", err));
+  }, []);
 
   const handleFrame = useCallback((frame: ServerFrame) => {
     switch (frame.type) {
@@ -172,28 +201,49 @@ export function useMindLensClient() {
     if (authStatus !== "ready") return;
     let cancelled = false;
 
-    createSession()
-      .then((session) => {
+    setMessages([]);
+    setCrisis(null);
+    setThinking(false);
+    setActiveAgents([]);
+    setLiveEos(null);
+    streamingIdRef.current = null;
+
+    (async () => {
+      let targetId = requestedSessionId;
+      if (targetId) {
+        // Opening a past conversation: hydrate its transcript before the
+        // socket connects, so the reconnect-on-mount doesn't show an empty
+        // chat while the fetch is still in flight.
+        const detail = await getSession(targetId);
         if (cancelled) return;
-        const token = getAccessToken();
-        if (!token) return;
-        const socket = new MindLensSocket(session.session_id, token, {
-          onFrame: handleFrame,
-          onStatusChange: setConnectionStatus,
-        });
-        socketRef.current = socket;
-        socket.connect();
-      })
-      .catch((err) => {
-        console.error("Failed to start a session", err);
+        setMessages(hydrateMessages(detail.turns));
+      } else {
+        const created = await createSession();
+        if (cancelled) return;
+        targetId = created.session_id;
+      }
+
+      setActiveSessionId(targetId);
+      refreshSessions();
+
+      const token = getAccessToken();
+      if (!token) return;
+      const socket = new MindLensSocket(targetId, token, {
+        onFrame: handleFrame,
+        onStatusChange: setConnectionStatus,
       });
+      socketRef.current = socket;
+      socket.connect();
+    })().catch((err) => {
+      console.error("Failed to open session", err);
+    });
 
     return () => {
       cancelled = true;
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [authStatus, sessionEpoch, handleFrame]);
+  }, [authStatus, sessionEpoch, requestedSessionId, handleFrame, refreshSessions]);
 
   const sendMessage = useCallback((text: string) => {
     const trimmed = text.trim();
@@ -207,14 +257,19 @@ export function useMindLensClient() {
   }, []);
 
   const startNewConversation = useCallback(() => {
-    setMessages([]);
-    setCrisis(null);
-    setThinking(false);
-    setActiveAgents([]);
-    setLiveEos(null);
-    streamingIdRef.current = null;
+    setRequestedSessionId(null);
+    // Forces the effect to rerun even when it was already targeting "new"
+    // (requestedSessionId unchanged) or reopening the session already active.
     setSessionEpoch((epoch) => epoch + 1);
   }, []);
+
+  const openSession = useCallback(
+    (sessionId: string) => {
+      if (sessionId === activeSessionId) return;
+      setRequestedSessionId(sessionId);
+    },
+    [activeSessionId],
+  );
 
   const login = useCallback(async (email: string, password: string) => {
     setAuthBusy(true);
@@ -257,6 +312,9 @@ export function useMindLensClient() {
     setCrisis(null);
     setConnectionStatus("idle");
     setAuthStatus("anonymous");
+    setSessions([]);
+    setActiveSessionId(null);
+    setRequestedSessionId(null);
   }, []);
 
   return {
@@ -275,7 +333,10 @@ export function useMindLensClient() {
     crisis,
     dismissCrisis: () => setCrisis(null),
     sendMessage,
+    sessions,
+    activeSessionId,
     startNewConversation,
+    openSession,
   };
 }
 
