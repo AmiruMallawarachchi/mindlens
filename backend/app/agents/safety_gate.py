@@ -35,7 +35,7 @@ class SafetyGate:
         """
         # Direct self-harm/suicide indicators
         direct_patterns = [
-            r"\bkill\s+(myself|myself|me)\b",
+            r"\bkill\s+(myself|me)\b",
             r"\bsuicide\b",
             r"\bsuicid",
             r"\bend\s+(my\s+)?life\b",
@@ -50,17 +50,24 @@ class SafetyGate:
             r"\boverdose\b",
             r"\bgive\s+up\b.*\b(life|everything)\b",
             r"\bcan't\s+do\s+this\s+anymore\b",
+            # Restored from the pre-merge gate, which the production branch
+            # had dropped. Both are high-frequency crisis phrasings.
+            r"\bcan't\s+go\s+on\b",
+            r"\bgoodbye\s+forever\b",
             r"\bwant\s+to\s+die\b",
             r"\bbetter\s+off\s+dead\b",
         ]
 
         # Harm to others
+        # Each verb REQUIRES an object. A bare verb is ordinary English:
+        # "I beat my personal best", "shoot, I forgot", "a stabbing pain".
         harm_others = [
             r"\bkill\s+(someone|him|her|them)\b",
             r"\bhurt\s+(someone|him|her|them)\b",
-            r"\bbeat\s+(someone|up)?",
-            r"\bstab\b",
-            r"\bshoot\b",
+            r"\bbeat\s+(someone|him|her|them)\s+up\b",
+            r"\bbeat\s+up\s+(someone|him|her|them)\b",
+            r"\bstab\s+(someone|him|her|them|myself)\b",
+            r"\bshoot\s+(someone|him|her|them|myself|up\s+the)\b",
         ]
 
         # Hopelessness / Worthlessness
@@ -68,7 +75,9 @@ class SafetyGate:
             r"\b(completely\s+)?hopeless\b",
             r"\bno\s+hope\s+left\b",
             r"\bworthless\b",
-            r"\bburden\b",
+            # First-person only. "the financial burden on my family" is not a
+            # risk indicator; "I'm a burden to my family" is.
+            r"\b(i'm|i\s+am|am\s+i)\s+(such\s+)?a\s+burden\b",
             r"\beveryone\s+would\s+be\s+better\s+off\b",
             r"\bnobody\s+cares\b",
             r"\bno\s+one\s+loves\s+me\b",
@@ -87,18 +96,22 @@ class SafetyGate:
             r"\bstop\s+the\s+pain\b",
             r"\bcan't\s+handle\s+this\b",
             r"\bbroken\s+beyond\s+repair\b",
-            r"\b(can't|can't)\s+escape\b",
+            r"\bcan't\s+escape\b",
         ]
 
         # Crisis-related substances/methods
         methods = [
-            r"\brope\b",
+            r"\bnoose\b",
+            r"\brope\s+(around|to\s+hang)\b",
+            r"\bend\s+of\s+my\s+rope\b",
             r"\bpills?\b.*\b(overdose|swallow)\b",
             r"\bgas\b.*\b(chamber|oven)\b",
             r"\bcar.*exhaust\b",
             r"\bbottle.*bleach\b",
-            r"\bratio\b",  # Discord term
-            r"\b(train|bridge|cliff)\b.*\b(jump|fall)\b",
+            # Order-independent: the original only matched noun-before-verb,
+            # so "jump off the bridge" — the more natural phrasing — missed.
+            r"\b(train|bridge|cliff|roof|building)\b.*\b(jump|fall)\b",
+            r"\b(jump|throw\s+myself)\s+(off|in\s+front\s+of)\b",
         ]
 
         # Compile all patterns (case-insensitive)
@@ -148,14 +161,34 @@ class SafetyGate:
             user_message_snippet=snippet,
         )
 
+    @staticmethod
+    def _normalize(user_message: str) -> str:
+        """
+        Fold Unicode punctuation to ASCII before matching.
+
+        Phones and word processors substitute typographic apostrophes
+        automatically, so a message typed on any mobile keyboard arrives as
+        "I can’t do this anymore". Every pattern here is written with a
+        straight apostrophe, so without this fold those messages sail past
+        Layer 1 entirely. This is a crisis-recall fix, not cosmetics.
+        """
+        return (
+            user_message.replace("’", "'")  # right single quote
+            .replace("‘", "'")  # left single quote
+            .replace("ʼ", "'")  # modifier letter apostrophe
+            .replace("“", '"')
+            .replace("”", '"')
+        )
+
     def _layer_regex(self, user_message: str) -> dict[str, Any]:
         """
         Layer 1: Regex pattern matching.
 
         Returns dict with 'triggered' bool.
         """
+        normalized = self._normalize(user_message)
         for pattern in self.crisis_patterns:
-            if pattern.search(user_message):
+            if pattern.search(normalized):
                 return {
                     "triggered": True,
                     "matched_pattern": pattern.pattern[:50],

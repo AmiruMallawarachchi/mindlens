@@ -45,8 +45,14 @@ _RE_CC: Pattern = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
 _RE_BANK: Pattern = re.compile(r"\b\d{8,20}\b")
 
 # IP addresses
+# The IPv6 branch requires at least two colons. A bare [0-9a-fA-F]{2,45} run
+# matches any word built from the letters a-f — "dad", "dead", "bad", "faced",
+# "cafe", "decade" — and every 2+ digit number. Since anonymize() runs on every
+# message before model inference, that silently redacted the exact emotional
+# content the classifiers need ("I feel dead inside" -> "I feel [IP] inside").
 _RE_IP: Pattern = re.compile(
-    r"\b(?:\d{1,3}\.){3}\d{1,3}\b|\b[0-9a-fA-F:]{2,45}\b"
+    r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
+    r"|\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b"
 )
 
 # URLs

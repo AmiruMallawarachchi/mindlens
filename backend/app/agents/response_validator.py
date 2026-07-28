@@ -43,10 +43,17 @@ _RE_MEDICATION: Pattern = re.compile(
 )
 
 # Absolute certainty (undermines therapeutic alliance)
+# Bare "absolutely", "you must" and "you have to" are ordinary warm English —
+# "that is absolutely valid", "you must be exhausted", "you have to be kind to
+# yourself" all read as good therapy. Because a failed report is swapped for a
+# canned fallback in the assembler, matching those wiped out the best
+# responses. Each term now needs the prescriptive/over-promising context.
 _RE_CERTAINTY: Pattern = re.compile(
-    r"\b(definitely will|certainly will|absolutely|guaranteed|"
+    r"\b(definitely will|certainly will|absolutely will|guaranteed to|"
     r"you will feel better|this will fix|this will cure|"
-    r"this always works|this is the only way|you must|you have to)\b",
+    r"this always works|this is the only way|"
+    r"you must (stop|start|do|take|leave|tell|forget)|"
+    r"you have to (stop|start|do|take|leave|tell|forget))\b",
     re.IGNORECASE,
 )
 
