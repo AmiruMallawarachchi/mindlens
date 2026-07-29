@@ -79,14 +79,115 @@ export interface DashboardSummary {
   memory_enabled: boolean;
 }
 
-/** Emotional Operating State snapshot. Server sends the full Pydantic dump;
- * only the fields the UI reads are typed here, the rest pass through. */
+/** GET /api/v1/dashboard/insight (dashboard.py::get_progress_insight). */
+export interface ProgressInsight {
+  available: boolean;
+  session_count: number;
+  sessions_needed?: number;
+  insight?: string | null;
+  generated_at?: string;
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Journal — backend/app/routers/journal.py
+// ---------------------------------------------------------------------------
+
+export interface JournalPrompt {
+  prompt: string;
+  date: string;
+}
+
+export interface JournalEntrySummary {
+  entry_id: string;
+  title: string | null;
+  excerpt: string;
+  created_at: string;
+}
+
+export interface JournalEntry {
+  entry_id: string;
+  title: string | null;
+  text: string;
+  prompt_used: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Memory — backend/app/routers/memory.py
+// ---------------------------------------------------------------------------
+
+export interface MemoryPerson {
+  role: string;
+  context: string;
+  sentiment: string;
+}
+
+export interface MemoryPreferences {
+  music_genres?: string[];
+  mindfulness_style?: string;
+  introvert_score?: number;
+  preferred_modality?: string;
+  checkin_preferred_time?: string;
+  tone_preference?: "gentle" | "balanced" | "direct";
+  memory_depth?: "everything" | "key_details" | "nothing";
+  companion_name?: string;
+}
+
+export interface MemoryEmotionalPatterns {
+  most_common_emotion?: string | null;
+  average_distress?: number;
+  trigger_topics?: string[];
+  effective_coping?: string[];
+}
+
+export interface MemoryNote {
+  note_id: string;
+  text: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryProfile {
+  name?: string;
+  nickname?: string;
+  age?: number;
+  age_group?: string;
+  onboarding_complete?: boolean;
+}
+
+/** GET /api/v1/memory (memory.py::get_memory) — the full user_memory doc. */
+export interface MemoryDoc {
+  id: string;
+  user_id: string;
+  display_name?: string;
+  profile: MemoryProfile;
+  people: Record<string, MemoryPerson>;
+  emotional_patterns: MemoryEmotionalPatterns;
+  preferences: MemoryPreferences;
+  milestones: string[];
+  raw_notes: MemoryNote[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Emotional Operating State snapshot. Server sends the full Pydantic dump
+ * (backend/app/core/emotional_os.py::EmotionalOperatingState); only the
+ * fields the UI reads are typed here, the rest pass through. */
 export interface EosSnapshot {
   surface_emotion?: string;
+  surface_confidence?: number;
   core_emotion?: string;
+  suppressed_emotion?: string | null;
+  distortion_label?: string | null;
   distress_level?: number;
+  emotional_stability?: number;
+  mental_fatigue?: number;
+  social_energy?: number;
   modality?: string;
   trust_level?: number;
+  alliance_score?: number;
   session_depth?: number;
   [key: string]: unknown;
 }
@@ -98,16 +199,34 @@ export interface CrisisResource {
   note?: string;
 }
 
+/** backend/app/agents/streaming.py::_extract_music_payload. Null when the
+ * music agent didn't run this turn — distinct from running with no tracks. */
+export interface MusicPayload {
+  message: string;
+  tracks: Array<{ name?: string; artist?: string; spotify_url?: string; youtube_url?: string; uri?: string }>;
+  emotion: string | null;
+  spotify_connected: boolean;
+  playlist: Record<string, unknown> | null;
+  connect_prompt: boolean;
+}
+
 export type ChatRole = "user" | "assistant";
 
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   text: string;
+  /** On a user turn this is the read taken *of* that message, which is what
+   * the emotion read strip beneath it renders. On an assistant turn it's the
+   * state the reply was written against. */
   eos?: EosSnapshot;
   agentsUsed?: string[];
   crisis?: boolean;
   degraded?: string[];
+  /** Anything the backend reported recalling for this turn. */
+  memoryRecalled?: string[];
+  /** Set when the music agent ran this turn — renders the music player card. */
+  music?: MusicPayload | null;
   /** Still streaming in (stream_chunk frames, before the final "response"). */
   pending?: boolean;
   /** A client- or server-side error rendered inline, not a real turn. */
@@ -132,7 +251,7 @@ export type ServerFrame =
       text: string;
       agents_used: string[];
       eos_snapshot: EosSnapshot;
-      music?: unknown;
+      music?: MusicPayload | null;
       crisis_flag: boolean;
       resources?: CrisisResource[];
       degraded?: string[];

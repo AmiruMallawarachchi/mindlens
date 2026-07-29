@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   createSession,
@@ -14,6 +14,14 @@ import {
   type RegisterInput,
 } from "./api";
 import { MindLensSocket } from "./websocket";
+import { resolveEmotion, RESTING_READING, type EmotionReading } from "./emotion";
+import { buildReasoningTrail, type ReasoningStep } from "./reasoning";
+import {
+  PREVIEW_MESSAGES,
+  PREVIEW_MODE,
+  PREVIEW_SESSIONS,
+  PREVIEW_USER,
+} from "./preview";
 import type {
   ChatMessage,
   ConnectionStatus,
@@ -50,7 +58,7 @@ function hydrateMessages(turns: SessionTurn[]): ChatMessage[] {
 /**
  * Owns the whole client-side lifecycle: bootstrap auth from a stored token,
  * open a backend session, connect the WebSocket, and expose chat state.
- * One instance per mounted app — ChatView etc. are pure render of this.
+ * One instance per mounted app — the chat screen is a pure render of this.
  */
 export function useMindLensClient() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
@@ -64,6 +72,7 @@ export function useMindLensClient() {
   const [thinking, setThinking] = useState(false);
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [liveEos, setLiveEos] = useState<EosSnapshot | null>(null);
+  const [liveMemory, setLiveMemory] = useState<string[]>([]);
   const [crisis, setCrisis] = useState<{
     text: string;
     resources: CrisisResource[];
@@ -71,6 +80,9 @@ export function useMindLensClient() {
 
   const socketRef = useRef<MindLensSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  // Mirror of `messages` for callbacks that need to read without
+  // subscribing (regenerate reads the last user turn at click time).
+  const messagesRef = useRef<ChatMessage[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   // null = create a fresh session; a string = open that existing one.
@@ -88,11 +100,25 @@ export function useMindLensClient() {
 
   const handleFrame = useCallback((frame: ServerFrame) => {
     switch (frame.type) {
-      case "thinking_update":
+      case "thinking_update": {
         setThinking(true);
         setActiveAgents(frame.agents_active ?? []);
         setLiveEos(frame.eos ?? null);
+        setLiveMemory(frame.memory_recalled ?? []);
+        // The read in a thinking_update is the read *of the message the user
+        // just sent*, so it belongs to that bubble — that's what the emotion
+        // read strip underneath it renders.
+        setMessages((current) => {
+          const lastUser = [...current].reverse().find((m) => m.role === "user");
+          if (!lastUser) return current;
+          return current.map((m) =>
+            m.id === lastUser.id
+              ? { ...m, eos: frame.eos, memoryRecalled: frame.memory_recalled ?? [] }
+              : m,
+          );
+        });
         break;
+      }
 
       case "stream_chunk": {
         // Backend streaming.py sends chunks purely for a typing effect, then
@@ -128,6 +154,7 @@ export function useMindLensClient() {
             eos: frame.eos_snapshot,
             agentsUsed: frame.agents_used,
             degraded: frame.degraded,
+            music: frame.music ?? null,
             pending: false,
           };
           const exists = current.some((m) => m.id === id);
@@ -174,6 +201,15 @@ export function useMindLensClient() {
 
   // --- Auth bootstrap: verify a stored token before showing the app -------
   useEffect(() => {
+    if (PREVIEW_MODE) {
+      setUser(PREVIEW_USER);
+      setMessages(PREVIEW_MESSAGES);
+      setSessions(PREVIEW_SESSIONS);
+      setActiveSessionId(PREVIEW_SESSIONS[0].session_id);
+      setAuthStatus("ready");
+      return;
+    }
+
     let cancelled = false;
     const token = getAccessToken();
     if (!token) {
@@ -199,6 +235,8 @@ export function useMindLensClient() {
   // --- Session + socket lifecycle ------------------------------------------
   useEffect(() => {
     if (authStatus !== "ready") return;
+    // Preview mode has no backend to open a session against.
+    if (PREVIEW_MODE) return;
     let cancelled = false;
 
     setMessages([]);
@@ -206,6 +244,7 @@ export function useMindLensClient() {
     setThinking(false);
     setActiveAgents([]);
     setLiveEos(null);
+    setLiveMemory([]);
     streamingIdRef.current = null;
 
     (async () => {
@@ -247,16 +286,35 @@ export function useMindLensClient() {
 
   const sendMessage = useCallback((text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || !socketRef.current) return;
+    if (!trimmed) return;
     setMessages((current) => [
       ...current,
       { id: makeId(), role: "user", text: trimmed },
     ]);
+    if (!socketRef.current) return;
     setThinking(true);
     socketRef.current.sendMessage(trimmed);
   }, []);
 
+  /** Resend the last user message for a fresh reply. The previous assistant
+   * turn stays in the transcript — the backend has no regenerate endpoint,
+   * so this is honest resubmission, not replacement. */
+  const regenerate = useCallback(() => {
+    const lastUser = [...messagesRef.current].reverse().find((m) => m.role === "user");
+    if (!lastUser || !socketRef.current) return;
+    setThinking(true);
+    socketRef.current.sendMessage(lastUser.text);
+  }, []);
+
   const startNewConversation = useCallback(() => {
+    if (PREVIEW_MODE) {
+      // The session effect is a no-op in preview, so clear the fixture here —
+      // otherwise the empty room state is unreachable while styling it.
+      setMessages([]);
+      setCrisis(null);
+      setActiveSessionId(null);
+      return;
+    }
     setRequestedSessionId(null);
     // Forces the effect to rerun even when it was already targeting "new"
     // (requestedSessionId unchanged) or reopening the session already active.
@@ -317,6 +375,40 @@ export function useMindLensClient() {
     setRequestedSessionId(null);
   }, []);
 
+  // --- Derived: the emotion read that drives the whole room ---------------
+  // The most recent snapshot wins, live or settled, so the field keeps
+  // tracking the conversation between turns instead of resetting.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const latestEos = useMemo<EosSnapshot | null>(() => {
+    if (liveEos) return liveEos;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const eos = messages[i].eos;
+      if (eos) return eos;
+    }
+    return null;
+  }, [liveEos, messages]);
+
+  const reading: EmotionReading = useMemo(
+    () => (crisis ? RESTING_READING : resolveEmotion(latestEos)),
+    [latestEos, crisis],
+  );
+
+  /** The trail shown while a reply is being composed. */
+  const thinkingSteps: ReasoningStep[] = useMemo(() => {
+    if (!thinking) return [];
+    return buildReasoningTrail({
+      eos: liveEos,
+      reading: resolveEmotion(liveEos),
+      agents: activeAgents,
+      crisis: false,
+      memoryRecalled: liveMemory,
+      degraded: [],
+    });
+  }, [thinking, liveEos, activeAgents, liveMemory]);
+
   return {
     authStatus,
     user,
@@ -328,15 +420,19 @@ export function useMindLensClient() {
     connectionStatus,
     messages,
     thinking,
+    thinkingSteps,
     activeAgents,
     liveEos,
+    reading,
     crisis,
     dismissCrisis: () => setCrisis(null),
     sendMessage,
+    regenerate,
     sessions,
     activeSessionId,
     startNewConversation,
     openSession,
+    previewMode: PREVIEW_MODE,
   };
 }
 

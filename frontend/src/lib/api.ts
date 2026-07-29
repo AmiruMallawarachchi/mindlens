@@ -12,7 +12,13 @@
 
 import type {
   DashboardSummary,
+  JournalEntry,
+  JournalEntrySummary,
+  JournalPrompt,
+  MemoryDoc,
+  MemoryPreferences,
   MoodLogEntry,
+  ProgressInsight,
   SessionDetail,
   SessionListItem,
   SessionSummary,
@@ -165,4 +171,98 @@ export async function fetchMoodLogs(limit = 30): Promise<MoodLogEntry[]> {
     `/api/v1/dashboard/mood?limit=${limit}`,
   );
   return data.moods;
+}
+
+export async function fetchProgressInsight(): Promise<ProgressInsight> {
+  return request<ProgressInsight>("/api/v1/dashboard/insight");
+}
+
+// ---------------------------------------------------------------------------
+// Journal
+// ---------------------------------------------------------------------------
+
+export async function fetchJournalPrompt(): Promise<JournalPrompt> {
+  return request<JournalPrompt>("/api/v1/journal/prompt");
+}
+
+export async function listJournalEntries(
+  limit = 30,
+): Promise<JournalEntrySummary[]> {
+  return request<JournalEntrySummary[]>(`/api/v1/journal?limit=${limit}`);
+}
+
+export async function getJournalEntry(entryId: string): Promise<JournalEntry> {
+  return request<JournalEntry>(`/api/v1/journal/${entryId}`);
+}
+
+export async function createJournalEntry(input: {
+  title?: string;
+  text: string;
+  prompt_used?: string;
+}): Promise<JournalEntry> {
+  return request<JournalEntry>("/api/v1/journal", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateJournalEntry(
+  entryId: string,
+  input: { title?: string | null; text: string },
+): Promise<JournalEntry> {
+  return request<JournalEntry>(`/api/v1/journal/${entryId}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteJournalEntry(entryId: string): Promise<void> {
+  await request(`/api/v1/journal/${entryId}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Memory
+// ---------------------------------------------------------------------------
+
+export async function fetchMemory(): Promise<MemoryDoc> {
+  return request<MemoryDoc>("/api/v1/memory");
+}
+
+export async function updateMemoryPreferences(
+  prefs: MemoryPreferences,
+): Promise<void> {
+  await request("/api/v1/memory/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(prefs),
+  });
+}
+
+export async function updateMemoryPeople(
+  people: Record<string, { role: string; context: string; sentiment: string }>,
+): Promise<void> {
+  await request("/api/v1/memory/people", {
+    method: "PATCH",
+    body: JSON.stringify({ people }),
+  });
+}
+
+export async function addMemoryNote(text: string): Promise<{ note_id: string }> {
+  return request<{ note_id: string; message: string }>("/api/v1/memory/notes", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function deleteMemoryNote(noteId: string): Promise<void> {
+  await request(`/api/v1/memory/notes/${noteId}`, { method: "DELETE" });
+}
+
+export async function deleteMemoryEntry(
+  section: "people" | "trigger_topics" | "effective_coping" | "milestones" | "raw_notes",
+  key: string,
+): Promise<void> {
+  await request("/api/v1/memory/delete_entry", {
+    method: "POST",
+    body: JSON.stringify({ section, key }),
+  });
 }
