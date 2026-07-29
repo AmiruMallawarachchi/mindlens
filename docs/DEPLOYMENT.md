@@ -30,10 +30,23 @@ when enabled, deployment fails fast if any model cannot load.
 
 ## Frontend on Vercel
 
-Set the frontend's public API URL to the Render HTTPS URL and its WebSocket URL to
-the corresponding `wss://` endpoint. Every REST request that relies on cookies
-must use `credentials: "include"` and state-changing requests must include the
-CSRF token returned by login or refresh.
+Set these in the Vercel project's environment variables (Production, and Preview
+if preview deployments should hit the live backend too):
+
+- `NEXT_PUBLIC_API_BASE_URL`: the Render HTTPS URL (e.g.
+  `https://mindlens-api.onrender.com`). REST calls and the WebSocket URL are both
+  derived from this — `NEXT_PUBLIC_WS_BASE_URL` only needs setting if the
+  WebSocket endpoint lives somewhere other than the plain `wss://` version of the
+  API URL.
+- **Do not set `NEXT_PUBLIC_PREVIEW_AUTH`.** It exists only for local dev without
+  a reachable backend (`frontend/.env.local`, gitignored) and bypasses the auth
+  gate entirely — every visitor lands in chat as a fake logged-in user with no
+  real account. If it's ever `1` in a Vercel environment, every visitor to that
+  deployment skips authentication. There is no legitimate reason to set it there.
+
+The client authenticates with a bearer token (`Authorization` header), not
+cookies — see `frontend/src/lib/api.ts`'s header comment for why — so no
+`credentials: "include"` or CSRF token handling is needed on the frontend side.
 
 Add the final Vercel domains to `CORS_ORIGINS`. Preview deployments need explicit
 origins; wildcard origins are rejected in production.
