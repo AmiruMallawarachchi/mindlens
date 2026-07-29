@@ -32,6 +32,28 @@ class ModelManager:
             object.__setattr__(cls._instance, "_health", {})
         return cls._instance
 
+    def _record_error(self, name: str, exc: Exception, **extra: Any) -> dict[str, Any]:
+        """
+        Merge an error into `name`'s health entry, incrementing a running
+        `error_count` rather than overwriting it. SYSTEM.md §13.4's admin
+        Model Health Drawer requires "Error count" alongside status and
+        latency; before this, each failure replaced the previous health
+        entry outright, so only the most recent error was ever visible —
+        a model that failed 50 times looked identical to one that failed
+        once.
+        """
+        health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
+        previous = health.get(name, {})
+        entry = {
+            **previous,
+            "status": "error",
+            "error": type(exc).__name__,
+            "error_count": previous.get("error_count", 0) + 1,
+            **extra,
+        }
+        health[name] = entry
+        return entry
+
     def _load_pipeline(
         self,
         name: str,
@@ -46,7 +68,11 @@ class ModelManager:
             return pipelines[name]
 
         health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
-        health[name] = {"status": "loading", "model_id": model_id}
+        health[name] = {
+            "status": "loading",
+            "model_id": model_id,
+            "error_count": health.get(name, {}).get("error_count", 0),
+        }
         logger.info("Loading model '%s' from %s", name, model_id)
         try:
             loaded = pipeline(
@@ -59,11 +85,7 @@ class ModelManager:
                 **kwargs,
             )
         except Exception as exc:
-            health[name] = {
-                "status": "error",
-                "model_id": model_id,
-                "error": type(exc).__name__,
-            }
+            self._record_error(name, exc, model_id=model_id)
             raise
 
         pipelines[name] = loaded
@@ -71,6 +93,7 @@ class ModelManager:
             "status": "ready",
             "model_id": model_id,
             "loaded_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            "error_count": health.get(name, {}).get("error_count", 0),
         }
         logger.info("Model '%s' loaded successfully", name)
         return loaded
@@ -135,18 +158,14 @@ class ModelManager:
                 timeout=settings.model_inference_timeout_seconds,
             )
         except Exception as exc:
-            health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
-            health[name] = {
-                **health.get(name, {}),
-                "status": "error",
-                "error": type(exc).__name__,
-            }
+            self._record_error(name, exc)
             raise
 
-        health = object.__getattribute__(self, "_health")
+        health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
         health[name] = {
             **health.get(name, {}),
             "status": "ready",
+            "error": None,
             "last_inference_ms": round(
                 (asyncio.get_running_loop().time() - started) * 1000, 2
             ),
@@ -218,7 +237,10 @@ class ModelManager:
             "rag_reranker": settings.RAG_RERANKER_MODEL_ID,
         }
         return {
-            name: health.get(name, {"status": "not_loaded", "model_id": model_id})
+            name: {
+                "error_count": 0,
+                **health.get(name, {"status": "not_loaded", "model_id": model_id}),
+            }
             for name, model_id in configured.items()
         }
 
