@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
+  completeOnboarding as apiCompleteOnboarding,
   createSession,
   fetchMe,
   getAccessToken,
@@ -27,13 +28,14 @@ import type {
   ConnectionStatus,
   CrisisResource,
   EosSnapshot,
+  OnboardingInput,
   ServerFrame,
   SessionListItem,
   SessionTurn,
   UserProfile,
 } from "./types";
 
-export type AuthStatus = "checking" | "anonymous" | "ready";
+export type AuthStatus = "checking" | "anonymous" | "onboarding" | "ready";
 
 function makeId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -220,7 +222,7 @@ export function useMindLensClient() {
       .then((profile) => {
         if (cancelled) return;
         setUser(profile);
-        setAuthStatus("ready");
+        setAuthStatus(profile.onboarding_complete ? "ready" : "onboarding");
       })
       .catch(() => {
         if (cancelled) return;
@@ -336,7 +338,7 @@ export function useMindLensClient() {
       await apiLogin({ email, password });
       const profile = await fetchMe();
       setUser(profile);
-      setAuthStatus("ready");
+      setAuthStatus(profile.onboarding_complete ? "ready" : "onboarding");
     } catch (err) {
       setAuthError(err instanceof ApiError ? err.message : "Could not sign in.");
     } finally {
@@ -351,10 +353,30 @@ export function useMindLensClient() {
       await apiRegister(input);
       const profile = await fetchMe();
       setUser(profile);
-      setAuthStatus("ready");
+      // register() always creates the account with onboarding_complete:
+      // false — the onboarding wizard is what creates the user_memory
+      // document personalization depends on, so every new account passes
+      // through it once before reaching chat.
+      setAuthStatus(profile.onboarding_complete ? "ready" : "onboarding");
     } catch (err) {
       setAuthError(
         err instanceof ApiError ? err.message : "Could not create your account.",
+      );
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
+  const completeOnboarding = useCallback(async (input: OnboardingInput) => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const profile = await apiCompleteOnboarding(input);
+      setUser(profile);
+      setAuthStatus("ready");
+    } catch (err) {
+      setAuthError(
+        err instanceof ApiError ? err.message : "Could not finish setting up your space.",
       );
     } finally {
       setAuthBusy(false);
@@ -416,6 +438,7 @@ export function useMindLensClient() {
     authBusy,
     login,
     register,
+    completeOnboarding,
     logout,
     connectionStatus,
     messages,

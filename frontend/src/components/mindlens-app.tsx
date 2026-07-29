@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AuthGate } from "./auth-gate";
 import { ChatScreen } from "./chat/chat-screen";
 import { MindlensMark } from "./brand/wordmark";
+import { OnboardingFlow } from "./onboarding/onboarding-flow";
 import { PageShell } from "./pages/page-shell";
 import { ProgressPage } from "./pages/progress-page";
 import { JournalPage } from "./pages/journal-page";
@@ -17,6 +18,17 @@ type View = ChatNavView;
 export function MindLensApp() {
   const client = useMindLensClient();
   const [view, setView] = useState<View>("chat");
+
+  if (client.authStatus === "onboarding" && client.user) {
+    return (
+      <OnboardingFlow
+        user={client.user}
+        busy={client.authBusy}
+        error={client.authError}
+        onComplete={client.completeOnboarding}
+      />
+    );
+  }
 
   if (client.authStatus !== "ready") {
     return (

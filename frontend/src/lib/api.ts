@@ -18,6 +18,7 @@ import type {
   MemoryDoc,
   MemoryPreferences,
   MoodLogEntry,
+  OnboardingInput,
   ProgressInsight,
   SessionDetail,
   SessionListItem,
@@ -135,6 +136,20 @@ export async function login(input: {
 
 export function logoutLocal(): void {
   setAccessToken(null);
+}
+
+export async function completeOnboarding(
+  input: OnboardingInput,
+): Promise<UserProfile> {
+  const data = await request<{ access_token: string }>(
+    "/api/v1/onboarding/complete",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  // onboarding/complete issues a fresh token (the role/claims can change
+  // once onboarding_complete flips), so the client has to pick it up before
+  // the next request rather than keep using the pre-onboarding one.
+  setAccessToken(data.access_token);
+  return fetchMe();
 }
 
 export async function fetchMe(): Promise<UserProfile> {

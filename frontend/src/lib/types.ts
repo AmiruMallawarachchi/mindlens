@@ -18,6 +18,15 @@ export interface UserProfile {
   created_at: string;
 }
 
+/** POST /api/v1/onboarding/complete request body. */
+export interface OnboardingInput {
+  name: string;
+  age: number;
+  nickname?: string;
+  people: { name: string; role: string; context?: string }[];
+  checkin_preferred_time: "morning" | "evening" | "whenever";
+}
+
 export interface SessionSummary {
   session_id: string;
   user_id: string;
