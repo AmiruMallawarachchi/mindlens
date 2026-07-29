@@ -8,6 +8,7 @@ import pytest
 from app.agents.base_agent import AgentOutput
 from app.agents.streaming import (
     StreamingResponse,
+    _extract_music_payload,
     stream_agent_output,
     stream_pipeline_result,
 )
@@ -225,6 +226,129 @@ class TestStreamPipelineResult:
 
         mock_manager.send_chunk.assert_not_awaited()
         mock_manager.send_response.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_pipeline_passes_memory_recalled(self, mock_manager: MagicMock) -> None:
+        """memory_recalled must reach send_thinking_update, not just exist on
+        the pipeline result — this was the exact gap: both begin_thinking and
+        send_thinking_update always accepted the field, but nothing ever
+        filled it in at the call site."""
+        pipeline_result = {
+            "eos": {"surface_emotion": "joy", "distress_level": 0.1, "modality": "CBT"},
+            "agents": ["empathy_agent"],
+            "crisis_flag": False,
+            "assembled_text": "Hi.",
+            "agent_outputs": [],
+            "memory_recalled": ["You've mentioned Ravi before — best friend."],
+        }
+
+        await stream_pipeline_result(
+            "user_123", "sess_abc", pipeline_result, mock_manager, enable_streaming=True
+        )
+
+        args = mock_manager.send_thinking_update.call_args[1]
+        assert args["memory_recalled"] == ["You've mentioned Ravi before — best friend."]
+
+    @pytest.mark.asyncio
+    async def test_stream_pipeline_passes_music_payload(self, mock_manager: MagicMock) -> None:
+        """The music agent's structured metadata must reach send_response as
+        the `music` field — previously always sent as null regardless of
+        whether music_agent ran, since nothing extracted it from
+        agent_outputs at the call site."""
+        pipeline_result = {
+            "eos": {"surface_emotion": "anxiety", "distress_level": 0.5, "modality": "CBT"},
+            "agents": ["empathy_agent", "music"],
+            "crisis_flag": False,
+            "assembled_text": "This is a longer response that would normally stream just fine.",
+            "agent_outputs": [
+                {
+                    "agent": "music",
+                    "text": "Here's something calming for you, Amiru.",
+                    "metadata": {
+                        "tracks": [{"name": "Weightless", "artist": "Marconi Union"}],
+                        "emotion": "anxiety",
+                        "spotify_mode": "B",
+                        "connect_prompt": True,
+                    },
+                }
+            ],
+        }
+
+        await stream_pipeline_result(
+            "user_123", "sess_abc", pipeline_result, mock_manager, enable_streaming=True
+        )
+
+        args = mock_manager.send_response.call_args[1]
+        assert args["music"]["message"] == "Here's something calming for you, Amiru."
+        assert args["music"]["tracks"] == [{"name": "Weightless", "artist": "Marconi Union"}]
+        assert args["music"]["spotify_connected"] is False
+        assert args["music"]["connect_prompt"] is True
+
+    @pytest.mark.asyncio
+    async def test_stream_pipeline_no_music_agent_sends_none(
+        self, mock_manager: MagicMock
+    ) -> None:
+        """When music didn't run this turn, the field is None, not an empty
+        placeholder object — the frontend needs to tell "no music" apart
+        from "music with nothing in it"."""
+        pipeline_result = {
+            "eos": {"surface_emotion": "joy", "distress_level": 0.1, "modality": "CBT"},
+            "agents": ["empathy_agent"],
+            "crisis_flag": False,
+            "assembled_text": "This is a longer response with no music agent involved at all.",
+            "agent_outputs": [{"agent": "empathy", "text": "Hi.", "metadata": {}}],
+        }
+
+        await stream_pipeline_result(
+            "user_123", "sess_abc", pipeline_result, mock_manager, enable_streaming=True
+        )
+
+        args = mock_manager.send_response.call_args[1]
+        assert args["music"] is None
+
+
+class TestExtractMusicPayload:
+    """Unit tests for the music-output shaping helper."""
+
+    def test_no_music_agent_returns_none(self) -> None:
+        assert _extract_music_payload([{"agent": "empathy", "text": "hi", "metadata": {}}]) is None
+
+    def test_empty_outputs_returns_none(self) -> None:
+        assert _extract_music_payload([]) is None
+
+    def test_shapes_spotify_connected_output(self) -> None:
+        payload = _extract_music_payload([
+            {
+                "agent": "music",
+                "text": "Some music for you.",
+                "metadata": {
+                    "tracks": [{"name": "Track"}],
+                    "emotion": "sadness",
+                    "spotify_mode": "A",
+                    "playlist": {"id": "abc"},
+                },
+            }
+        ])
+        assert payload is not None
+        assert payload["spotify_connected"] is True
+        assert payload["playlist"] == {"id": "abc"}
+        assert payload["connect_prompt"] is False
+
+    def test_shapes_fallback_output(self) -> None:
+        payload = _extract_music_payload([
+            {
+                "agent": "music",
+                "text": "Spotify isn't connected yet.",
+                "metadata": {
+                    "tracks": [],
+                    "spotify_mode": "unavailable",
+                    "connect_prompt": True,
+                },
+            }
+        ])
+        assert payload is not None
+        assert payload["spotify_connected"] is False
+        assert payload["connect_prompt"] is True
 
 
 class TestStreamAgentOutput:

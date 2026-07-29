@@ -212,11 +212,14 @@ async def stream_pipeline_result(
     assembled_text = pipeline_result.get("assembled_text", "")
     agent_outputs = pipeline_result.get("agent_outputs", [])
     degraded = pipeline_result.get("degraded", [])
+    memory_recalled = pipeline_result.get("memory_recalled", [])
+    music_payload = _extract_music_payload(agent_outputs)
 
     # Step 1: Thinking update
     await streamer.begin_thinking(
         agents_active=agents,
         eos=eos,
+        memory_recalled=memory_recalled,
     )
 
     # Small delay so thinking panel renders before text starts
@@ -244,6 +247,7 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
+            music=music_payload,
             degraded=degraded,
         )
     else:
@@ -252,8 +256,36 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
+            music=music_payload,
             degraded=degraded,
         )
+
+
+def _extract_music_payload(agent_outputs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """
+    Shape the music agent's output into the structured `music` field the
+    WebSocket response carries. `end_stream`/`send_response` have accepted a
+    `music` payload since they were written; nothing ever built one to pass —
+    the field was always sent as null regardless of whether music_agent ran.
+
+    Returns None when the music agent didn't run this turn, so the frontend
+    can tell "no music this turn" apart from "music with nothing in it".
+    """
+    music_output = next(
+        (o for o in agent_outputs if o.get("agent") == "music"), None
+    )
+    if music_output is None:
+        return None
+
+    metadata = music_output.get("metadata", {})
+    return {
+        "message": music_output.get("text", ""),
+        "tracks": metadata.get("tracks", []),
+        "emotion": metadata.get("emotion"),
+        "spotify_connected": metadata.get("spotify_mode") == "A",
+        "playlist": metadata.get("playlist"),
+        "connect_prompt": metadata.get("connect_prompt", False),
+    }
 
 
 async def stream_agent_output(
