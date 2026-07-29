@@ -29,10 +29,13 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.agents.base_agent import AgentContext
+from app.agents.checkin_agent import CheckInAgent
 from app.agents.orchestrator import Orchestrator
 from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.core.connection_manager import get_connection_manager
+from app.core.emotional_os import EmotionalOperatingState
 from app.db import document_id_filter, get_db
 from app.middleware.auth import get_rate_limit_store, verify_access_token
 from app.utils.logger import get_logger
@@ -177,6 +180,7 @@ async def websocket_chat(
 
             # Build session history (last 10 turns from DB)
             session_history = await _load_session_history(db, session_id, user_id)
+            user_memory = await db.user_memory.find_one({"user_id": user_id})
 
             # Run full pipeline
             try:
@@ -186,6 +190,7 @@ async def websocket_chat(
                     session_history=session_history,
                     rag_chunks=None,
                     user_id=user_id,
+                    memory=user_memory,
                 )
             except Exception as exc:
                 logger.exception("Pipeline error for user %s: %s", user_id, exc)
@@ -223,7 +228,9 @@ async def websocket_chat(
             await _save_turn(db, session_id, user_id, user_text, result)
             await _save_mood_log(db, session_id, user_id, result)
             await _save_safety_event(db, session_id, user_id, user_text, result)
-            await _save_pending_checkin(db, session_id, user_id, result)
+            await _save_pending_checkin(
+                db, session_id, user_id, user_name, session_history, result
+            )
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected: user=%s session=%s", user_id, session_id)
@@ -419,9 +426,23 @@ async def _save_pending_checkin(
     db: AsyncIOMotorDatabase,
     session_id: str,
     user_id: str,
+    user_name: str,
+    session_history: list[dict[str, Any]],
     result: dict[str, Any],
 ) -> None:
-    """Persist scheduler-agent output so it survives process restarts."""
+    """
+    Persist scheduler-agent output so it survives process restarts.
+
+    The text comes from CheckInAgent (SYSTEM.md §5.12: recall something
+    specific, never open with "How are you?"). CheckInAgent was registered
+    in the orchestrator's agent list but never included in
+    Orchestrator._select_agents — only checkin_scheduler (which computes
+    *when* to check in) ran, so every proactive check-in ever sent used the
+    hardcoded line here, which was the exact generic opener the agent's own
+    prompt forbids. Generating it here, rather than by adding "checkin" to
+    the orchestrator's turn-agents, keeps it out of the current turn's
+    visible reply — this message is for a *future* check-in, not this turn.
+    """
     for output in result.get("agent_outputs", []):
         metadata = output.get("metadata", {})
         if metadata.get("action") != "schedule_checkin":
@@ -429,6 +450,13 @@ async def _save_pending_checkin(
         scheduled_at = datetime.datetime.fromisoformat(metadata["scheduled_at"])
         if scheduled_at.tzinfo is None:
             scheduled_at = scheduled_at.replace(tzinfo=datetime.UTC)
+
+        checkin_text = await _generate_checkin_text(
+            eos=result.get("eos", {}),
+            user_name=user_name,
+            session_history=session_history,
+        )
+
         await db.pending_checkins.update_one(
             {
                 "user_id": user_id,
@@ -439,7 +467,7 @@ async def _save_pending_checkin(
                 "$set": {
                     "scheduled_at": scheduled_at,
                     "expires_at": scheduled_at + datetime.timedelta(days=7),
-                    "text": "How are you feeling since our last conversation?",
+                    "text": checkin_text,
                 },
                 "$setOnInsert": {
                     "user_id": user_id,
@@ -451,3 +479,34 @@ async def _save_pending_checkin(
             upsert=True,
         )
         break
+
+
+# Generic fallback only — never the primary path. SYSTEM.md §5.12 explicitly
+# forbids opening a check-in with "How are you?"; this is deliberately
+# specific-but-safe instead, used only if the model call itself fails.
+_CHECKIN_FALLBACK_TEXT = (
+    "Hey — I've been thinking about our last conversation. How are things now?"
+)
+
+
+async def _generate_checkin_text(
+    eos: dict[str, Any],
+    user_name: str,
+    session_history: list[dict[str, Any]],
+) -> str:
+    """Best-effort personalised check-in text. Falls back to a plain but
+    still non-generic line if the model call fails, rather than raising and
+    losing the whole scheduling write."""
+    try:
+        ctx = AgentContext(
+            eos=EmotionalOperatingState(**eos),
+            user_text="",
+            user_name=user_name,
+            session_history=session_history,
+        )
+        output = await CheckInAgent().run(ctx)
+        if output.text:
+            return output.text
+    except Exception:
+        logger.exception("Check-in text generation failed for user %s", user_name)
+    return _CHECKIN_FALLBACK_TEXT

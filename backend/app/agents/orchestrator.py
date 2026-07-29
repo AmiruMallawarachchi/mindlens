@@ -40,6 +40,7 @@ from app.core.emotional_os import (
     EmotionalOperatingState,
     Modality,
 )
+from app.core.memory_recall import recall_for_turn
 from app.models.loader import ModelManager
 from app.rag.retriever import get_retriever
 from app.utils.logger import get_logger
@@ -109,15 +110,22 @@ class Orchestrator:
         session_history: list[dict] | None = None,
         rag_chunks: list[str] | None = None,
         user_id: str | None = None,
+        memory: dict[str, Any] | None = None,
     ) -> dict:
         """
         Complete turn pipeline:
         1. Run model inference → build EOS
-        2. Retrieve RAG context (if not provided)
-        3. Select agents based on EOS
-        4. Run all agents in parallel
-        5. Assemble response
-        6. Return full result with assembled text
+        2. Recall relevant memory and merge into EOS
+        3. Retrieve RAG context (if not provided)
+        4. Select agents based on EOS
+        5. Run all agents in parallel
+        6. Assemble response
+        7. Return full result with assembled text
+
+        `memory` is the caller's already-fetched `user_memory` document (or
+        None) — the orchestrator stays DB-free by design, so the router reads
+        Mongo and hands the document in rather than this method doing its own
+        lookup.
         """
         # Track LLM fallbacks for the whole turn, across every agent.
         degradation = begin_degradation_tracking()
@@ -128,7 +136,27 @@ class Orchestrator:
         agent_names = turn_result["agents"]
         crisis_flag = turn_result["crisis_flag"]
 
-        # Step 2: Retrieve RAG context if not provided
+        # Step 2: Recall relevant memory (SYSTEM.md §13.3: "Memory recalled").
+        # Skipped in crisis mode — only the crisis agent runs, and the crisis
+        # template is deliberately generic rather than personalised.
+        recall = recall_for_turn(
+            memory,
+            user_text=user_text,
+            surface_emotion=eos.surface_emotion,
+            core_emotion=eos.core_emotion,
+        )
+        if not crisis_flag:
+            eos.people_graph = recall.people_graph
+            # A stated modality preference wins over the distress-based
+            # default, but never over the high-distress DBT escalation —
+            # a standing preference shouldn't block the safer choice.
+            if recall.preferred_modality and eos.distress_level <= 0.7:
+                try:
+                    eos.modality = Modality(recall.preferred_modality)
+                except ValueError:
+                    pass
+
+        # Step 3: Retrieve RAG context if not provided
         if rag_chunks is None and not crisis_flag:
             try:
                 rag_chunks = await asyncio.to_thread(
@@ -141,7 +169,7 @@ class Orchestrator:
             # Crisis: skip RAG, use crisis protocols directly
             rag_chunks = []
 
-        # Step 3: Build agent context
+        # Step 4: Build agent context
         ctx = AgentContext(
             eos=eos,
             user_text=anonymize(user_text),
@@ -150,7 +178,7 @@ class Orchestrator:
             rag_chunks=rag_chunks or [],
         )
 
-        # Step 3: Run agents in parallel
+        # Step 5: Run agents in parallel
         outputs: list[AgentOutput] = []
         if crisis_flag:
             # Crisis mode: only crisis agent
@@ -174,7 +202,7 @@ class Orchestrator:
                     elif isinstance(result, Exception):
                         logger.error("Agent failed: %s", result)
 
-        # Step 4: Assemble response
+        # Step 6: Assemble response
         assembled_text = self._assembler.assemble(
             outputs,
             in_crisis=crisis_flag,
@@ -195,6 +223,9 @@ class Orchestrator:
             # output. Surfaced in the thinking panel so a degraded turn is never
             # mistaken for a working one.
             "degraded": sorted(degradation),
+            # SYSTEM.md §13.3: "Memory recalled" in the thinking panel. Empty
+            # unless something on file was genuinely relevant to this turn.
+            "memory_recalled": recall.memory_recalled,
         }
 
     # -----------------------------------------------------------------------

@@ -155,6 +155,95 @@ class TestOrchestratorFullPipeline:
         )
         assert "assembled_text" in result
 
+    @pytest.mark.asyncio
+    async def test_full_pipeline_without_memory_has_no_recall(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """No memory document -> memory_recalled is empty, not fabricated."""
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("I feel anxious about work")
+        assert result["memory_recalled"] == []
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_merges_people_graph_from_memory(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """A person mentioned by name surfaces in memory_recalled and EOS."""
+        orchestrator.models = mock_model_manager
+        memory = {
+            "people": {
+                "Ravi": {"role": "best friend", "context": "same exam", "sentiment": "positive"},
+            }
+        }
+        result = await orchestrator.run_full_pipeline(
+            "I told Ravi about the exam",
+            memory=memory,
+        )
+        assert any("Ravi" in item for item in result["memory_recalled"])
+        assert result["eos"]["people_graph"][0]["name"] == "Ravi"
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_applies_preferred_modality(
+        self, orchestrator: Orchestrator
+    ) -> None:
+        """A stated modality preference overrides the distress-based default
+        when distress isn't high enough to force DBT."""
+        # A low-distress mock: the shared `mock_model_manager` fixture's
+        # NON_CRISIS score of 0.12 inverts to a 0.88 crisis contribution
+        # (_parse_crisis treats low confidence in "non-crisis" as evidence
+        # for crisis), which alone pushes distress over the 0.7 DBT
+        # threshold — not useful for testing the low-distress branch.
+        orchestrator.models.predict_all = AsyncMock(return_value={
+            "emotion": [[{"label": "LABEL_17", "score": 0.9}]],
+            "crisis": [{"label": "NON_CRISIS", "score": 0.95}],
+            "mental_health": [[{"label": "LABEL_1", "score": 0.05}]],
+        })
+        memory = {"preferences": {"preferred_modality": "ACT"}}
+        result = await orchestrator.run_full_pipeline(
+            "just a normal day",
+            memory=memory,
+        )
+        assert result["eos"]["distress_level"] <= 0.7
+        assert result["eos"]["modality"] == "ACT"
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_high_distress_overrides_preference(
+        self, orchestrator: Orchestrator
+    ) -> None:
+        """A high-distress turn keeps the safety-driven DBT modality even
+        when the user's memory prefers something else."""
+        orchestrator.models.predict_all = AsyncMock(return_value={
+            "emotion": [[{"label": "LABEL_25", "score": 0.95}]],
+            "crisis": [{"label": "NON_CRISIS", "score": 0.1}],
+            "mental_health": [[{"label": "LABEL_0", "score": 0.95}]],
+        })
+        memory = {"preferences": {"preferred_modality": "ACT"}}
+        result = await orchestrator.run_full_pipeline(
+            "I can't take this anymore, everything hurts so much",
+            memory=memory,
+        )
+        assert result["eos"]["distress_level"] > 0.7
+        assert result["eos"]["modality"] == "DBT"
+
+    @pytest.mark.asyncio
+    async def test_crisis_pipeline_skips_memory_merge(
+        self, orchestrator: Orchestrator
+    ) -> None:
+        """Crisis mode doesn't personalise via memory — the template is
+        deliberately generic."""
+        orchestrator.models.predict_all = AsyncMock(return_value={
+            "emotion": [[{"label": "LABEL_25", "score": 0.9}]],
+            "crisis": [{"label": "CRISIS", "score": 0.85}],
+            "mental_health": [[{"label": "LABEL_1", "score": 0.5}]],
+        })
+        memory = {
+            "people": {"Ravi": {"role": "friend", "context": "", "sentiment": "positive"}},
+            "preferences": {"preferred_modality": "ACT"},
+        }
+        result = await orchestrator.run_full_pipeline("suicidal text", memory=memory)
+        assert result["crisis_flag"] is True
+        assert result["eos"]["people_graph"] == []
+
 
 class TestOrchestratorAgentRouting:
     """Validate the expanded _select_agents method."""

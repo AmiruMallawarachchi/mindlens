@@ -122,6 +122,19 @@ class EmpathyAgent(BaseAgent):
                 "- Still warm — avoid clinical or robotic phrasing.\n"
             )
 
+        # User-set Gentle<->Direct preference (Your Mindlens studio's
+        # personality slider), orthogonal to the age-based tone above.
+        if eos.tone_preference == "gentle":
+            tone_instruction += (
+                "- The user has asked for a gentler style: soften phrasing, cushion "
+                "any challenge, take more care before pushing on anything.\n"
+            )
+        elif eos.tone_preference == "direct":
+            tone_instruction += (
+                "- The user has asked for a more direct style: be concise, get to "
+                "the point faster, don't over-cushion the message.\n"
+            )
+
         # Distress-specific instruction (SYSTEM.md §5.4 Rule 5, 10)
         distress_instruction = ""
         if distress >= 0.8:

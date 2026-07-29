@@ -165,6 +165,11 @@ class EmotionalOperatingState(BaseModel):
         description="Age-based tone adaptation",
     )
 
+    tone_preference: typing.Literal["gentle", "balanced", "direct"] = Field(
+        default="balanced",
+        description="User-set Gentle<->Direct preference (Your Mindlens studio)",
+    )
+
     # --- Intervention Preferences ---
     receptiveness: Receptiveness = Field(
         default_factory=Receptiveness,

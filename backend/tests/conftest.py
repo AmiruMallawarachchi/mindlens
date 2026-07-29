@@ -183,6 +183,8 @@ def mock_db() -> MagicMock:
     mock.safety_events = MagicMock()
     mock.audit_log = MagicMock()
     mock.pending_checkins = MagicMock()
+    mock.journal_entries = MagicMock()
+    mock.progress_insights = MagicMock()
     mock.users.find_one = AsyncMock(
         return_value={
             "_id": "user_123",
