@@ -14,7 +14,6 @@ Three properties are asserted here, each of which regressed at least once:
 from __future__ import annotations
 
 import pytest
-
 from app.agents.safety_gate import safety_gate
 
 # ---------------------------------------------------------------------------

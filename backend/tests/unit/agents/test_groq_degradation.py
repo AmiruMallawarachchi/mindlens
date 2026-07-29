@@ -12,11 +12,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from app.agents.groq_client import (
     GroqClient,
-    begin_degradation_tracking,
     _degradation_sink,
+    begin_degradation_tracking,
 )
 
 
