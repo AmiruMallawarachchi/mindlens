@@ -82,6 +82,9 @@ async def connect_db() -> None:
     await database.user_memory.create_index("user_id", unique=True)
     await database.pending_checkins.create_index([("user_id", 1), ("delivered", 1)])
     await database.pending_checkins.create_index("expires_at", expireAfterSeconds=0)
+    await database.journal_entries.create_index("entry_id", unique=True)
+    await database.journal_entries.create_index([("user_id", 1), ("created_at", -1)])
+    await database.progress_insights.create_index("user_id", unique=True)
 
     logger.info("Database indexes created")
 
