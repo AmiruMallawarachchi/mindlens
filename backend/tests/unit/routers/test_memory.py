@@ -144,6 +144,50 @@ class TestUpdatePreferences:
         )
         assert response.status_code == status.HTTP_200_OK
 
+    async def test_update_tone_and_memory_depth(
+        self, memory_client: Any, mock_db: MagicMock, sample_memory_doc: dict
+    ) -> None:
+        """Your Mindlens studio's Gentle<->Direct and memory-depth controls —
+        memory_recall.py already reads these back each turn; this is what
+        lets the user set them."""
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.user_memory.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+        mock_db.safety_events = MagicMock()
+
+        tokens = create_token_pair("user_123", "test@example.com", role="user")
+        access_token = tokens["access_token"]
+
+        response = await memory_client.patch(
+            "/api/v1/memory/preferences",
+            json={
+                "tone_preference": "direct",
+                "memory_depth": "key_details",
+                "companion_name": "Fern",
+            },
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        set_fields = mock_db.user_memory.update_one.call_args[0][1]["$set"]["preferences"]
+        assert set_fields["tone_preference"] == "direct"
+        assert set_fields["memory_depth"] == "key_details"
+        assert set_fields["companion_name"] == "Fern"
+
+    async def test_invalid_tone_preference_rejected(
+        self, memory_client: Any, mock_db: MagicMock
+    ) -> None:
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.safety_events = MagicMock()
+
+        tokens = create_token_pair("user_123", "test@example.com", role="user")
+        access_token = tokens["access_token"]
+
+        response = await memory_client.patch(
+            "/api/v1/memory/preferences",
+            json={"tone_preference": "aggressive"},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     async def test_update_preferences_empty(self, memory_client: Any, mock_db: MagicMock, sample_memory_doc: dict) -> None:
         mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
         mock_db.safety_events = MagicMock()

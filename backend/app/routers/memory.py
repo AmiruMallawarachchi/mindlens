@@ -49,6 +49,12 @@ class PreferencesUpdate(BaseModel):
     introvert_score: float | None = Field(None, ge=0.0, le=1.0)
     preferred_modality: str | None = Field(None, max_length=50)
     checkin_preferred_time: str | None = Field(None, pattern="^(morning|evening|whenever)$")
+    # Your Mindlens studio. memory_recall.py already reads both of these back
+    # into the EOS each turn (modality override, recall depth) — this is what
+    # lets the user actually set them.
+    tone_preference: str | None = Field(None, pattern="^(gentle|balanced|direct)$")
+    memory_depth: str | None = Field(None, pattern="^(everything|key_details|nothing)$")
+    companion_name: str | None = Field(None, min_length=1, max_length=40)
 
 class EmotionalPatternsUpdate(BaseModel):
     most_common_emotion: str | None = None
