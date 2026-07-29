@@ -1,5 +1,5 @@
-import { MindLensApp } from "@/components/mindlens-app";
+import { HomePage } from "@/components/home/home-page";
 
-export default function Home() {
-  return <MindLensApp />;
+export default function Page() {
+  return <HomePage />;
 }
