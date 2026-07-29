@@ -21,6 +21,7 @@ from app.routers import (
     auth_router,
     chat_router,
     dashboard_router,
+    journal_router,
     memory_router,
     onboarding_router,
     session_router,
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
         onboarding_router, prefix="/api/v1/onboarding", tags=["Onboarding"]
     )
     application.include_router(memory_router, prefix="/api/v1/memory", tags=["Memory"])
+    application.include_router(journal_router, prefix="/api/v1/journal", tags=["Journal"])
     application.include_router(system_router, prefix="/api/v1/admin", tags=["Admin"])
 
     @application.middleware("http")
