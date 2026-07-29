@@ -16,6 +16,17 @@ from __future__ import annotations
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.safety_gate import CRISIS_TEMPLATES
 
+# SYSTEM.md §16 mandates NIMH 1926 and Emergency 119 on every crisis response;
+# Sumithrayo is a real Sri Lankan crisis line included alongside them. This
+# structured list is what the crisis panel renders as contact rows — until
+# now nothing populated it, so `resources` was always sent as an empty array
+# regardless of `crisis_resources_included: True` in the metadata below.
+CRISIS_RESOURCES: list[dict[str, str]] = [
+    {"name": "Sri Lanka — Sumithrayo", "number": "011 269 6666"},
+    {"name": "National Mental Health Helpline", "number": "1926"},
+    {"name": "Emergency services", "number": "119 / 110"},
+]
+
 
 class CrisisAgent(BaseAgent):
     """
@@ -57,6 +68,7 @@ class CrisisAgent(BaseAgent):
                 "template_type": "severe" if distress >= 0.85 else "moderate",
                 "crisis_resources_included": True,
                 "nimh_number_included": True,
+                "resources": CRISIS_RESOURCES,
             },
         )
 

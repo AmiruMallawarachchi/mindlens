@@ -62,3 +62,19 @@ class TestCrisisAgent:
         result = await agent.run(crisis_agent_context)
         assert result is not None
         assert result.text != ""
+
+    @pytest.mark.asyncio
+    async def test_includes_structured_resources(
+        self, agent: CrisisAgent, crisis_agent_context: EmotionalOperatingState
+    ) -> None:
+        """The crisis panel renders metadata['resources'] as contact rows —
+        streaming.py's stream_pipeline_result already extracted this field
+        from crisis agent output, but nothing ever populated it, so the
+        panel always received an empty list regardless of
+        crisis_resources_included=True."""
+        result = await agent.run(crisis_agent_context)
+        resources = result.metadata["resources"]
+        assert len(resources) >= 2
+        numbers = {r["number"] for r in resources}
+        assert "1926" in numbers
+        assert all("name" in r and "number" in r for r in resources)
