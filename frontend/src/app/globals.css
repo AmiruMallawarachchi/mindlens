@@ -1,9 +1,15 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./tokens.css";
 
+/* Legacy palette. Still drives the Progress / Journal / Memory views, which
+ * have not been rebuilt against the design system yet. Namespaced `--lg-*`
+ * so it cannot shadow the shadcn tokens the AI Elements primitives compile
+ * against — see tokens.css. Retire this block as each view is rebuilt. */
 :root {
-  --background: #080a10;
-  --foreground: #f7f7fb;
-  --muted: rgba(239, 241, 250, 0.62);
+  --lg-bg: #080a10;
+  --lg-fg: #f7f7fb;
+  --lg-muted: rgba(239, 241, 250, 0.62);
   --faint: rgba(239, 241, 250, 0.4);
   --line: rgba(255, 255, 255, 0.105);
   --line-strong: rgba(255, 255, 255, 0.18);
@@ -14,27 +20,27 @@
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
 * {
   box-sizing: border-box;
+}
+
+html {
+  background: var(--ml-canvas);
 }
 
 html,
 body {
   margin: 0;
   min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
+  color: var(--ml-ink);
 }
 
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  /* Transparent, not canvas-coloured: the emotion field sits at z-index -10
+   * and a painted background on <body> would cover it completely. The canvas
+   * colour comes from <html> instead, which paints behind everything. */
+  background: transparent;
+  font-family: var(--font-instrument-sans), system-ui, sans-serif;
   overflow: hidden;
 }
 
@@ -87,7 +93,7 @@ button:disabled {
 }
 
 .mindlens-app {
-  --accent: #ff6941;
+  --lg-accent: #ff6941;
   --accent-rgb: 255, 105, 65;
   --accent-2: #ffb15f;
   --accent-soft: rgba(255, 105, 65, 0.15);
@@ -98,42 +104,42 @@ button:disabled {
 }
 
 .mindlens-app.mood-neutral {
-  --accent: #8f86ff;
+  --lg-accent: #8f86ff;
   --accent-rgb: 143, 134, 255;
   --accent-2: #65d7dd;
   --accent-soft: rgba(143, 134, 255, 0.15);
 }
 
 .mindlens-app.mood-calm {
-  --accent: #58d4c6;
+  --lg-accent: #58d4c6;
   --accent-rgb: 88, 212, 198;
   --accent-2: #74a7ff;
   --accent-soft: rgba(88, 212, 198, 0.15);
 }
 
 .mindlens-app.mood-anxious {
-  --accent: #a693ff;
+  --lg-accent: #a693ff;
   --accent-rgb: 166, 147, 255;
   --accent-2: #69bed7;
   --accent-soft: rgba(166, 147, 255, 0.15);
 }
 
 .mindlens-app.mood-sad {
-  --accent: #9a82d8;
+  --lg-accent: #9a82d8;
   --accent-rgb: 154, 130, 216;
   --accent-2: #cf7089;
   --accent-soft: rgba(154, 130, 216, 0.15);
 }
 
 .mindlens-app.mood-angry {
-  --accent: #ff6941;
+  --lg-accent: #ff6941;
   --accent-rgb: 255, 105, 65;
   --accent-2: #ffb15f;
   --accent-soft: rgba(255, 105, 65, 0.16);
 }
 
 .mindlens-app.mood-hopeful {
-  --accent: #52d6bb;
+  --lg-accent: #52d6bb;
   --accent-rgb: 82, 214, 187;
   --accent-2: #ff9878;
   --accent-soft: rgba(82, 214, 187, 0.15);
@@ -198,7 +204,7 @@ button:disabled {
   border: 1px solid transparent;
   border-radius: 13px;
   background: transparent;
-  color: var(--muted);
+  color: var(--lg-muted);
   cursor: pointer;
   transition: 180ms ease;
 }
@@ -252,7 +258,7 @@ button:disabled {
   border-radius: 12px;
   background:
     radial-gradient(circle at 70% 20%, var(--accent-2), transparent 42%),
-    linear-gradient(145deg, var(--accent), #1a1529);
+    linear-gradient(145deg, var(--lg-accent), #1a1529);
   box-shadow: 0 10px 24px rgba(var(--accent-rgb), 0.22), inset 0 1px rgba(255, 255, 255, 0.35);
 }
 
@@ -369,7 +375,7 @@ button:disabled {
   border: 1px solid transparent;
   border-radius: 13px;
   background: transparent;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 12px;
   cursor: pointer;
   transition: 160ms ease;
@@ -498,7 +504,7 @@ button:disabled {
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
-  color: var(--muted);
+  color: var(--lg-muted);
   text-align: left;
   cursor: pointer;
 }
@@ -515,7 +521,7 @@ button:disabled {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 11px;
-  background: linear-gradient(145deg, var(--accent), #322d4e);
+  background: linear-gradient(145deg, var(--lg-accent), #322d4e);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -600,7 +606,7 @@ button:disabled {
   height: 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: linear-gradient(135deg, var(--lg-accent), var(--accent-2));
   box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.38);
 }
 
@@ -731,7 +737,7 @@ button:disabled {
   border-radius: 11px;
   background:
     radial-gradient(circle at 70% 25%, var(--accent-2), transparent 44%),
-    linear-gradient(145deg, var(--accent), #181522);
+    linear-gradient(145deg, var(--lg-accent), #181522);
   box-shadow: 0 7px 20px rgba(var(--accent-rgb), 0.24);
 }
 
@@ -814,7 +820,7 @@ button:disabled {
   border-radius: 50%;
   background:
     radial-gradient(circle at 70% 22%, var(--accent-2), transparent 42%),
-    linear-gradient(145deg, var(--accent), #29233e);
+    linear-gradient(145deg, var(--lg-accent), #29233e);
   box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.24);
 }
 
@@ -1031,7 +1037,7 @@ button:disabled {
 
 .button-primary {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 62%, #29223b));
+  background: linear-gradient(120deg, var(--lg-accent), color-mix(in srgb, var(--lg-accent) 62%, #29223b));
   box-shadow: 0 10px 24px rgba(var(--accent-rgb), 0.2), inset 0 1px rgba(255, 255, 255, 0.2);
   color: #fff;
 }
@@ -1227,7 +1233,7 @@ button:disabled {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
-  background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 64%, #2e2440));
+  background: linear-gradient(145deg, var(--lg-accent), color-mix(in srgb, var(--lg-accent) 64%, #2e2440));
   box-shadow: 0 8px 19px rgba(var(--accent-rgb), 0.25), inset 0 1px rgba(255, 255, 255, 0.18);
   color: #fff;
   cursor: pointer;
@@ -1488,7 +1494,7 @@ button:disabled {
   border-radius: 28px;
   background:
     radial-gradient(circle at 75% 22%, var(--accent-2), transparent 34%),
-    linear-gradient(145deg, var(--accent), #241c34 72%);
+    linear-gradient(145deg, var(--lg-accent), #241c34 72%);
   box-shadow: 0 20px 45px rgba(var(--accent-rgb), 0.25), inset 0 1px rgba(255, 255, 255, 0.2);
 }
 
@@ -1679,7 +1685,7 @@ button:disabled {
 .page-title p {
   max-width: 660px;
   margin: 12px 0 0;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 12px;
   line-height: 1.65;
 }
@@ -1788,7 +1794,7 @@ button:disabled {
   min-height: 15px;
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 10px 10px 4px 4px;
-  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  background: linear-gradient(180deg, var(--accent-2), var(--lg-accent));
   box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.18), inset 0 1px rgba(255, 255, 255, 0.22);
   opacity: 0.78;
 }
@@ -1827,7 +1833,7 @@ button:disabled {
 
 .insight-card p {
   margin: 10px 0 16px;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 10px;
   line-height: 1.6;
 }
@@ -1864,7 +1870,7 @@ button:disabled {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 26px;
-  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  background: linear-gradient(145deg, var(--lg-accent), var(--accent-2));
   box-shadow: 0 24px 50px rgba(var(--accent-rgb), 0.32), inset 0 1px rgba(255, 255, 255, 0.25);
 }
 
@@ -1880,7 +1886,7 @@ button:disabled {
 
 .journal-hero p {
   margin: 13px 0 20px;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 11px;
 }
 
@@ -1924,7 +1930,7 @@ button:disabled {
 
 .journal-card p {
   margin: 0;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 9px;
   line-height: 1.55;
 }
@@ -2008,7 +2014,7 @@ button:disabled {
 
 .memory-card > p {
   margin-top: 7px;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 9px;
   line-height: 1.55;
 }
@@ -2264,7 +2270,7 @@ button:disabled {
   right: 8px;
   padding: 2px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--lg-accent);
   color: #fff;
 }
 
@@ -2787,7 +2793,7 @@ button:disabled {
 .auth-loading {
   align-items: center;
   text-align: center;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 12px;
 }
 
@@ -2806,7 +2812,7 @@ button:disabled {
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: var(--muted);
+  color: var(--lg-muted);
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;

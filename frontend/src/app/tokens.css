@@ -1,0 +1,319 @@
+/**
+ * Mindlens design tokens — design.md §1.3 (colour), §2 (emotion), §8 (radii).
+ *
+ * Two token families live here:
+ *  1. `--ml-*` / `--e*`  — the Mindlens design system.
+ *  2. shadcn/ui's token names, which the AI Elements primitives compile
+ *     against. These are mapped onto the Mindlens palette rather than kept as
+ *     a second, competing theme.
+ *
+ * The day grade is the default (matching the approved mockups — Mindlens
+ * Chat.dc.html / Mindlens Home.dc.html both open on warm paper with a
+ * sun/moon toggle). The night grade overrides under [data-grade="night"], so
+ * switching is a token swap, not a rebuild. Values are ported verbatim from
+ * the mockups' own DAY/NIGHT constants.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Emotion channels.
+ *
+ * Registering these as <color> is what lets them animate: §2 requires the
+ * emotion crossfade over 1.6s and explicitly forbids a snap. Unregistered
+ * custom properties are not interpolatable, so a plain transition would step.
+ * Browsers interpolate registered colours perceptually, which also satisfies
+ * §2's "interpolate in oklab, never RGB".
+ * ------------------------------------------------------------------------ */
+@property --e1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #8f86ff;
+}
+@property --e2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #65d7dd;
+}
+@property --e3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1b1a3a;
+}
+@property --e-blend {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #65d7dd;
+}
+@property --intensity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.28;
+}
+
+:root {
+  color-scheme: light;
+
+  /* --- Canvas & glass (day — mockups' DAY constant) -------------------- */
+  --ml-canvas: #f3eee4;
+  --ml-deep: #0f0b08;
+  --ml-panel: rgba(255, 252, 246, 0.66);
+  --ml-panel-strong: rgba(255, 252, 246, 0.9);
+  --ml-panel-blur: blur(24px) saturate(1.2);
+  --ml-hairline: rgba(20, 16, 10, 0.09);
+  --ml-hairline-strong: rgba(20, 16, 10, 0.12);
+  --ml-ink: #221d15;
+  --ml-muted: rgba(34, 29, 21, 0.62);
+  --ml-faint: rgba(34, 29, 21, 0.44);
+  --ml-logo-filter: none;
+
+  /* Raised so text on glass clears 4.5:1 — §8 says raise panel opacity
+   * before dimming text, never the other way round. */
+  --ml-panel-legible: rgba(255, 252, 246, 0.9);
+
+  /* --- Radii scale (§8) ----------------------------------------------- */
+  --r-7: 7px;
+  --r-11: 11px;
+  --r-13: 13px;
+  --r-16: 16px;
+  --r-18: 18px;
+  --r-22: 22px;
+  --r-24: 24px;
+  --r-30: 30px;
+  --r-pill: 99px;
+
+  /* --- Shadows are coloured (§1.3): never pure black on colour -------- */
+  --ml-shadow-key: 0 22px 48px -14px var(--e1);
+  --ml-shadow-soft: 0 12px 32px -18px var(--e1);
+  --ml-shadow-neutral: 0 24px 70px rgba(36, 26, 14, 0.14);
+
+  /* --- Focus ring (§8) ------------------------------------------------- */
+  --ml-focus: color-mix(in oklab, var(--e1) 60%, white);
+
+  /* --- Motion (§6) ----------------------------------------------------- */
+  --ml-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ml-emotion-fade: 1600ms;
+}
+
+/* --------------------------------------------------------------------------
+ * Night grade — ported verbatim from the mockups' NIGHT constant.
+ * ----------------------------------------------------------------------- */
+:root[data-grade="night"] {
+  color-scheme: dark;
+
+  --ml-canvas: #0a0b10;
+  --ml-deep: #141622;
+  --ml-panel: rgba(17, 18, 27, 0.66);
+  --ml-panel-strong: rgba(20, 21, 31, 0.92);
+  --ml-panel-legible: rgba(20, 21, 31, 0.92);
+  --ml-hairline: rgba(255, 255, 255, 0.09);
+  --ml-hairline-strong: rgba(255, 255, 255, 0.16);
+  --ml-ink: #f7f6f1;
+  --ml-muted: rgba(246, 244, 239, 0.62);
+  --ml-faint: rgba(246, 244, 239, 0.42);
+  --ml-logo-filter: invert(0.92) hue-rotate(180deg);
+  --ml-shadow-neutral: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+ * shadcn/ui token bridge.
+ *
+ * AI Elements' primitives are written against these names. Pointing them at
+ * the Mindlens palette means an <Message> or <PromptInput> inherits the
+ * emotion grade for free instead of carrying a stock neutral theme.
+ * ----------------------------------------------------------------------- */
+:root {
+  --background: var(--ml-canvas);
+  --foreground: var(--ml-ink);
+  --card: var(--ml-panel);
+  --card-foreground: var(--ml-ink);
+  --popover: var(--ml-panel-legible);
+  --popover-foreground: var(--ml-ink);
+  --primary: var(--e1);
+  --primary-foreground: #fffdf8;
+  --secondary: rgba(20, 16, 10, 0.05);
+  --secondary-foreground: var(--ml-ink);
+  --muted: rgba(20, 16, 10, 0.04);
+  --muted-foreground: var(--ml-muted);
+  --accent: color-mix(in oklab, var(--e1) 18%, transparent);
+  --accent-foreground: var(--ml-ink);
+  --destructive: #ff6b6b;
+  --destructive-foreground: #16070a;
+  --border: var(--ml-hairline);
+  --input: var(--ml-hairline-strong);
+  --ring: var(--ml-focus);
+  --radius: var(--r-16);
+}
+
+:root[data-grade="night"] {
+  --secondary: rgba(255, 255, 255, 0.06);
+  --muted: rgba(255, 255, 255, 0.05);
+  --primary-foreground: #0a0b11;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Emotion channels exposed to Tailwind utilities (bg-e1, text-e2, …). */
+  --color-e1: var(--e1);
+  --color-e2: var(--e2);
+  --color-e3: var(--e3);
+  --color-e-blend: var(--e-blend);
+
+  --font-display: var(--font-newsreader);
+  --font-sans: var(--font-instrument-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-sm: var(--r-7);
+  --radius-md: var(--r-11);
+  --radius-lg: var(--r-16);
+  --radius-xl: var(--r-22);
+}
+
+/* --------------------------------------------------------------------------
+ * Emotion crossfade. Applied at the root so every surface reading --e1/--e2
+ * moves together rather than each element easing on its own schedule.
+ * ----------------------------------------------------------------------- */
+.ml-root {
+  transition:
+    --e1 var(--ml-emotion-fade) var(--ml-ease),
+    --e2 var(--ml-emotion-fade) var(--ml-ease),
+    --e3 var(--ml-emotion-fade) var(--ml-ease),
+    --e-blend var(--ml-emotion-fade) var(--ml-ease),
+    --intensity 900ms var(--ml-ease);
+}
+
+/* --------------------------------------------------------------------------
+ * Nimbus — the companion. Ported verbatim from the approved mockup
+ * (Mindlens Chat.dc.html): a single morphing blob, not the layered-shape
+ * cloud an earlier build attempted from design.md's text description alone.
+ * ----------------------------------------------------------------------- */
+@keyframes nimbusMorph {
+  0%, 100% { border-radius: 48% 52% 55% 45% / 52% 48% 52% 48%; }
+  33% { border-radius: 55% 45% 48% 52% / 45% 55% 45% 55%; }
+  66% { border-radius: 45% 55% 52% 48% / 55% 45% 55% 45%; }
+}
+@keyframes nimbusFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes nimbusBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+@keyframes nimbusHalo {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.14); opacity: 0.18; }
+}
+@keyframes nimbusSparkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes nimbusViz {
+  0%, 100% { transform: scaleY(0.45); }
+  50% { transform: scaleY(1); }
+}
+@keyframes mlShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes mlCaret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+ * Home page — ported from Mindlens Home.dc.html.
+ * ----------------------------------------------------------------------- */
+@keyframes mlBlobA {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vw, -4vh) scale(1.15); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes mlBlobB {
+  0% { transform: translate(0, 0) scale(1.1); }
+  50% { transform: translate(-5vw, 5vh) scale(0.92); }
+  100% { transform: translate(0, 0) scale(1.1); }
+}
+@keyframes mlMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* --------------------------------------------------------------------------
+ * Shared surface recipes.
+ * ----------------------------------------------------------------------- */
+.ml-glass {
+  background: var(--ml-panel);
+  backdrop-filter: var(--ml-panel-blur);
+  -webkit-backdrop-filter: var(--ml-panel-blur);
+  border: 1px solid var(--ml-hairline);
+}
+
+.ml-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ml-faint);
+}
+
+.ml-display {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
+}
+
+.ml-num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ml-focus);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * Grain — §1.3: 3–5% fractal noise on every full-bleed surface.
+ * ----------------------------------------------------------------------- */
+.ml-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-grade="night"] .ml-grain::after {
+  mix-blend-mode: normal;
+  opacity: 0.04;
+}
+
+/* --------------------------------------------------------------------------
+ * §6: reduced motion keeps layout identical — it removes movement only.
+ * ----------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ml-root {
+    transition: none;
+  }
+}
