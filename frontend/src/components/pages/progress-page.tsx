@@ -21,20 +21,31 @@ const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function ProgressPage() {
   const [moods, setMoods] = useState<MoodLogEntry[] | null>(null);
+  const [moodsError, setMoodsError] = useState<string | null>(null);
   const [insight, setInsight] = useState<ProgressInsight | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
+
+  // Two independent data sources — a failure in one (e.g. the insight
+  // endpoint's occasional LLM call timing out) must not blank out mood data
+  // that loaded fine, and vice versa. Promise.all() previously coupled them:
+  // either rejecting left both metric cards and the 7-day bars permanently
+  // stuck showing nothing, even when the mood-log fetch had actually
+  // succeeded.
+  useEffect(() => {
+    let cancelled = false;
+    fetchMoodLogs(90)
+      .then((data) => !cancelled && setMoods(data))
+      .catch(() => !cancelled && setMoodsError("Couldn't load your mood history."));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchMoodLogs(90), fetchProgressInsight()])
-      .then(([moodData, insightData]) => {
-        if (cancelled) return;
-        setMoods(moodData);
-        setInsight(insightData);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError("Couldn't load your progress right now.");
-      });
+    fetchProgressInsight()
+      .then((data) => !cancelled && setInsight(data))
+      .catch(() => !cancelled && setInsightError("Couldn't load your weekly insight."));
     return () => {
       cancelled = true;
     };
@@ -87,10 +98,6 @@ export function ProgressPage() {
     });
   }, [moods, days]);
 
-  if (loadError) {
-    return <EmptyState text={loadError} />;
-  }
-
   return (
     <div className="flex flex-col gap-9">
       <div>
@@ -117,6 +124,11 @@ export function ProgressPage() {
           className="rounded-[var(--r-18)] p-5"
           style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
         >
+          {moodsError && (
+            <p className="mb-3 text-[12.5px]" style={{ color: "var(--ml-faint)" }}>
+              {moodsError}
+            </p>
+          )}
           <div className="flex h-[120px] items-end gap-3">
             {dayScores.map((entry, i) => {
               const state = entry ? resolveEmotion({ surface_emotion: entry.emotion ?? undefined }).state : null;
@@ -148,7 +160,11 @@ export function ProgressPage() {
 
       <section>
         <p className="ml-eyebrow mb-3">Weekly insight</p>
-        {insight === null ? (
+        {insightError ? (
+          <div className="rounded-[var(--r-18)] p-5" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
+            <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>{insightError}</p>
+          </div>
+        ) : insight === null ? (
           <div className="rounded-[var(--r-18)] p-5" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
             <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>Loading…</p>
           </div>
@@ -210,14 +226,6 @@ function MetricCard({
           </span>
         )}
       </p>
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-20 text-center">
-      <p className="text-[14px]" style={{ color: "var(--ml-muted)" }}>{text}</p>
     </div>
   );
 }
