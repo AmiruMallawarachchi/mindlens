@@ -116,7 +116,10 @@ export function Composer({
             />
           </PromptInputBody>
 
-          <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+          <div
+            className="flex items-center gap-2 px-3 pb-3 pt-2.5"
+            style={{ borderTop: "1px solid var(--ml-hairline)" }}
+          >
             {/* Mindlens chooses the approach per turn rather than exposing a
              * picker — this chip states that, it isn't a disabled menu. */}
             <span
@@ -127,15 +130,6 @@ export function Composer({
               }}
             >
               Adaptive
-            </span>
-            <span
-              className="rounded-[var(--r-pill)] border px-2.5 py-1 text-[11px]"
-              style={{
-                borderColor: "var(--ml-hairline)",
-                color: "var(--ml-faint)",
-              }}
-            >
-              Voice · soon
             </span>
 
             <span className="ml-auto ml-eyebrow hidden sm:inline">

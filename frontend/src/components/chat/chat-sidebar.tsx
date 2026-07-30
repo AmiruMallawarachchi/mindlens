@@ -11,13 +11,15 @@ import { useEffect } from "react";
 import {
   BookOpen,
   Brain,
+  ChevronsLeft,
+  ChevronsRight,
   LineChart,
   MessageCircle,
   Plus,
   Settings2,
   ShieldCheck,
 } from "lucide-react";
-import { Wordmark } from "@/components/brand/wordmark";
+import { MindlensMark, Wordmark } from "@/components/brand/wordmark";
 import type { EmotionId } from "@/lib/emotion";
 import type { SessionListItem, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -65,6 +67,8 @@ export function ChatSidebar({
   onNavigate,
   onNewConversation,
   onOpenSession,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   mood: EmotionId;
   user: UserProfile | null;
@@ -74,6 +78,10 @@ export function ChatSidebar({
   onNavigate: (view: ChatNavView) => void;
   onNewConversation: () => void;
   onOpenSession: (sessionId: string) => void;
+  /** Icon-only rail instead of the full 262px panel. Optional — callers
+   * that don't offer the collapse feature (the mobile drawer) just omit it. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   // §8 — full keyboard nav, ⌘K starts a new conversation.
   useEffect(() => {
@@ -89,13 +97,101 @@ export function ChatSidebar({
 
   const groups = groupSessions(sessions);
 
+  if (collapsed) {
+    return (
+      <aside
+        className="ml-glass flex h-full w-[72px] shrink-0 flex-col items-center rounded-[var(--r-22)] py-5"
+        aria-label="Conversations and navigation"
+      >
+        <MindlensMark size={22} />
+
+        <button
+          type="button"
+          onClick={onNewConversation}
+          title="New conversation (⌘K)"
+          aria-label="New conversation"
+          className="mt-5 grid size-10 place-items-center rounded-[var(--r-13)] transition-transform hover:scale-105 active:scale-95"
+          style={{
+            background:
+              "linear-gradient(135deg, color-mix(in oklab, var(--e1) 26%, transparent), color-mix(in oklab, var(--e2) 18%, transparent))",
+            border: "1px solid color-mix(in oklab, var(--e1) 34%, transparent)",
+            color: "var(--ml-ink)",
+          }}
+        >
+          <Plus size={16} strokeWidth={1.7} />
+        </button>
+
+        <nav className="mt-4 flex flex-col gap-1" aria-label="Sections">
+          {NAV.map(({ id, label, icon: Icon }) => {
+            const active = activeView === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onNavigate(id)}
+                title={label}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                className="relative grid size-10 place-items-center rounded-[var(--r-11)] transition-colors"
+                style={{
+                  background: active ? "var(--ml-panel-strong)" : undefined,
+                  border: active ? "1px solid var(--ml-hairline)" : "1px solid transparent",
+                  color: active ? "var(--ml-ink)" : "var(--ml-muted)",
+                }}
+              >
+                <Icon size={16} strokeWidth={1.7} />
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto flex flex-col items-center gap-3">
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="grid size-8 place-items-center rounded-full transition-colors hover:bg-white/[0.06]"
+              style={{ color: "var(--ml-faint)" }}
+            >
+              <ChevronsRight size={15} strokeWidth={1.7} />
+            </button>
+          )}
+          <span
+            title={user?.nickname || user?.name || "Signed in"}
+            className="grid size-8 place-items-center rounded-full text-[11px] font-semibold"
+            style={{
+              background: "linear-gradient(140deg, var(--e2), var(--e1))",
+              color: "#fffdf8",
+            }}
+          >
+            {(user?.nickname || user?.name || "?").slice(0, 1).toUpperCase()}
+          </span>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className="ml-glass flex h-full w-[262px] shrink-0 flex-col rounded-[var(--r-22)]"
       aria-label="Conversations and navigation"
     >
-      <div className="px-5 pb-4 pt-5">
-        <Wordmark mood={mood} size={21} />
+      <div className="flex items-center gap-2 px-5 pb-4 pt-5">
+        <Wordmark mood={mood} size={21} className="min-w-0 flex-1" />
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            className="grid size-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-white/[0.06]"
+            style={{ color: "var(--ml-faint)" }}
+          >
+            <ChevronsLeft size={14} strokeWidth={1.7} />
+          </button>
+        )}
       </div>
 
       <div className="px-3">

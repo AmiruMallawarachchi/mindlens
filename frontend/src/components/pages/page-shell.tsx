@@ -13,6 +13,7 @@ import { EmotionField } from "@/components/field/emotion-field";
 import { ChatSidebar, type ChatNavView } from "@/components/chat/chat-sidebar";
 import { emotionCssVars, type EmotionReading } from "@/lib/emotion";
 import { useGrade } from "@/lib/use-grade";
+import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 
 export function PageShell({
@@ -33,6 +34,7 @@ export function PageShell({
   const { reading, sessions, activeSessionId, startNewConversation, openSession, user } = client;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
 
   return (
     <div
@@ -51,6 +53,8 @@ export function PageShell({
           onNavigate={onNavigate}
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebar}
         />
       </div>
 
