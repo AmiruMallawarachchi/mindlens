@@ -143,6 +143,12 @@ export interface MemoryPreferences {
   memory_depth?: "everything" | "key_details" | "nothing";
   companion_name?: string;
   companion_id?: string;
+  personality?: string;
+  custom_instructions?: string;
+  /** "auto" = recolour from each turn's read; "manual" = pinned palette. */
+  palette_mode?: "auto" | "manual";
+  manual_palette?: string;
+  language?: string;
 }
 
 export interface MemoryEmotionalPatterns {

@@ -9,7 +9,7 @@ import { PageShell } from "./pages/page-shell";
 import { ProgressPage } from "./pages/progress-page";
 import { JournalPage } from "./pages/journal-page";
 import { MemoryPage } from "./pages/memory-page";
-import { YourMindlensPage } from "./pages/your-mindlens-page";
+import { SettingsModal } from "./settings/settings-modal";
 import { useMindLensClient } from "../lib/use-mindlens-client";
 import type { ChatNavView } from "./chat/chat-sidebar";
 
@@ -18,6 +18,7 @@ type View = ChatNavView;
 export function MindLensApp() {
   const client = useMindLensClient();
   const [view, setView] = useState<View>("chat");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (client.authStatus === "onboarding" && client.user) {
     return (
@@ -60,24 +61,44 @@ export function MindLensApp() {
   // Your Mindlens share PageShell (sidebar + full-width main, no inspector),
   // matching design.md §4.2. The legacy atmosphere shell, mood-swatch topbar
   // and modal SettingsDialog are gone — Your Mindlens is a real page now.
+  // "settings" is no longer a destination — it opens the modal over whatever
+  // you were doing, the way Claude's does, so you never lose your place.
+  const navigate = (next: View) => {
+    if (next === "settings") {
+      setSettingsOpen(true);
+      return;
+    }
+    setView(next);
+  };
+
+  const settings = (
+    <SettingsModal client={client} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+  );
+
   if (view === "chat") {
-    return <ChatScreen client={client} activeView="chat" onNavigate={setView} />;
+    return (
+      <>
+        <ChatScreen client={client} activeView="chat" onNavigate={navigate} />
+        {settings}
+      </>
+    );
   }
 
-  const titles: Record<Exclude<View, "chat">, { eyebrow: string; title: string }> = {
+  const titles: Record<Exclude<View, "chat" | "settings">, { eyebrow: string; title: string }> = {
     progress: { eyebrow: "Your rhythm, not a score", title: "How things have been landing" },
     journal: { eyebrow: "Private reflection", title: "Make space for the thought underneath" },
     memory: { eyebrow: "Transparent personalization", title: "You decide what Mindlens remembers" },
-    settings: { eyebrow: "Make the space yours", title: "Your Mindlens" },
   };
-  const { eyebrow, title } = titles[view];
+  const { eyebrow, title } = titles[view as Exclude<View, "chat" | "settings">];
 
   return (
-    <PageShell client={client} activeView={view} onNavigate={setView} eyebrow={eyebrow} title={title}>
-      {view === "progress" && <ProgressPage />}
-      {view === "journal" && <JournalPage />}
-      {view === "memory" && <MemoryPage />}
-      {view === "settings" && <YourMindlensPage client={client} onLogout={client.logout} />}
-    </PageShell>
+    <>
+      <PageShell client={client} activeView={view} onNavigate={navigate} eyebrow={eyebrow} title={title}>
+        {view === "progress" && <ProgressPage />}
+        {view === "journal" && <JournalPage />}
+        {view === "memory" && <MemoryPage />}
+      </PageShell>
+      {settings}
+    </>
   );
 }

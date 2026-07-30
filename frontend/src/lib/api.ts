@@ -156,6 +156,13 @@ export async function fetchMe(): Promise<UserProfile> {
   return request<UserProfile>("/api/v1/auth/me");
 }
 
+export async function updateMe(input: { nickname?: string }): Promise<UserProfile> {
+  return request<UserProfile>("/api/v1/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function createSession(
   title?: string,
 ): Promise<SessionSummary> {

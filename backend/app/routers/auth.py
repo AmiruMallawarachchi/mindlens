@@ -516,6 +516,59 @@ async def get_me(
     )
 
 
+class ProfileUpdate(BaseModel):
+    """Settings > General. Only what the user is allowed to change about
+    themselves — email, role and onboarding state are deliberately absent."""
+
+    nickname: str | None = Field(None, min_length=1, max_length=60)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    summary="Update the current user's profile",
+)
+async def update_me(
+    req: ProfileUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(require_user),
+):
+    """Update the signed-in user's own profile fields."""
+    updates = req.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No profile fields provided")
+
+    if "nickname" in updates and updates["nickname"]:
+        updates["nickname"] = updates["nickname"].strip()
+
+    await db.users.update_one(
+        document_id_filter(str(current_user["_id"])),
+        {"$set": {**updates, "updated_at": datetime.datetime.now(datetime.UTC)}},
+    )
+
+    # Keep the memory doc's mirrored profile in step — memory_recall.py reads
+    # the nickname from there when personalising a turn, so letting the two
+    # drift would mean the companion greets you by the old name.
+    if "nickname" in updates:
+        await db.user_memory.update_one(
+            {"user_id": str(current_user["_id"])},
+            {"$set": {"profile.nickname": updates["nickname"]}},
+        )
+
+    merged = {**current_user, **updates}
+    return UserResponse(
+        id=str(merged["_id"]),
+        email=merged["email"],
+        name=merged["name"],
+        nickname=merged.get("nickname"),
+        age=merged["age"],
+        age_group=merged.get("age_group", "adult"),
+        role=merged.get("role", settings.USER_ROLE_NAME),
+        onboarding_complete=merged.get("onboarding_complete", False),
+        created_at=merged["created_at"],
+    )
+
+
 # --- Admin Endpoints ---
 
 

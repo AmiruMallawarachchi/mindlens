@@ -13,6 +13,7 @@ import {
   login as apiLogin,
   logoutLocal,
   register as apiRegister,
+  updateMe,
   type RegisterInput,
 } from "./api";
 import { DEFAULT_COMPANION_ID, getCompanion, type CompanionId } from "./companions";
@@ -261,11 +262,18 @@ export function useMindLensClient() {
     };
   }, [authStatus]);
 
-  /** Your Mindlens calls this right after a successful save, so chat
-   * reflects the new companion immediately instead of waiting on a refetch. */
+  /** Settings calls this right after a successful save, so chat reflects the
+   * new companion immediately instead of waiting on a refetch. */
   const applyCompanionPreference = useCallback((id: CompanionId, name: string) => {
     setCompanionId(id);
     setCompanionName(name);
+  }, []);
+
+  /** Rename yourself. Updates the user record and refreshes local state so
+   * the sidebar and greeting change without a reload. */
+  const saveNickname = useCallback(async (nickname: string) => {
+    const profile = await updateMe({ nickname });
+    setUser(profile);
   }, []);
 
   // --- Session + socket lifecycle ------------------------------------------
@@ -493,6 +501,7 @@ export function useMindLensClient() {
     companionId,
     companionName,
     applyCompanionPreference,
+    saveNickname,
   };
 }
 

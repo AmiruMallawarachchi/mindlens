@@ -61,6 +61,26 @@ class PreferencesUpdate(BaseModel):
         None,
         pattern="^(nimbus|flit|ember|tide|fern|lens|anchor|lantern|luna|comet)$",
     )
+    # --- Settings > General -------------------------------------------------
+    # How the user describes themselves. Feeds the empathy agent's system
+    # prompt, so it changes how replies are written — not a cosmetic label.
+    personality: str | None = Field(
+        None,
+        pattern="^(overthinker|doer|highly_sensitive|analytical|optimist|realist|"
+        "anxious_achiever|quiet_observer|people_person|private)$",
+    )
+    # Free-text "instructions for Mindlens", same idea as Claude's custom
+    # instructions. Capped and treated as untrusted input downstream.
+    custom_instructions: str | None = Field(None, max_length=1500)
+    # "auto" = the room recolours from each turn's detected emotion (default).
+    # "manual" = the user pins one palette and it never shifts.
+    palette_mode: str | None = Field(None, pattern="^(auto|manual)$")
+    manual_palette: str | None = Field(
+        None,
+        pattern="^(calm|hopeful|joyful|tender|balanced|anxious|low|grief|angry|"
+        "envious|ashamed|flat)$",
+    )
+    language: str | None = Field(None, max_length=12)
 
 class EmotionalPatternsUpdate(BaseModel):
     most_common_emotion: str | None = None
@@ -148,10 +168,15 @@ async def update_preferences(
     if not updates:
         raise HTTPException(status_code=400, detail="No preference fields provided")
 
-    await db.user_memory.update_one(
-        {"user_id": user_id},
-        {"$set": {"preferences": updates, "updated_at": now}},
-    )
+    # Dotted paths, not {"preferences": updates} — a whole-subdocument $set
+    # replaces every preference the caller didn't send. That was survivable
+    # while one page saved all fields at once, but settings is split into
+    # independent sections, so saving Appearance would have wiped the
+    # companion, tone and memory-depth the user had chosen elsewhere.
+    changes: dict[str, Any] = {f"preferences.{key}": value for key, value in updates.items()}
+    changes["updated_at"] = now
+
+    await db.user_memory.update_one({"user_id": user_id}, {"$set": changes})
     return {"message": "Preferences updated"}
 
 

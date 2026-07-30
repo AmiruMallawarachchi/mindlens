@@ -294,24 +294,30 @@ export function ChatSidebar({
       </div>
 
       <div className="p-3">
-        <div
-          className="rounded-[var(--r-13)] p-3"
+        <button
+          type="button"
+          onClick={() => onNavigate("settings")}
+          aria-label="Open settings"
+          className="flex w-full items-center gap-2.5 rounded-[var(--r-13)] p-3 text-left transition-colors hover:bg-white/[0.04]"
           style={{
             background: "var(--ml-panel-strong)",
             border: "1px solid var(--ml-hairline)",
           }}
         >
-          <p className="truncate text-[12.5px]" style={{ color: "var(--ml-ink)" }}>
-            {user?.nickname || user?.name || "Signed in"}
-          </p>
-          <p
-            className="mt-1 flex items-center gap-1.5 text-[10.5px]"
-            style={{ color: "var(--ml-faint)" }}
-          >
-            <ShieldCheck size={12} strokeWidth={1.7} />
-            Private · end-to-end
-          </p>
-        </div>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px]" style={{ color: "var(--ml-ink)" }}>
+              {user?.nickname || user?.name || "Signed in"}
+            </span>
+            <span
+              className="mt-1 flex items-center gap-1.5 text-[10.5px]"
+              style={{ color: "var(--ml-faint)" }}
+            >
+              <ShieldCheck size={12} strokeWidth={1.7} />
+              Private · end-to-end
+            </span>
+          </span>
+          <Settings2 size={15} strokeWidth={1.7} className="shrink-0" style={{ color: "var(--ml-faint)" }} />
+        </button>
       </div>
     </aside>
   );
