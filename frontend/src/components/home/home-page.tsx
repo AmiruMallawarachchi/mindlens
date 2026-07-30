@@ -15,8 +15,8 @@
  */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "motion/react";
 import { MindlensMark } from "@/components/brand/wordmark";
 import { useGrade } from "@/lib/use-grade";
 import {
@@ -26,6 +26,7 @@ import {
   type EmotionId,
 } from "@/lib/emotion";
 import { Reveal } from "./reveal";
+import { Magnetic } from "./magnetic";
 
 /** The hero's resting state before anyone taps a swatch — the marketing
  * site's own amber accent (design.md §1.3), not any live emotion read. */
@@ -103,6 +104,26 @@ export function HomePage() {
   const [activeId, setActiveId] = useState<EmotionId | null>(null);
   const reduceMotion = useReducedMotion();
 
+  const { scrollY } = useScroll();
+  const navShadow = useTransform(scrollY, [0, 80], [0, 1]);
+
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const blobAX = useSpring(useTransform(mx, [-1, 1], [-18, 18]), { stiffness: 60, damping: 20 });
+  const blobAY = useSpring(useTransform(my, [-1, 1], [-18, 18]), { stiffness: 60, damping: 20 });
+  const blobBX = useSpring(useTransform(mx, [-1, 1], [14, -14]), { stiffness: 60, damping: 20 });
+  const blobBY = useSpring(useTransform(my, [-1, 1], [14, -14]), { stiffness: 60, damping: 20 });
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const onMove = (e: MouseEvent) => {
+      mx.set((e.clientX / window.innerWidth) * 2 - 1);
+      my.set((e.clientY / window.innerHeight) * 2 - 1);
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [reduceMotion, mx, my]);
+
   const active = activeId ? EMOTION_STATES[activeId] : null;
   const activeName = active?.name ?? WARM.name;
   const activeSubs = active?.subs ?? WARM.subs;
@@ -129,33 +150,41 @@ export function HomePage() {
     >
       {!reduceMotion && (
         <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-          <span
+          <motion.span
             className="absolute left-[8%] top-[12%] aspect-square w-[44vw] rounded-full"
             style={{
               background: "radial-gradient(circle, color-mix(in oklab, var(--e1) 55%, transparent), transparent 70%)",
               filter: "blur(70px)",
               animation: "mlBlobA 16s ease-in-out infinite",
+              x: blobAX,
+              y: blobAY,
             }}
           />
-          <span
+          <motion.span
             className="absolute right-[4%] top-[30%] aspect-square w-[38vw] rounded-full"
             style={{
               background: "radial-gradient(circle, color-mix(in oklab, var(--e2) 55%, transparent), transparent 70%)",
               filter: "blur(80px)",
               animation: "mlBlobB 20s ease-in-out infinite",
+              x: blobBX,
+              y: blobBY,
             }}
           />
         </div>
       )}
 
       {/* --- Nav --------------------------------------------------------- */}
-      <nav
+      <motion.nav
         className="fixed left-1/2 top-4 z-[60] flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-6 whitespace-nowrap rounded-[99px] py-2.5 pl-[18px] pr-3"
         style={{
           background: "var(--ml-panel)",
           backdropFilter: "blur(20px) saturate(1.2)",
           border: "1px solid var(--ml-hairline)",
-          boxShadow: "0 12px 40px -18px rgba(36,26,14,.25)",
+          boxShadow: useTransform(
+            navShadow,
+            [0, 1],
+            ["0 12px 40px -18px rgba(36,26,14,.25)", "0 16px 50px -12px rgba(36,26,14,.45)"],
+          ),
         }}
       >
         <a href="#top" className="flex items-center gap-2">
@@ -179,14 +208,16 @@ export function HomePage() {
         >
           {isDay ? <SunIcon /> : <MoonIcon />}
         </button>
-        <Link
-          href="/app"
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[99px] px-4 py-[9px] text-[12.5px] font-medium no-underline"
-          style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)" }}
-        >
-          Open the app <span className="text-[14px] leading-none">→</span>
-        </Link>
-      </nav>
+        <Magnetic strength={0.25}>
+          <Link
+            href="/app"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[99px] px-4 py-[9px] text-[12.5px] font-medium no-underline"
+            style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)" }}
+          >
+            Open the app <span className="text-[14px] leading-none">→</span>
+          </Link>
+        </Magnetic>
+      </motion.nav>
 
       {/* --- Hero ---------------------------------------------------------- */}
       <header
@@ -225,20 +256,24 @@ export function HomePage() {
             A wise friend that reads the feeling underneath your words, remembers what matters, and helps you build the tools to steady yourself — over and over, for life.
           </p>
           <div className="mt-[34px] flex flex-wrap justify-center gap-3">
-            <Link
-              href="/app"
-              className="inline-flex items-center gap-2 rounded-[99px] px-7 py-[15px] text-[14.5px] font-medium no-underline"
-              style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)", boxShadow: "0 18px 40px -16px var(--e1)" }}
-            >
-              Start a conversation
-            </Link>
-            <a
-              href="#how"
-              className="inline-flex items-center gap-2 rounded-[99px] px-7 py-[15px] text-[14.5px] font-medium no-underline"
-              style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", backdropFilter: "blur(12px)" }}
-            >
-              Read how it works
-            </a>
+            <Magnetic>
+              <Link
+                href="/app"
+                className="inline-flex items-center gap-2 rounded-[99px] px-7 py-[15px] text-[14.5px] font-medium no-underline"
+                style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)", boxShadow: "0 18px 40px -16px var(--e1)" }}
+              >
+                Start a conversation
+              </Link>
+            </Magnetic>
+            <Magnetic>
+              <a
+                href="#how"
+                className="inline-flex items-center gap-2 rounded-[99px] px-7 py-[15px] text-[14.5px] font-medium no-underline"
+                style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", backdropFilter: "blur(12px)" }}
+              >
+                Read how it works
+              </a>
+            </Magnetic>
           </div>
           <p className="mt-[22px] font-[family-name:var(--font-geist-mono)] text-[10.5px] uppercase tracking-[.13em]" style={{ color: "var(--ml-faint)" }}>
             Free · Private · Not a replacement for professional care
