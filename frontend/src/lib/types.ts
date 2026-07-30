@@ -142,6 +142,7 @@ export interface MemoryPreferences {
   tone_preference?: "gentle" | "balanced" | "direct";
   memory_depth?: "everything" | "key_details" | "nothing";
   companion_name?: string;
+  companion_id?: string;
 }
 
 export interface MemoryEmotionalPatterns {

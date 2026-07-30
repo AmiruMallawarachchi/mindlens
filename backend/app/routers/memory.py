@@ -55,6 +55,12 @@ class PreferencesUpdate(BaseModel):
     tone_preference: str | None = Field(None, pattern="^(gentle|balanced|direct)$")
     memory_depth: str | None = Field(None, pattern="^(everything|key_details|nothing)$")
     companion_name: str | None = Field(None, min_length=1, max_length=40)
+    # Which shape from the approved 10-companion cast (frontend
+    # lib/companions.ts) renders as the user's default companion.
+    companion_id: str | None = Field(
+        None,
+        pattern="^(nimbus|flit|ember|tide|fern|lens|anchor|lantern|luna|comet)$",
+    )
 
 class EmotionalPatternsUpdate(BaseModel):
     most_common_emotion: str | None = None

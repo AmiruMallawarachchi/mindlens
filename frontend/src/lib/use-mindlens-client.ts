@@ -6,6 +6,7 @@ import {
   completeOnboarding as apiCompleteOnboarding,
   createSession,
   fetchMe,
+  fetchMemory,
   getAccessToken,
   getSession,
   listSessions,
@@ -14,6 +15,7 @@ import {
   register as apiRegister,
   type RegisterInput,
 } from "./api";
+import { DEFAULT_COMPANION_ID, getCompanion, type CompanionId } from "./companions";
 import { MindLensSocket } from "./websocket";
 import { resolveEmotion, RESTING_READING, type EmotionReading } from "./emotion";
 import { buildReasoningTrail, type ReasoningStep } from "./reasoning";
@@ -67,6 +69,11 @@ export function useMindLensClient() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+
+  // The user's chosen companion (lib/companions.ts) — defaults to Nimbus
+  // until (if) the real preference loads, so chat never waits on this fetch.
+  const [companionId, setCompanionId] = useState<CompanionId>(DEFAULT_COMPANION_ID);
+  const [companionName, setCompanionName] = useState<string>(getCompanion(DEFAULT_COMPANION_ID).name);
 
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("idle");
@@ -232,6 +239,33 @@ export function useMindLensClient() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // --- Companion preference: fetched once, so chat renders the user's
+  // actual chosen shape/name instead of always defaulting to Nimbus. -------
+  useEffect(() => {
+    if (authStatus !== "ready" || PREVIEW_MODE) return;
+    let cancelled = false;
+    fetchMemory()
+      .then((doc) => {
+        if (cancelled) return;
+        const id = getCompanion(doc.preferences?.companion_id).id;
+        setCompanionId(id);
+        setCompanionName(doc.preferences?.companion_name || getCompanion(id).name);
+      })
+      .catch(() => {
+        // No memory doc yet, or the fetch failed — Nimbus default stands.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus]);
+
+  /** Your Mindlens calls this right after a successful save, so chat
+   * reflects the new companion immediately instead of waiting on a refetch. */
+  const applyCompanionPreference = useCallback((id: CompanionId, name: string) => {
+    setCompanionId(id);
+    setCompanionName(name);
   }, []);
 
   // --- Session + socket lifecycle ------------------------------------------
@@ -456,6 +490,9 @@ export function useMindLensClient() {
     startNewConversation,
     openSession,
     previewMode: PREVIEW_MODE,
+    companionId,
+    companionName,
+    applyCompanionPreference,
   };
 }
 

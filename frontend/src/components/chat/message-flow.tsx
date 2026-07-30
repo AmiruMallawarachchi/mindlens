@@ -12,7 +12,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Check, Copy, RefreshCw, Volume2 } from "lucide-react";
-import { Nimbus } from "@/components/companion/nimbus";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { EmotionRead } from "./emotion-read";
 import { ReasoningTrail } from "./reasoning-trail";
 import { BreatheCard } from "./breathe-card";
@@ -47,10 +47,12 @@ export function AssistantTurn({
   message,
   isStreaming = false,
   onRegenerate,
+  companionId,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   onRegenerate?: (() => void) | null;
+  companionId?: string;
 }) {
   const reading = useMemo(() => resolveEmotion(message.eos), [message.eos]);
 
@@ -93,7 +95,7 @@ export function AssistantTurn({
   return (
     <div className="flex w-full gap-3">
       <div className="w-[30px] shrink-0 pt-0.5">
-        <Nimbus size={30} mood={reading.state.id} activity={isStreaming ? "thinking" : "idle"} />
+        <CompanionAvatar companionId={companionId} size={30} mood={reading.state.id} activity={isStreaming ? "thinking" : "idle"} />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3.5 pb-2">

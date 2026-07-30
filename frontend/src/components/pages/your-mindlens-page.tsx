@@ -15,8 +15,10 @@
 import { useEffect, useState } from "react";
 import { fetchMemory, updateMemoryPreferences } from "@/lib/api";
 import { useGrade } from "@/lib/use-grade";
-import { Nimbus } from "@/components/companion/nimbus";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
+import { COMPANIONS, getCompanion, type CompanionId } from "@/lib/companions";
 import type { MemoryDoc, MemoryPreferences } from "@/lib/types";
+import type { MindLensClient } from "@/lib/use-mindlens-client";
 
 const TONE_OPTIONS: { id: NonNullable<MemoryPreferences["tone_preference"]>; label: string }[] = [
   { id: "gentle", label: "Gentle" },
@@ -30,11 +32,18 @@ const DEPTH_OPTIONS: { id: NonNullable<MemoryPreferences["memory_depth"]>; label
   { id: "nothing", label: "Nothing", description: "Every conversation starts fresh." },
 ];
 
-export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
+export function YourMindlensPage({
+  client,
+  onLogout,
+}: {
+  client: MindLensClient;
+  onLogout: () => void;
+}) {
   const { isDay, setGrade } = useGrade();
   const [memory, setMemory] = useState<MemoryDoc | null>(null);
   const [tone, setTone] = useState<MemoryPreferences["tone_preference"]>("balanced");
   const [depth, setDepth] = useState<MemoryPreferences["memory_depth"]>("everything");
+  const [companionId, setCompanionId] = useState<CompanionId>("nimbus");
   const [companionName, setCompanionName] = useState("Nimbus");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,7 +54,9 @@ export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
         setMemory(doc);
         setTone(doc.preferences?.tone_preference ?? "balanced");
         setDepth(doc.preferences?.memory_depth ?? "everything");
-        setCompanionName(doc.preferences?.companion_name ?? "Nimbus");
+        const id = getCompanion(doc.preferences?.companion_id).id;
+        setCompanionId(id);
+        setCompanionName(doc.preferences?.companion_name || getCompanion(id).name);
       })
       .catch(() => {
         // No memory doc yet (pre-onboarding) — the controls still work,
@@ -53,15 +64,28 @@ export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
       });
   }, []);
 
+  const pickCompanion = (id: CompanionId) => {
+    // Only auto-rename if the name still matches the previous companion's
+    // default — once someone types their own name, picking a different
+    // shape shouldn't silently overwrite it.
+    setCompanionName((current) =>
+      current === getCompanion(companionId).name ? getCompanion(id).name : current,
+    );
+    setCompanionId(id);
+  };
+
   const save = async () => {
     setSaving(true);
     setSaved(false);
     try {
+      const finalName = companionName.trim() || getCompanion(companionId).name;
       await updateMemoryPreferences({
         tone_preference: tone,
         memory_depth: depth,
-        companion_name: companionName.trim() || "Nimbus",
+        companion_id: companionId,
+        companion_name: finalName,
       });
+      client.applyCompanionPreference(companionId, finalName);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -71,39 +95,48 @@ export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="flex flex-col gap-7">
+      <SettingsSection title="Companion" description="Pick who's with you in the room, then name them.">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+          {COMPANIONS.map((companion) => {
+            const active = companion.id === companionId;
+            return (
+              <button
+                key={companion.id}
+                type="button"
+                onClick={() => pickCompanion(companion.id)}
+                title={companion.tagline}
+                className="flex flex-col items-center gap-2 rounded-[var(--r-16)] p-3.5 text-center transition-colors"
+                style={{
+                  border: active ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
+                  background: active ? "color-mix(in oklab, var(--e1) 10%, transparent)" : "var(--ml-panel)",
+                }}
+              >
+                <CompanionAvatar companionId={companion.id} size={40} />
+                <span className="text-[12px] font-medium" style={{ color: "var(--ml-ink)" }}>
+                  {companion.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[11.5px] leading-[1.5]" style={{ color: "var(--ml-faint)" }}>
+          {getCompanion(companionId).tagline}
+        </p>
+        <div className="mt-3.5 flex items-center gap-3">
+          <CompanionAvatar companionId={companionId} size={36} />
+          <input
+            value={companionName}
+            onChange={(e) => setCompanionName(e.target.value)}
+            maxLength={40}
+            placeholder={getCompanion(companionId).name}
+            className="min-w-0 flex-1 rounded-[99px] px-4 py-2.5 text-[14px] outline-none"
+            style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
+          />
+        </div>
+      </SettingsSection>
+
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
-          <SettingsSection title="Companion" description="What you call the one you're talking to.">
-            <div className="flex items-center gap-3.5">
-              <Nimbus size={44} />
-              <input
-                value={companionName}
-                onChange={(e) => setCompanionName(e.target.value)}
-                maxLength={40}
-                placeholder="Nimbus"
-                className="min-w-0 flex-1 rounded-[99px] px-4 py-2.5 text-[14px] outline-none"
-                style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
-              />
-            </div>
-            <div className="mt-3 flex gap-2">
-              {["Nimbus", "The Lens", "Lantern"].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setCompanionName(preset)}
-                  className="flex-1 rounded-[11px] py-2 text-center text-[11.5px] transition-colors"
-                  style={{
-                    border: companionName === preset ? "1px solid var(--e1)" : "1px solid var(--ml-hairline)",
-                    background: companionName === preset ? "color-mix(in oklab, var(--e1) 15%, transparent)" : "transparent",
-                    color: companionName === preset ? "var(--ml-ink)" : "var(--ml-muted)",
-                  }}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-          </SettingsSection>
-
           <SettingsSection title="Personality" description="How direct Mindlens should be with you.">
             <div className="inline-flex rounded-[99px] p-1" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
               {TONE_OPTIONS.map((opt) => (

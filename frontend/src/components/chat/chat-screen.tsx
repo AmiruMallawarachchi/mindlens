@@ -19,7 +19,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { EmotionField } from "@/components/field/emotion-field";
-import { Nimbus } from "@/components/companion/nimbus";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { ChatSidebar, type ChatNavView } from "./chat-sidebar";
 import { Composer } from "./composer";
 import { CrisisPanel } from "./crisis-banner";
@@ -33,6 +33,7 @@ import {
   type EmotionId,
 } from "@/lib/emotion";
 import { useGrade } from "@/lib/use-grade";
+import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 
 export function ChatScreen({
@@ -60,6 +61,8 @@ export function ChatScreen({
     openSession,
     user,
     previewMode,
+    companionId,
+    companionName,
   } = client;
 
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -67,6 +70,7 @@ export function ChatScreen({
   const [manualEmotion, setManualEmotion] = useState<EmotionId | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
 
   // A fresh read from the backend always wins over a hand-picked one — the
   // picker is the user naming this moment, not a permanent override.
@@ -121,6 +125,8 @@ export function ChatScreen({
           onNavigate={onNavigate}
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebar}
         />
       </div>
 
@@ -226,7 +232,7 @@ export function ChatScreen({
         <Conversation className="min-h-0 flex-1">
           <ConversationContent className="mx-auto flex w-full max-w-[760px] flex-col gap-7 px-4 py-6">
             {messages.length === 0 && !thinking && (
-              <EmptyRoom mood={reading.state.id} />
+              <EmptyRoom mood={reading.state.id} companionId={companionId} companionName={companionName} />
             )}
 
             {messages.map((message, index) =>
@@ -237,6 +243,7 @@ export function ChatScreen({
                   <AssistantTurn
                     message={message}
                     isStreaming={message.id === streamingId}
+                    companionId={companionId}
                     // Regenerate only makes sense on the latest reply.
                     onRegenerate={
                       index === messages.length - 1 && !previewMode
@@ -253,7 +260,7 @@ export function ChatScreen({
             {thinking && !streamingId && thinkingSteps.length > 0 && (
               <div className="flex w-full gap-3">
                 <div className="w-[30px] shrink-0">
-                  <Nimbus size={30} mood={reading.state.id} activity="thinking" />
+                  <CompanionAvatar companionId={companionId} size={30} mood={reading.state.id} activity="thinking" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <ReasoningTrail steps={thinkingSteps} isStreaming />
@@ -289,15 +296,17 @@ export function ChatScreen({
             messages={messages}
             manualEmotion={manualEmotion}
             onPickEmotion={setManualEmotion}
+            companionId={companionId}
+            companionName={companionName}
           />
         </div>
       )}
 
-      {/* Nimbus leans toward the composer while the user types (§3). Kept
-       * out of the message flow so it doesn't shift the transcript. */}
+      {/* The companion leans toward the composer while the user types (§3).
+       * Kept out of the message flow so it doesn't shift the transcript. */}
       <span className="pointer-events-none fixed bottom-28 right-[360px] hidden min-[981px]:block">
         {typing && !crisis && (
-          <Nimbus size={56} mood={reading.state.id} activity="listening" withShadow />
+          <CompanionAvatar companionId={companionId} size={56} mood={reading.state.id} activity="listening" withShadow />
         )}
       </span>
     </div>
@@ -354,10 +363,18 @@ function MoonIcon() {
   );
 }
 
-function EmptyRoom({ mood }: { mood: EmotionId }) {
+function EmptyRoom({
+  mood,
+  companionId,
+  companionName,
+}: {
+  mood: EmotionId;
+  companionId: string;
+  companionName: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-4 py-16 text-center">
-      <Nimbus size={150} mood={mood} withShadow />
+      <CompanionAvatar companionId={companionId} size={150} mood={mood} withShadow />
       <h2 className="ml-display text-[26px]" style={{ color: "var(--ml-ink)" }}>
         Come as you are.
       </h2>
@@ -365,7 +382,7 @@ function EmptyRoom({ mood }: { mood: EmotionId }) {
         className="max-w-[38ch] text-[14px] leading-[1.65]"
         style={{ color: "var(--ml-muted)" }}
       >
-        Start anywhere — the middle of the thought is fine. Nimbus will catch up.
+        Start anywhere — the middle of the thought is fine. {companionName} will catch up.
       </p>
     </div>
   );

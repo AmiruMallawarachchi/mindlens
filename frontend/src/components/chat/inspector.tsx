@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
-import { Nimbus } from "@/components/companion/nimbus";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { fetchMoodLogs } from "@/lib/api";
 import {
   EMOTION_ORDER,
@@ -27,18 +27,22 @@ export function Inspector({
   messages,
   onPickEmotion,
   manualEmotion,
+  companionId,
+  companionName,
 }: {
   reading: EmotionReading;
   messages: ChatMessage[];
   onPickEmotion: (id: EmotionId | null) => void;
   manualEmotion: EmotionId | null;
+  companionId: string;
+  companionName: string;
 }) {
   return (
     <aside
       className="ml-glass flex h-full w-[336px] shrink-0 flex-col gap-4 overflow-y-auto rounded-[var(--r-22)] p-4"
       aria-label="Session inspector"
     >
-      <NimbusCard reading={reading} />
+      <CompanionCard reading={reading} companionId={companionId} companionName={companionName} />
       <EmotionPicker
         active={manualEmotion ?? reading.state.id}
         manual={manualEmotion}
@@ -59,7 +63,15 @@ export function Inspector({
   );
 }
 
-function NimbusCard({ reading }: { reading: EmotionReading }) {
+function CompanionCard({
+  reading,
+  companionId,
+  companionName,
+}: {
+  reading: EmotionReading;
+  companionId: string;
+  companionName: string;
+}) {
   return (
     <div
       className="flex flex-col items-center rounded-[var(--r-18)] p-4 text-center"
@@ -69,15 +81,15 @@ function NimbusCard({ reading }: { reading: EmotionReading }) {
         border: "1px solid var(--ml-hairline)",
       }}
     >
-      <Nimbus size={112} mood={reading.state.id} withShadow />
+      <CompanionAvatar companionId={companionId} size={112} mood={reading.state.id} withShadow />
       <p className="ml-display mt-2 text-[16px]" style={{ color: "var(--ml-ink)" }}>
         {reading.resting ? (
           <>
-            Nimbus is <em className="italic">here</em> when you are
+            {companionName} is <em className="italic">here</em> when you are
           </>
         ) : (
           <>
-            Nimbus is holding{" "}
+            {companionName} is holding{" "}
             <em className="italic">{reading.state.name.toLowerCase()}</em> with
             you
           </>

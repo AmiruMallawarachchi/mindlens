@@ -77,7 +77,7 @@ export function MindLensApp() {
       {view === "progress" && <ProgressPage />}
       {view === "journal" && <JournalPage />}
       {view === "memory" && <MemoryPage />}
-      {view === "settings" && <YourMindlensPage onLogout={client.logout} />}
+      {view === "settings" && <YourMindlensPage client={client} onLogout={client.logout} />}
     </PageShell>
   );
 }
