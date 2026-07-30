@@ -41,7 +41,12 @@ body {
    * colour comes from <html> instead, which paints behind everything. */
   background: transparent;
   font-family: var(--font-instrument-sans), system-ui, sans-serif;
-  overflow: hidden;
+  /* No overflow:hidden here — this stylesheet is shared by the scrolling
+   * Home page and the fixed-viewport chat app. The app's own screens are
+   * sized to exactly h-dvh with their own internal overflow-y:auto panels,
+   * so body never actually has anything to scroll there; Home, a normal
+   * long page, needs body scroll to work. A global hidden here silently
+   * killed it. */
 }
 
 button,
