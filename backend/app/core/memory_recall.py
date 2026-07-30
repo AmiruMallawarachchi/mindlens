@@ -35,6 +35,11 @@ class MemoryRecall:
     memory_recalled: list[str] = field(default_factory=list)
     preferred_modality: str | None = None
     tone_preference: str | None = None
+    # Settings > General. Both shape how the reply is written, so they ride
+    # along with the rest of the per-turn personalisation rather than being
+    # fetched separately by the agent.
+    personality: str | None = None
+    custom_instructions: str | None = None
 
 
 def _people_from_doc(memory: dict[str, Any]) -> list[PeopleGraph]:
@@ -78,12 +83,24 @@ def recall_for_turn(
     preferences = memory.get("preferences") or {}
     preferred_modality = preferences.get("preferred_modality") or None
     tone_preference = preferences.get("tone_preference") or None
+    personality = preferences.get("personality") or None
+    custom_instructions = preferences.get("custom_instructions") or None
     # Your Mindlens studio's Memory depth control (design.md §4.2): "Nothing"
     # means the user asked MindLens not to draw on anything from before —
     # honour that before computing any recall at all, not just at display time.
     memory_depth = preferences.get("memory_depth") or "everything"
     if memory_depth == "nothing":
-        return MemoryRecall(preferred_modality=preferred_modality, tone_preference=tone_preference)
+        # "Nothing" turns off *recall of past conversations*. It deliberately
+        # does not disable personality, tone or custom instructions: those are
+        # settings the user typed on purpose, not things MindLens remembered
+        # about them, and silently ignoring them would be the wrong reading of
+        # the control.
+        return MemoryRecall(
+            preferred_modality=preferred_modality,
+            tone_preference=tone_preference,
+            personality=personality,
+            custom_instructions=custom_instructions,
+        )
 
     people_graph = _people_from_doc(memory)
     lowered = user_text.lower()
@@ -123,4 +140,6 @@ def recall_for_turn(
         memory_recalled=recalled,
         preferred_modality=preferred_modality,
         tone_preference=tone_preference,
+        personality=personality,
+        custom_instructions=custom_instructions,
     )

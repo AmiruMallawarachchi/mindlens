@@ -167,7 +167,17 @@ class EmotionalOperatingState(BaseModel):
 
     tone_preference: typing.Literal["gentle", "balanced", "direct"] = Field(
         default="balanced",
-        description="User-set Gentle<->Direct preference (Your Mindlens studio)",
+        description="User-set Gentle<->Direct preference (Settings > General)",
+    )
+
+    personality: str | None = Field(
+        default=None,
+        description="How the user describes themselves (Settings > General)",
+    )
+
+    custom_instructions: str | None = Field(
+        default=None,
+        description="Free-text 'instructions for Mindlens' (Settings > General)",
     )
 
     # --- Intervention Preferences ---

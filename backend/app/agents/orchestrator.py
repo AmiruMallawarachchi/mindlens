@@ -147,6 +147,11 @@ class Orchestrator:
         )
         if not crisis_flag:
             eos.people_graph = recall.people_graph
+            # Style preferences only apply outside a crisis — a crisis reply
+            # comes from vetted templates and must not be restyled by anything
+            # the user typed into settings.
+            eos.personality = recall.personality
+            eos.custom_instructions = recall.custom_instructions
             # A stated modality preference wins over the distress-based
             # default, but never over the high-distress DBT escalation —
             # a standing preference shouldn't block the safer choice.

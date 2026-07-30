@@ -18,7 +18,13 @@ import {
 } from "./api";
 import { DEFAULT_COMPANION_ID, getCompanion, type CompanionId } from "./companions";
 import { MindLensSocket } from "./websocket";
-import { resolveEmotion, RESTING_READING, type EmotionReading } from "./emotion";
+import {
+  EMOTION_STATES,
+  resolveEmotion,
+  RESTING_READING,
+  type EmotionId,
+  type EmotionReading,
+} from "./emotion";
 import { buildReasoningTrail, type ReasoningStep } from "./reasoning";
 import {
   PREVIEW_MESSAGES,
@@ -75,6 +81,10 @@ export function useMindLensClient() {
   // until (if) the real preference loads, so chat never waits on this fetch.
   const [companionId, setCompanionId] = useState<CompanionId>(DEFAULT_COMPANION_ID);
   const [companionName, setCompanionName] = useState<string>(getCompanion(DEFAULT_COMPANION_ID).name);
+  // Settings > Appearance > Colour. "manual" pins the room's palette so it
+  // stops tracking the conversation; the read itself is unaffected.
+  const [paletteMode, setPaletteMode] = useState<"auto" | "manual">("auto");
+  const [manualPalette, setManualPalette] = useState<EmotionId>("calm");
 
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("idle");
@@ -253,6 +263,10 @@ export function useMindLensClient() {
         const id = getCompanion(doc.preferences?.companion_id).id;
         setCompanionId(id);
         setCompanionName(doc.preferences?.companion_name || getCompanion(id).name);
+        setPaletteMode(doc.preferences?.palette_mode === "manual" ? "manual" : "auto");
+        if (doc.preferences?.manual_palette && doc.preferences.manual_palette in EMOTION_STATES) {
+          setManualPalette(doc.preferences.manual_palette as EmotionId);
+        }
       })
       .catch(() => {
         // No memory doc yet, or the fetch failed — Nimbus default stands.
@@ -267,6 +281,15 @@ export function useMindLensClient() {
   const applyCompanionPreference = useCallback((id: CompanionId, name: string) => {
     setCompanionId(id);
     setCompanionName(name);
+  }, []);
+
+  /** Same contract as applyCompanionPreference: settings saved it, so the
+   * room must reflect it now rather than on the next mount. Without this the
+   * preference persists correctly but the colour visibly doesn't change,
+   * which reads as the control being broken. */
+  const applyPalettePreference = useCallback((mode: "auto" | "manual", palette: EmotionId) => {
+    setPaletteMode(mode);
+    setManualPalette(palette);
   }, []);
 
   /** Rename yourself. Updates the user record and refreshes local state so
@@ -460,6 +483,16 @@ export function useMindLensClient() {
     [latestEos, crisis],
   );
 
+  /** What the room is *coloured* from — deliberately separate from `reading`,
+   * which is what the UI *says* it read. In manual mode the classifier still
+   * runs and the read strip still shows its verdict; only the colour is
+   * pinned. Crisis always wins and freezes the field to neutral. */
+  const paletteReading: EmotionReading = useMemo(() => {
+    if (crisis || paletteMode !== "manual") return reading;
+    const state = EMOTION_STATES[manualPalette];
+    return { ...reading, state, blend: null, coreState: null, subs: state.subs, resting: false };
+  }, [reading, crisis, paletteMode, manualPalette]);
+
   /** The trail shown while a reply is being composed. */
   const thinkingSteps: ReasoningStep[] = useMemo(() => {
     if (!thinking) return [];
@@ -489,6 +522,7 @@ export function useMindLensClient() {
     activeAgents,
     liveEos,
     reading,
+    paletteReading,
     crisis,
     dismissCrisis: () => setCrisis(null),
     sendMessage,
@@ -501,6 +535,7 @@ export function useMindLensClient() {
     companionId,
     companionName,
     applyCompanionPreference,
+    applyPalettePreference,
     saveNickname,
   };
 }

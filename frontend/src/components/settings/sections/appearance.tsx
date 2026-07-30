@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { COMPANIONS, getCompanion, type CompanionId } from "@/lib/companions";
-import { EMOTION_ORDER, EMOTION_STATES } from "@/lib/emotion";
+import { EMOTION_ORDER, EMOTION_STATES, type EmotionId } from "@/lib/emotion";
 import type { MemoryPreferences } from "@/lib/types";
 import { useGrade } from "@/lib/use-grade";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
@@ -53,6 +53,7 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
   const saveAll = async () => {
     await save(KEYS);
     client.applyCompanionPreference(companionId, companionName.trim() || getCompanion(companionId).name);
+    client.applyPalettePreference(paletteMode, manualPalette as EmotionId);
   };
 
   return (

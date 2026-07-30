@@ -31,7 +31,8 @@ export function PageShell({
   title: string;
   children: React.ReactNode;
 }) {
-  const { reading, sessions, activeSessionId, startNewConversation, openSession, user } = client;
+  const { reading, paletteReading, sessions, activeSessionId, startNewConversation, openSession, user } =
+    client;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
@@ -39,9 +40,9 @@ export function PageShell({
   return (
     <div
       className="ml-root relative flex h-dvh w-full gap-3 p-3"
-      style={emotionCssVars(reading as EmotionReading) as React.CSSProperties}
+      style={emotionCssVars(paletteReading as EmotionReading) as React.CSSProperties}
     >
-      <EmotionField reading={reading} />
+      <EmotionField reading={paletteReading} />
 
       <div className="hidden min-[780px]:block">
         <ChatSidebar

@@ -48,6 +48,7 @@ export function ChatScreen({
   const {
     messages,
     reading: liveReading,
+    paletteReading,
     thinking,
     thinkingSteps,
     crisis,
@@ -92,6 +93,16 @@ export function ChatScreen({
     };
   }, [liveReading, manualEmotion, crisis]);
 
+  /** Colour only. Three things can decide it, in order of authority:
+   * crisis (always neutral) > a deliberate tap in the inspector (this
+   * moment) > the saved palette preference (auto tracks the read, manual
+   * pins it). The transcript's read strip is never affected by any of it. */
+  const paletteColour = useMemo(() => {
+    if (crisis) return RESTING_READING;
+    if (manualEmotion) return reading;
+    return paletteReading;
+  }, [crisis, manualEmotion, reading, paletteReading]);
+
   const activeSession = sessions.find((s) => s.session_id === activeSessionId);
   const title = activeSession?.title ?? "A new conversation";
 
@@ -109,11 +120,12 @@ export function ChatScreen({
   return (
     <div
       className="ml-root relative flex h-dvh w-full gap-3 p-3"
-      // Crisis freezes the field to neutral by handing it the resting
-      // reading, so no emotion colour reaches any surface.
-      style={emotionCssVars(reading) as React.CSSProperties}
+      // Colour comes from paletteReading, not reading: in manual mode the
+      // user has pinned the palette, and crisis freezes the field to neutral
+      // regardless. The read strip and inspector still show the real verdict.
+      style={emotionCssVars(paletteColour) as React.CSSProperties}
     >
-      <EmotionField reading={reading} />
+      <EmotionField reading={paletteColour} />
 
       <div className="hidden min-[780px]:block">
         <ChatSidebar

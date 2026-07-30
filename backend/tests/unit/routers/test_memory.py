@@ -167,10 +167,15 @@ class TestUpdatePreferences:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
-        set_fields = mock_db.user_memory.update_one.call_args[0][1]["$set"]["preferences"]
-        assert set_fields["tone_preference"] == "direct"
-        assert set_fields["memory_depth"] == "key_details"
-        assert set_fields["companion_name"] == "Fern"
+        set_fields = mock_db.user_memory.update_one.call_args[0][1]["$set"]
+        # Dotted paths, not a whole-subdocument write: settings is split into
+        # sections that each save only their own fields, so a partial update
+        # must merge rather than replace. Writing {"preferences": {...}} here
+        # would silently delete every preference this request didn't name.
+        assert set_fields["preferences.tone_preference"] == "direct"
+        assert set_fields["preferences.memory_depth"] == "key_details"
+        assert set_fields["preferences.companion_name"] == "Fern"
+        assert "preferences" not in set_fields
 
     async def test_invalid_tone_preference_rejected(
         self, memory_client: Any, mock_db: MagicMock
