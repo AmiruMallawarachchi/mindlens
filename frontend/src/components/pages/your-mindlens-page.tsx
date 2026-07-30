@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { fetchMemory, updateMemoryPreferences } from "@/lib/api";
 import { useGrade } from "@/lib/use-grade";
+import { Nimbus } from "@/components/companion/nimbus";
 import type { MemoryDoc, MemoryPreferences } from "@/lib/types";
 
 const TONE_OPTIONS: { id: NonNullable<MemoryPreferences["tone_preference"]>; label: string }[] = [
@@ -69,79 +70,103 @@ export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="flex flex-col gap-9">
-      <p className="ml-eyebrow">Make it yours</p>
+    <div className="flex flex-col gap-7">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="flex flex-col gap-5">
+          <SettingsSection title="Companion" description="What you call the one you're talking to.">
+            <div className="flex items-center gap-3.5">
+              <Nimbus size={44} />
+              <input
+                value={companionName}
+                onChange={(e) => setCompanionName(e.target.value)}
+                maxLength={40}
+                placeholder="Nimbus"
+                className="min-w-0 flex-1 rounded-[99px] px-4 py-2.5 text-[14px] outline-none"
+                style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
+              />
+            </div>
+            <div className="mt-3 flex gap-2">
+              {["Nimbus", "The Lens", "Lantern"].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setCompanionName(preset)}
+                  className="flex-1 rounded-[11px] py-2 text-center text-[11.5px] transition-colors"
+                  style={{
+                    border: companionName === preset ? "1px solid var(--e1)" : "1px solid var(--ml-hairline)",
+                    background: companionName === preset ? "color-mix(in oklab, var(--e1) 15%, transparent)" : "transparent",
+                    color: companionName === preset ? "var(--ml-ink)" : "var(--ml-muted)",
+                  }}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </SettingsSection>
 
-      <SettingsSection title="Companion" description="What you call the one you're talking to.">
-        <input
-          value={companionName}
-          onChange={(e) => setCompanionName(e.target.value)}
-          maxLength={40}
-          placeholder="Nimbus"
-          className="w-full max-w-[280px] rounded-[99px] px-4 py-2.5 text-[14px] outline-none"
-          style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
-        />
-      </SettingsSection>
-
-      <SettingsSection title="Personality" description="How direct Mindlens should be with you.">
-        <div className="inline-flex rounded-[99px] p-1" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
-          {TONE_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setTone(opt.id)}
-              className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium transition-colors"
-              style={{
-                background: tone === opt.id ? "linear-gradient(135deg, var(--e1), var(--e2))" : "transparent",
-                color: tone === opt.id ? "#fffdf8" : "var(--ml-muted)",
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
+          <SettingsSection title="Personality" description="How direct Mindlens should be with you.">
+            <div className="inline-flex rounded-[99px] p-1" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
+              {TONE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setTone(opt.id)}
+                  className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium transition-colors"
+                  style={{
+                    background: tone === opt.id ? "linear-gradient(135deg, var(--e1), var(--e2))" : "transparent",
+                    color: tone === opt.id ? "#fffdf8" : "var(--ml-muted)",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </SettingsSection>
         </div>
-      </SettingsSection>
 
-      <SettingsSection title="Memory depth" description="How much Mindlens draws on from before.">
-        <div className="flex flex-col gap-2">
-          {DEPTH_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setDepth(opt.id)}
-              className="flex flex-col items-start gap-0.5 rounded-[var(--r-13)] p-3.5 text-left transition-colors"
-              style={{
-                border: depth === opt.id ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
-                background: depth === opt.id ? "color-mix(in oklab, var(--e1) 8%, transparent)" : "transparent",
-              }}
-            >
-              <span className="text-[13.5px] font-medium" style={{ color: "var(--ml-ink)" }}>{opt.label}</span>
-              <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>{opt.description}</span>
-            </button>
-          ))}
-        </div>
-      </SettingsSection>
+        <div className="flex flex-col gap-5">
+          <SettingsSection title="Appearance" description="Light or dark — synced with the toggle in the header.">
+            <div className="inline-flex rounded-[99px] p-1" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
+              <button
+                type="button"
+                onClick={() => setGrade("day")}
+                className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium"
+                style={{ background: isDay ? "var(--ml-ink)" : "transparent", color: isDay ? "var(--ml-canvas)" : "var(--ml-muted)" }}
+              >
+                Day
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrade("night")}
+                className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium"
+                style={{ background: !isDay ? "var(--ml-ink)" : "transparent", color: !isDay ? "var(--ml-canvas)" : "var(--ml-muted)" }}
+              >
+                Night
+              </button>
+            </div>
+          </SettingsSection>
 
-      <SettingsSection title="Appearance" description="Light or dark — synced with the toggle in the header.">
-        <div className="inline-flex rounded-[99px] p-1" style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}>
-          <button
-            type="button"
-            onClick={() => setGrade("day")}
-            className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium"
-            style={{ background: isDay ? "var(--ml-ink)" : "transparent", color: isDay ? "var(--ml-canvas)" : "var(--ml-muted)" }}
-          >
-            Day
-          </button>
-          <button
-            type="button"
-            onClick={() => setGrade("night")}
-            className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium"
-            style={{ background: !isDay ? "var(--ml-ink)" : "transparent", color: !isDay ? "var(--ml-canvas)" : "var(--ml-muted)" }}
-          >
-            Night
-          </button>
+          <SettingsSection title="Memory depth" description="How much Mindlens draws on from before.">
+            <div className="flex flex-col gap-2">
+              {DEPTH_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setDepth(opt.id)}
+                  className="flex flex-col items-start gap-0.5 rounded-[var(--r-13)] p-3.5 text-left transition-colors"
+                  style={{
+                    border: depth === opt.id ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
+                    background: depth === opt.id ? "color-mix(in oklab, var(--e1) 8%, transparent)" : "transparent",
+                  }}
+                >
+                  <span className="text-[13.5px] font-medium" style={{ color: "var(--ml-ink)" }}>{opt.label}</span>
+                  <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>{opt.description}</span>
+                </button>
+              ))}
+            </div>
+          </SettingsSection>
         </div>
-      </SettingsSection>
+      </div>
 
       <div className="flex items-center gap-3 pt-2">
         <button
@@ -161,7 +186,7 @@ export function YourMindlensPage({ onLogout }: { onLogout: () => void }) {
         )}
       </div>
 
-      <div className="mt-4 flex flex-col gap-4 pt-6" style={{ borderTop: "1px solid var(--ml-hairline)" }}>
+      <div className="mt-2 flex flex-col gap-4 pt-6" style={{ borderTop: "1px solid var(--ml-hairline)" }}>
         <p className="text-[11px]" style={{ color: "var(--ml-faint)" }}>
           Crisis support always uses a stable, high-clarity view — none of these preferences change how a crisis is handled.
         </p>

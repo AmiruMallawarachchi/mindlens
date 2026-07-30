@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Heart, MessageCircle, TrendingDown, TrendingUp } from "lucide-react";
 import { fetchMoodLogs, fetchProgressInsight } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
 import type { MoodLogEntry, ProgressInsight } from "@/lib/types";
@@ -67,9 +68,10 @@ export function ProgressPage() {
     if (older.length === 0) return null;
     const avg = (arr: MoodLogEntry[]) =>
       arr.reduce((sum, m) => sum + (m.distress_level ?? 0.5), 0) / arr.length;
-    const delta = avg(recent) - avg(older);
-    if (Math.abs(delta) < 0.03) return "steady";
-    return delta < 0 ? "easing" : "rising";
+    const recentAvg = avg(recent);
+    const olderAvg = avg(older);
+    const percent = olderAvg === 0 ? 0 : Math.round(((recentAvg - olderAvg) / olderAvg) * 100);
+    return { percent, direction: percent <= 0 ? ("down" as const) : ("up" as const) };
   }, [moods]);
 
   const days = useMemo(() => {
@@ -100,26 +102,47 @@ export function ProgressPage() {
 
   return (
     <div className="flex flex-col gap-9">
-      <div>
-        <p className="ml-eyebrow">Your rhythm, not a score</p>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard
+          icon={<Heart size={17} strokeWidth={1.7} style={{ color: "var(--e1)" }} />}
           label="Average mood"
           value={averageMood !== null ? averageMood.toFixed(1) : "—"}
           suffix={averageMood !== null ? "/ 10" : undefined}
+          footnote={moods ? `From ${moods.length} check-ins` : undefined}
         />
-        <MetricCard label="Sessions logged" value={moods ? String(new Set(moods.map((m) => m.timestamp.slice(0, 10))).size) : "—"} />
         <MetricCard
+          icon={<MessageCircle size={17} strokeWidth={1.7} style={{ color: "var(--e2)" }} />}
+          label="Sessions so far"
+          value={moods ? String(new Set(moods.map((m) => m.timestamp.slice(0, 10))).size) : "—"}
+          footnote="Every conversation counts"
+        />
+        <MetricCard
+          icon={
+            distressTrend?.direction === "up" ? (
+              <TrendingUp size={17} strokeWidth={1.7} style={{ color: "#e08a8a" }} />
+            ) : (
+              <TrendingDown size={17} strokeWidth={1.7} style={{ color: "#4fae6f" }} />
+            )
+          }
           label="Distress trend"
-          value={distressTrend ?? "—"}
-          capitalize
+          value={distressTrend ? `${distressTrend.percent > 0 ? "+" : ""}${distressTrend.percent}` : "—"}
+          suffix={distressTrend ? "%" : undefined}
+          footnote={distressTrend ? "Compared to last week" : undefined}
         />
       </div>
 
       <section>
-        <p className="ml-eyebrow mb-3">Last 7 days</p>
+        <div className="mb-3 flex items-baseline justify-between">
+          <div>
+            <p className="ml-eyebrow">Emotional balance</p>
+            <p className="ml-display mt-1 text-[16px]" style={{ color: "var(--ml-ink)" }}>Last 7 days</p>
+          </div>
+          {distressTrend && (
+            <span className="ml-num text-[10.5px] uppercase tracking-[.12em]" style={{ color: "var(--e1)" }}>
+              {distressTrend.direction === "down" ? "trending up" : "keep an eye on this"}
+            </span>
+          )}
+        </div>
         <div
           className="rounded-[var(--r-18)] p-5"
           style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
@@ -199,33 +222,38 @@ export function ProgressPage() {
 }
 
 function MetricCard({
+  icon,
   label,
   value,
   suffix,
-  capitalize = false,
+  footnote,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
   suffix?: string;
-  capitalize?: boolean;
+  footnote?: string;
 }) {
   return (
     <div
       className="rounded-[var(--r-18)] p-5"
       style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
     >
-      <p className="ml-eyebrow mb-2">{label}</p>
-      <p
-        className="ml-num ml-display text-[32px]"
-        style={{ color: "var(--ml-ink)", textTransform: capitalize ? "capitalize" : undefined }}
-      >
+      {icon}
+      <p className="ml-eyebrow mt-2.5 mb-1">{label}</p>
+      <p className="ml-num ml-display text-[30px]" style={{ color: "var(--ml-ink)" }}>
         {value}
         {suffix && (
-          <span className="ml-2 text-[15px]" style={{ color: "var(--ml-faint)" }}>
+          <span className="ml-1.5 text-[15px]" style={{ color: "var(--ml-faint)" }}>
             {suffix}
           </span>
         )}
       </p>
+      {footnote && (
+        <p className="mt-1.5 text-[11px]" style={{ color: "var(--ml-faint)" }}>
+          {footnote}
+        </p>
+      )}
     </div>
   );
 }

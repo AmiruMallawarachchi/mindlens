@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { PenLine, X } from "lucide-react";
+import { BookOpenText, PenLine, X } from "lucide-react";
 import {
   createJournalEntry,
   fetchJournalPrompt,
@@ -70,9 +70,18 @@ export function JournalPage() {
           border: "1px solid var(--ml-hairline)",
         }}
       >
+        <div
+          className="mb-3.5 grid size-[46px] place-items-center rounded-[14px]"
+          style={{ background: "color-mix(in oklab, var(--e1) 18%, transparent)", color: "var(--e1)" }}
+        >
+          <BookOpenText size={20} strokeWidth={1.7} />
+        </div>
         <p className="ml-eyebrow mb-2">A prompt for today</p>
-        <p className="ml-display mb-5 text-[22px] leading-[1.5]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
+        <p className="ml-display mb-2 text-[22px] leading-[1.5]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
           {prompt?.prompt ?? "…"}
+        </p>
+        <p className="mb-5 text-[12.5px]" style={{ color: "var(--ml-muted)" }}>
+          Take two minutes. You don&rsquo;t need to make it sound good.
         </p>
         <button
           type="button"

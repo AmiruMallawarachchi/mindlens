@@ -65,10 +65,10 @@ export function MindLensApp() {
   }
 
   const titles: Record<Exclude<View, "chat">, { eyebrow: string; title: string }> = {
-    progress: { eyebrow: "Progress", title: "Your rhythm" },
-    journal: { eyebrow: "Journal", title: "A place to think out loud" },
-    memory: { eyebrow: "Memory", title: "What Mindlens remembers" },
-    settings: { eyebrow: "Your Mindlens", title: "Make it yours" },
+    progress: { eyebrow: "Your rhythm, not a score", title: "How things have been landing" },
+    journal: { eyebrow: "Private reflection", title: "Make space for the thought underneath" },
+    memory: { eyebrow: "Transparent personalization", title: "You decide what Mindlens remembers" },
+    settings: { eyebrow: "Make the space yours", title: "Your Mindlens" },
   };
   const { eyebrow, title } = titles[view];
 
