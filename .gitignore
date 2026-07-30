@@ -44,7 +44,12 @@ notebooks/data/
 # IDE
 .vscode/
 .idea/
-.claude/
+# Local Claude Code state stays out of git, but project subagents and skills
+# are part of the project's engineering setup and should be versioned —
+# otherwise they only exist on one machine and are lost on a fresh clone.
+.claude/*
+!.claude/agents/
+!.claude/skills/
 
 # Node (for later)
 node_modules/
