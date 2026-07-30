@@ -52,6 +52,9 @@ const BORDER_RADIUS: Partial<Record<CompanionShape, string>> = {
   square: "26%",
   sphere: "50%",
   dot: "50%",
+  // Without an entry here "frond" fell through to a sharp-cornered
+  // rectangle, so Fern rendered as a boxy tile instead of a plant.
+  frond: "50% 50% 40% 40% / 60% 60% 40% 40%",
 };
 
 /** Anchor is explicitly "colourless" — everything else follows the room. */
@@ -110,13 +113,20 @@ function ShapeAvatar({
     );
   }
 
+  // Flit is a firefly — a small bright point in a glow, not a full orb.
+  // Drawn at the same box size as everything else it was indistinguishable
+  // from The Lens (a plain sphere) at picker sizes, so it is inset here to
+  // read as a point of light instead.
+  const inset = shape === "dot" ? size * 0.28 : 0;
+
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
       <div
         role="img"
         aria-label={`${name}, your companion`}
-        className="absolute inset-0"
+        className="absolute"
         style={{
+          inset,
           background: GRADIENT[shape] ?? DEFAULT_GRADIENT,
           clipPath: CLIP_PATH[shape],
           borderRadius: BORDER_RADIUS[shape],

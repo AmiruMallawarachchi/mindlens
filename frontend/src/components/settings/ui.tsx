@@ -215,8 +215,14 @@ export function SaveBar({
   dirty: boolean;
 }) {
   return (
-    <div className="sticky bottom-0 -mx-8 mt-2 flex items-center gap-3 px-8 py-4"
-      style={{ background: "var(--ml-panel-legible)", borderTop: "1px solid var(--ml-hairline)" }}
+    // Must be fully opaque, not translucent-plus-blur. The settings modal is
+    // .ml-glass, which sets backdrop-filter and so becomes a backdrop root:
+    // a blur here would sample what's behind the *modal*, never the sibling
+    // content scrolling underneath this bar, leaving that text legibly
+    // bleeding through. Only a solid fill occludes it.
+    <div
+      className="sticky bottom-0 -mx-8 mt-2 flex items-center gap-3 px-8 py-4"
+      style={{ background: "var(--ml-panel-solid)", borderTop: "1px solid var(--ml-hairline)" }}
     >
       <button
         type="button"

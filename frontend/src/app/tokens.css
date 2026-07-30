@@ -69,6 +69,12 @@
    * before dimming text, never the other way round. */
   --ml-panel-legible: rgba(255, 252, 246, 0.9);
 
+  /* Fully opaque panel. For surfaces that must *occlude* their own
+   * scrolling siblings — a sticky footer inside a glass panel can't use
+   * backdrop-filter, because the glass ancestor is already a backdrop root
+   * and the blur would sample behind the panel instead of its contents. */
+  --ml-panel-solid: rgb(255, 252, 246);
+
   /* --- Radii scale (§8) ----------------------------------------------- */
   --r-7: 7px;
   --r-11: 11px;
@@ -104,6 +110,7 @@
   --ml-panel: rgba(17, 18, 27, 0.66);
   --ml-panel-strong: rgba(20, 21, 31, 0.92);
   --ml-panel-legible: rgba(20, 21, 31, 0.92);
+  --ml-panel-solid: rgb(20, 21, 31);
   --ml-hairline: rgba(255, 255, 255, 0.09);
   --ml-hairline-strong: rgba(255, 255, 255, 0.16);
   --ml-ink: #f7f6f1;
