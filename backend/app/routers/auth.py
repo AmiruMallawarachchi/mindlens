@@ -42,6 +42,7 @@ from app.middleware.auth import (
     require_user,
     verify_refresh_token,
 )
+from app.routers.account import record_login_session
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -218,6 +219,7 @@ def _clear_auth_cookies(response: Response) -> None:
 async def register(
     user_data: UserRegister,
     response: Response,
+    request: Request,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
@@ -264,6 +266,9 @@ async def register(
     token_pair = create_token_pair(user_id, user_data.email, role=settings.USER_ROLE_NAME)
 
     csrf_token = _set_auth_cookies(response, token_pair)
+    await record_login_session(
+        db, user_id, token_pair["jti"], token_pair["refresh_jti"], request
+    )
 
     return TokenResponse(
         access_token=token_pair["access_token"],
@@ -340,6 +345,9 @@ async def login(
     token_pair = create_token_pair(user_id, credentials.email, role=role)
 
     csrf_token = _set_auth_cookies(response, token_pair)
+    await record_login_session(
+        db, user_id, token_pair["jti"], token_pair["refresh_jti"], request
+    )
 
     # Log login event (anonymized IP)
     ip = request.client.host if request.client else "unknown"

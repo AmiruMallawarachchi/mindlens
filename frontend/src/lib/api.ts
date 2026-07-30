@@ -163,6 +163,40 @@ export async function updateMe(input: { nickname?: string }): Promise<UserProfil
   });
 }
 
+// --- Account: the controls behind the privacy promise ----------------------
+
+export interface DeviceSession {
+  jti: string;
+  device: string;
+  created_at: string;
+  current: boolean;
+}
+
+export async function listDeviceSessions(): Promise<DeviceSession[]> {
+  return request<DeviceSession[]>("/api/v1/account/sessions");
+}
+
+export async function revokeDeviceSession(jti: string): Promise<void> {
+  await request(`/api/v1/account/sessions/${jti}`, { method: "DELETE" });
+}
+
+export async function revokeOtherDeviceSessions(): Promise<{ revoked: number }> {
+  return request<{ revoked: number }>("/api/v1/account/sessions/revoke-others", {
+    method: "POST",
+  });
+}
+
+export async function exportAccountData(): Promise<unknown> {
+  return request<unknown>("/api/v1/account/export");
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  await request("/api/v1/account", {
+    method: "DELETE",
+    body: JSON.stringify({ password, confirm: "DELETE" }),
+  });
+}
+
 export async function createSession(
   title?: string,
 ): Promise<SessionSummary> {

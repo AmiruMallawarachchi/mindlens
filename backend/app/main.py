@@ -18,6 +18,7 @@ from app.models.loader import model_manager
 from app.rag.ingest import ingest_documents
 from app.rag.vector_store import get_vector_store
 from app.routers import (
+    account_router,
     auth_router,
     chat_router,
     dashboard_router,
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
         onboarding_router, prefix="/api/v1/onboarding", tags=["Onboarding"]
     )
     application.include_router(memory_router, prefix="/api/v1/memory", tags=["Memory"])
+    application.include_router(account_router, prefix="/api/v1/account", tags=["Account"])
     application.include_router(journal_router, prefix="/api/v1/journal", tags=["Journal"])
     application.include_router(system_router, prefix="/api/v1/admin", tags=["Admin"])
 

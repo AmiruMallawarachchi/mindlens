@@ -4,9 +4,9 @@
  * land in the same commit as the section they open.
  */
 
-import { Brain, CircleUser, Palette, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Brain, CircleUser, Lock, Palette, SlidersHorizontal, type LucideIcon } from "lucide-react";
 
-export type SettingsSectionId = "general" | "account" | "appearance" | "memory";
+export type SettingsSectionId = "general" | "account" | "privacy" | "appearance" | "memory";
 
 export const SETTINGS_NAV: {
   label: string;
@@ -17,6 +17,7 @@ export const SETTINGS_NAV: {
     items: [
       { id: "general", label: "General", icon: SlidersHorizontal },
       { id: "account", label: "Account", icon: CircleUser },
+      { id: "privacy", label: "Privacy & data", icon: Lock },
     ],
   },
   {

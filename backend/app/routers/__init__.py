@@ -1,3 +1,4 @@
+from app.routers.account import router as account_router
 from app.routers.auth import router as auth_router
 from app.routers.chat import router as chat_router
 from app.routers.dashboard import router as dashboard_router
@@ -11,6 +12,7 @@ __all__ = [
     "auth_router",
     "chat_router",
     "dashboard_router",
+    "account_router",
     "journal_router",
     "memory_router",
     "onboarding_router",

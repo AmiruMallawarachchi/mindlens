@@ -312,8 +312,12 @@ export function ChatSidebar({
               className="mt-1 flex items-center gap-1.5 text-[10.5px]"
               style={{ color: "var(--ml-faint)" }}
             >
+              {/* Not "end-to-end": the server must read every message for the
+                * classifiers to run, so claiming E2E would be untrue. An
+                * accurate, smaller promise is worth more here than an
+                * impressive one that doesn't survive being checked. */}
               <ShieldCheck size={12} strokeWidth={1.7} />
-              Private · end-to-end
+              Private · only you
             </span>
           </span>
           <Settings2 size={15} strokeWidth={1.7} className="shrink-0" style={{ color: "var(--ml-faint)" }} />

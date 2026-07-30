@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 import { GeneralSection } from "./sections/general";
 import { AccountSection } from "./sections/account";
+import { PrivacySection } from "./sections/privacy";
 import { AppearanceSection } from "./sections/appearance";
 import { MemorySection } from "./sections/memory";
 import { SETTINGS_NAV, type SettingsSectionId } from "./nav";
@@ -138,6 +139,7 @@ export function SettingsModal({
           <div className="px-8 pb-2 pt-7">
             {section === "general" && <GeneralSection client={client} />}
             {section === "account" && <AccountSection client={client} />}
+            {section === "privacy" && <PrivacySection client={client} />}
             {section === "appearance" && <AppearanceSection client={client} />}
             {section === "memory" && <MemorySection />}
           </div>
