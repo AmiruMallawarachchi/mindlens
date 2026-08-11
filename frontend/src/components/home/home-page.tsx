@@ -65,7 +65,10 @@ const STEPS = [
   {
     num: "04",
     title: "The response",
-    body: "A team of agents drafts a reply in the voice of a wise coaching friend: practical, warm, 4–5 sentences, always ending in a choice — music, breathing, journaling, or just talking.",
+    // Not "always ending in a choice": empathy_agent deliberately drops the
+    // options above 0.8 distress ("No advice. No choices."), which is the
+    // right behaviour and the opposite of what the old copy promised.
+    body: "A team of agents drafts a reply in the voice of a wise coaching friend: practical, warm, and usually ending in a choice — music, breathing, journaling, or just talking. When distress runs high it drops the options and just stays with you.",
   },
   {
     num: "05",
@@ -74,12 +77,19 @@ const STEPS = [
   },
 ];
 
+/** `id` is the real Hugging Face repo each card runs on, not a label.
+ * `adopted` marks a public checkpoint someone else trained: the emotion
+ * classifier is SamLowe's go_emotions model, and presenting it under the
+ * hf.co/AmiruMallawarachchi banner alongside the four fine-tuned here would
+ * claim authorship the code doesn't have. Keep these ids in step with
+ * `backend/app/config.py`'s *_MODEL_ID settings — if the model swaps, the
+ * card is what tells people which one is actually running. */
 const MODELS = [
-  { id: "mindlens-emotion", title: "Emotion classifier", body: "28 emotion classes (GoEmotions), folded into the 12 named states that light the interface." },
-  { id: "mindlens-mh", title: "Mental-health signal", body: "Screens longer messages for anxiety, depression and stress signals — quietly, in context." },
-  { id: "mindlens-crisis", title: "Crisis detector", body: "Deterministic screening that runs before every single turn. The one model that can stop everything." },
-  { id: "mindlens-reranker", title: "RAG reranker", body: "Re-orders passages retrieved from a curated therapy corpus so the most relevant guidance wins." },
-  { id: "mindlens-distortion", title: "Distortion classifier", body: "Spots thinking traps — catastrophizing, all-or-nothing, mind-reading — so they can be named gently." },
+  { id: "SamLowe/roberta-base-go_emotions", adopted: true, title: "Emotion classifier", body: "28 emotion classes (GoEmotions), folded into the 12 named states that light the interface." },
+  { id: "mindlens-mh-classifier", adopted: false, title: "Mental-health signal", body: "Screens every message for anxiety, depression and stress signals — quietly, in context, and never shown back to you as a label." },
+  { id: "mindlens-crisis", adopted: false, title: "Crisis detector", body: "Second-layer screening, behind a hardwired keyword gate that runs first on every turn. Either one alone can stop the conversation and switch to templates." },
+  { id: "mindlens-rag-reranker", adopted: false, title: "RAG reranker", body: "Re-orders passages retrieved from a curated therapy corpus so the most relevant guidance wins." },
+  { id: "mindlens-distortion-classifier", adopted: false, title: "Distortion classifier", body: "Looks for thinking traps — catastrophizing, all-or-nothing, mind-reading. The weakest of the five; see its model card for how far to trust it." },
 ];
 
 const DOCS = [
@@ -88,12 +98,18 @@ const DOCS = [
   { file: "DEPLOYMENT.md", title: "Render & Vercel runbook", body: "How the backend, persistent vector store and web client ship — and how production fails closed." },
 ];
 
+/** Rules 03, 04 and 05 each overstated something and have been narrowed to
+ * what the code actually guarantees: the access token is in browser storage
+ * (only the refresh token is an httpOnly cookie), the conversation
+ * transcript is kept even though it isn't listed on the Memory page, and
+ * the confidence figure is the classifier's real score rather than a
+ * constant — it was hardcoded until the orchestrator started assigning it. */
 const RULES = [
   { num: "01", title: "Crisis answers are template-only", body: "Zero LLM calls when it matters most. Every crisis response is written and vetted by humans." },
   { num: "02", title: "The safety gate runs first, every turn", body: "No agent, prompt or feature can skip it. Safety overrides convenience — by design." },
-  { num: "03", title: "Your words stay yours", body: "JWT in httpOnly cookies, every database query scoped to you, rate limits everywhere." },
-  { num: "04", title: "Memory is visible", body: "Nothing is remembered without appearing in your Memory first — you can see and delete all of it." },
-  { num: "05", title: "Never a diagnosis", body: "Mindlens names feelings in plain language, with the confidence beside it. It never labels you." },
+  { num: "03", title: "Your words stay yours", body: "Every database query scoped to you, rate limits everywhere, and never sold or used for advertising. Replies are written by Groq, so your message text reaches them with identifiers stripped." },
+  { num: "04", title: "Memory is visible", body: "Your conversations are saved so next week picks up where this one left off. Anything Mindlens learns from them shows up in Memory first, where you can edit or delete it." },
+  { num: "05", title: "Never a diagnosis", body: "Mindlens names feelings in plain language and shows how sure it is. It never labels you." },
 ];
 
 const GITHUB_URL = "https://github.com/AmiruMallawarachchi";
@@ -446,6 +462,13 @@ export function HomePage() {
                 <br />
                 one careful read
               </h2>
+              {/* Four were fine-tuned for Mindlens; the emotion classifier is
+                * a public checkpoint. Saying so here is the difference between
+                * "five models" and "five models I trained". */}
+              <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-[1.65]" style={{ color: "rgba(247,243,236,.5)" }}>
+                Four fine-tuned for Mindlens. One adopted — the emotion
+                classifier is a public GoEmotions checkpoint, marked below.
+              </p>
             </div>
             <a
               href={HF_URL}
@@ -465,9 +488,17 @@ export function HomePage() {
                   style={{ border: "1px solid rgba(247,243,236,.12)", background: "rgba(255,252,246,.04)" }}
                 >
                   <span className="size-[10px] rounded-full" style={{ background: "linear-gradient(140deg, var(--e2), var(--e1))" }} />
-                  <span className="font-[family-name:var(--font-geist-mono)] text-[11.5px]" style={{ color: "var(--e2)" }}>
+                  <span className="font-[family-name:var(--font-geist-mono)] text-[11.5px] break-all" style={{ color: "var(--e2)" }}>
                     {model.id}
                   </span>
+                  {model.adopted && (
+                    <span
+                      className="w-fit rounded-[99px] px-2 py-0.5 font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.1em]"
+                      style={{ border: "1px solid rgba(247,243,236,.25)", color: "rgba(247,243,236,.6)" }}
+                    >
+                      adopted, not ours
+                    </span>
+                  )}
                   <h3 className="m-0 text-[16.5px] font-semibold tracking-[-.015em]">{model.title}</h3>
                   <p className="m-0 text-[12.5px] leading-[1.6]" style={{ color: "rgba(247,243,236,.55)", textWrap: "pretty" }}>
                     {model.body}

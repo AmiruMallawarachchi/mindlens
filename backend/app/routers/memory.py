@@ -309,11 +309,21 @@ async def delete_entry(
             },
         )
     elif req.section in ("trigger_topics", "effective_coping", "milestones"):
+        # `milestones` lives at the document root; the other two are nested
+        # under `emotional_patterns`. The previous ternary returned a whole
+        # `{"$pull": ...}` document for the milestones branch while already
+        # inside a "$pull" key, producing `{"$pull": {"$pull": {...}}}` —
+        # every milestone delete errored. Only the *path* differs, so branch
+        # on the path alone.
+        field = (
+            "milestones"
+            if req.section == "milestones"
+            else f"emotional_patterns.{req.section}"
+        )
         await db.user_memory.update_one(
             {"user_id": user_id},
             {
-                "$pull": {f"emotional_patterns.{req.section}": req.key}
-                if req.section != "milestones" else {"$pull": {"milestones": req.key}},
+                "$pull": {field: req.key},
                 "$set": {"updated_at": now},
             },
         )

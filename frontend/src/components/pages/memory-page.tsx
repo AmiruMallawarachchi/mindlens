@@ -128,7 +128,11 @@ export function MemoryPage() {
       >
         <ShieldCheck size={16} strokeWidth={1.8} className="mt-0.5 shrink-0" style={{ color: "var(--e1)" }} />
         <p className="text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-          Everything here is visible and editable — nothing is remembered without appearing on this page first. This is not a diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
+          Everything here is visible and editable. Anything Mindlens
+          &lsquo;learns&rsquo; about you lands on this page first, where you can
+          change or delete it &mdash; your conversations themselves are kept
+          separately so it can pick up where you left off. This is not a
+          diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
         </p>
       </div>
 

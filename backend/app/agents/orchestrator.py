@@ -17,7 +17,7 @@ from app.agents.checkin_scheduler import CheckInScheduler
 from app.agents.crisis_agent import CrisisAgent
 from app.agents.distortion_agent import DistortionAgent
 from app.agents.empathy_agent import EmpathyAgent
-from app.agents.groq_client import begin_degradation_tracking
+from app.agents.groq_client import _record_degradation, begin_degradation_tracking
 from app.agents.journaling_agent import JournalingAgent
 from app.agents.mindfulness_agent import MindfulnessAgent
 from app.agents.music_agent import MusicAgent
@@ -304,6 +304,24 @@ class Orchestrator:
         model_text = anonymize(user_text)
         raw_results = await self.models.predict_all(model_text)
 
+        # predict_all swallows a per-model failure into an empty list so one
+        # dead classifier can't fail the turn. That's the right call, but it
+        # left no trace: a turn where the *crisis* classifier was down looked
+        # byte-identical to a healthy one, because _parse_crisis maps empty
+        # output to ("UNKNOWN", 0.0) and crisis_flag stays False. The regex
+        # gate above still ran — that layer is unconditional — but the second
+        # layer being silently absent is exactly the thing an operator needs
+        # told. Record it the same way LLM fallbacks are recorded, so it
+        # reaches /ready's health status and the thinking panel.
+        for _model_name, _output in raw_results.items():
+            if not _output:
+                _record_degradation(f"model:{_model_name}")
+                if _model_name == "crisis":
+                    logger.error(
+                        "Crisis classifier returned no output — this turn was "
+                        "screened by the regex gate alone."
+                    )
+
         # Parse emotion (28-class multi-label)
         emotion_scores = self._parse_multilabel(raw_results["emotion"], EMOTION_LABELS)
         surface_emotion = self._argmax(emotion_scores)
@@ -364,6 +382,15 @@ class Orchestrator:
             surface_emotion=surface_emotion,
             core_emotion=core_emotion,
             suppressed_emotion=suppressed_emotion,
+            # The classifier's actual score for the winning label. This was
+            # never assigned, so every turn kept the field's 0.8 default —
+            # and that constant was shown to the user as "how confident the
+            # emotion model is in this read" (emotion-read.tsx), narrated in
+            # the thinking panel ("at 0.80 confidence"), fed to the empathy
+            # agent's prompt, and used to scale the room's intensity. A
+            # fabricated number presented as a measurement, on the one figure
+            # the product uses to justify "a read, never a diagnosis".
+            surface_confidence=round(emotion_scores.get(surface_emotion, 0.0), 3),
             distress_level=round(distress_level, 3),
             crisis_escalating=crisis_flag,
             valence=valence,

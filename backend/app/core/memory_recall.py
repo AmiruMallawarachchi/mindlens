@@ -152,6 +152,13 @@ def recall_for_turn(
             memory_recalled=recalled,
             preferred_modality=preferred_modality,
             tone_preference=tone_preference,
+            # personality and custom_instructions are settings the user typed
+            # on purpose, not things MindLens remembered about them — the
+            # same reasoning that keeps them under "nothing" above. This
+            # branch omitted them, so choosing the *middle* depth silently
+            # discarded instructions that the strictest depth honoured.
+            personality=personality,
+            custom_instructions=custom_instructions,
             checkin_preferred_time=checkin_preferred_time,
             introvert_score=introvert_score,
             memory_depth=memory_depth,

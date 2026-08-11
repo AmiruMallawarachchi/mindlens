@@ -113,7 +113,13 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
       readingParts.push(`There may be some ${eos.suppressed_emotion} you're holding back.`);
     }
     if (eos?.distortion_label) {
-      readingParts.push(`The thinking has a ${eos.distortion_label.replace(/_/g, " ")} shape to it.`);
+      // Hedged on purpose. This comes from the weakest model in the set
+      // (0.17 macro-F1 over ten classes, trained on ~690 weakly-labelled
+      // examples), and a flat "the thinking has X shape to it" states a
+      // near-chance argmax as a finding about the person reading it.
+      readingParts.push(
+        `This might have a ${eos.distortion_label.replace(/_/g, " ")} shape to it — that read is the least reliable thing here.`,
+      );
     }
   }
 

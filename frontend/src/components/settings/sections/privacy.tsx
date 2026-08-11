@@ -18,15 +18,27 @@ import { Row, SettingsGroup, SettingsHeading } from "../ui";
 
 /** All seven are guarantees, so all seven get a check. A ✗ beside "never
  * sold" would read as a failure at a glance, which is the opposite of what
- * it says. */
+ * it says.
+ *
+ * Every line here has to survive someone reading the source. Three of them
+ * previously did not:
+ *  - the sign-in line claimed the token lived in an httpOnly cookie "so page
+ *    scripts can't read it". Only the refresh token does; the access token is
+ *    in localStorage and sent as a Bearer header (lib/api.ts), so the exact
+ *    threat model it named — script access — was not covered.
+ *  - "nothing is remembered without showing up in Memory" was untrue of the
+ *    conversation transcript, the mood log, and the inferred introvert score,
+ *    none of which appear on that page.
+ *  - "never shared" omitted that generation is a Groq API call carrying the
+ *    message text. The marketing page disclosed it; this screen didn't. */
 const PROMISES: string[] = [
   "Everything is scoped to your account. Every query the server makes is filtered by your user id.",
-  "Nothing is remembered without showing up in Memory first, where you can edit or delete it.",
-  "Your sign-in token is kept in an httpOnly cookie, so page scripts can't read it.",
+  "Your conversations are saved so Mindlens can pick up where you left off. Anything it *learns* from them — people, hard topics, what's helped — appears in Memory first, where you can edit or delete it.",
+  "Your 7-day sign-in token is an httpOnly cookie that page scripts can't read. The short-lived access token is kept in browser storage so the app can call the API.",
   "Sign-in records keep the device name only — never your IP address or location.",
   "In a crisis, Mindlens answers from human-written templates. Zero AI calls, every time.",
-  "Your conversations are never sold, shared, or used for advertising.",
-  "What you write is never used to train AI models.",
+  "Your conversations are never sold or used for advertising. To write a reply, your message text goes to Groq, the model provider — with emails, phone numbers and ID numbers stripped first. Nowhere else.",
+  "Mindlens never trains models on what you write.",
 ];
 
 export function PrivacySection({ client }: { client: MindLensClient }) {
