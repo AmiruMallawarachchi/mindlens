@@ -24,7 +24,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_KNOWLEDGE_PATH = settings.rag_knowledge_path
+_KNOWLEDGE_PATH = settings.resolved_rag_knowledge_path
 
 # Chunking parameters (approximate: 400 chars / 50 overlap)
 _CHUNK_SIZE = settings.rag_chunk_size

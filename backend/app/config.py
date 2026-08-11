@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import json
+import pathlib
 from typing import Literal
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Two levels up from backend/app/config.py. Locally that's the repo root
+# (mindlens/); in the Docker image (Dockerfile: COPY backend ./backend under
+# WORKDIR /app) it's /app — which is exactly where `backend/data/...`
+# resolves to on disk there too. Used to make the RAG paths below
+# cwd-independent: they used to resolve relative to whatever directory
+# uvicorn was launched from, and `cd backend && uvicorn ...` (the documented
+# local command) made them resolve one level too deep, into a second,
+# never-ingested `backend/backend/data/` that RAG silently always missed.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -46,8 +57,10 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] | None = None
 
     use_openai_stubs: bool = True
-    use_voice: bool = False
-    use_spotify: bool = False
+    # Read by music_agent.py's MCP client. USE_VOICE and USE_SPOTIFY were
+    # removed from here — declared settings that nothing in app/ ever read,
+    # not even to gate this URL; MusicAgent always attempts the MCP call and
+    # falls back to LLM + static tracks on failure regardless of either flag.
     spotify_mcp_url: str = "http://localhost:8001"
     admin_email: str = "admin@mindlens.app"
 
@@ -79,11 +92,37 @@ class Settings(BaseSettings):
     rag_embed_model: str = "all-MiniLM-L6-v2"
     rag_k_results: int = 5
     rag_fetch_k: int = 20
+    # Cross-encoder reranking of MMR candidates (app/rag/retriever.py). Off
+    # means MMR order is served as-is — used by the retrieval-quality
+    # evaluation to measure what the reranker actually contributes.
+    rag_reranker_enabled: bool = True
+    # Added to the cross-encoder's sigmoid score for chunks whose metadata
+    # matches the user's age group. Deliberately a swept parameter, not a
+    # magic number: T7c reports NDCG@3 / MRR / P@3 across 0.0, 0.05 and 0.10.
+    # If the curve shows the heuristic hurts ranking, this goes to 0.0 and
+    # that result is reported rather than hidden.
+    rag_age_boost: float = 0.05
     rag_lambda_mult: float = 0.5
     rag_chunk_size: int = 400
     rag_chunk_overlap: int = 50
     rag_knowledge_path: str = "backend/data/therapy_knowledge.json"
     chromadb_persist_dir: str = "backend/data/chroma_db"
+
+    # When true, ModelManager loads a model from `onnx_models_dir/<name>` —
+    # dynamic int8 ONNX produced by `scripts/quantize_models.py` — instead of
+    # the float32 HF checkpoint, for any model that's actually been converted.
+    # False by default: this laptop and Render's `standard` plan can't hold
+    # four float32 transformer models loaded concurrently (see that script's
+    # docstring for the numbers), but the fallback in loader.py means turning
+    # this on is safe even before every model has been converted.
+    use_quantized_models: bool = False
+    onnx_models_dir: str = "backend/data/onnx_models"
+
+    @property
+    def resolved_onnx_models_dir(self) -> str:
+        """`onnx_models_dir`, made cwd-independent — see `_REPO_ROOT`."""
+        path = pathlib.Path(self.onnx_models_dir)
+        return str(path if path.is_absolute() else _REPO_ROOT / path)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -146,6 +185,20 @@ class Settings(BaseSettings):
         if self.cookie_samesite is not None:
             return self.cookie_samesite
         return "none" if self.is_production else "lax"
+
+    @property
+    def resolved_rag_knowledge_path(self) -> str:
+        """`rag_knowledge_path`, made cwd-independent — see `_REPO_ROOT`.
+        An absolute override (e.g. a deployment env var) passes through
+        unchanged; only the relative default gets anchored."""
+        path = pathlib.Path(self.rag_knowledge_path)
+        return str(path if path.is_absolute() else _REPO_ROOT / path)
+
+    @property
+    def resolved_chromadb_persist_dir(self) -> str:
+        """`chromadb_persist_dir`, made cwd-independent — see `_REPO_ROOT`."""
+        path = pathlib.Path(self.chromadb_persist_dir)
+        return str(path if path.is_absolute() else _REPO_ROOT / path)
 
     # Compatibility aliases retained while the codebase migrates to lowercase fields.
     DEBUG = property(lambda self: self.debug)

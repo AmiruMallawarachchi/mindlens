@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from app.rag.vector_store import TherapyVectorStore, get_vector_store
 
@@ -78,6 +79,39 @@ class TestTherapyVectorStore:
         mmr = store._mmr_rerank(results, results["embeddings"][0], n_results=2, lambda_mult=0.5)
         assert len(mmr["documents"][0]) == 2
         assert mmr["ids"][0][0] == "id_a"  # Most relevant
+
+    def test_mmr_rerank_with_numpy_embeddings(self, store: TherapyVectorStore) -> None:
+        """Regression — chromadb's real `collection.query(..., include=[...,
+        "embeddings"])` returns `embeddings` as a numpy.ndarray, not the
+        plain nested list the other tests here use as a fixture.
+        `not embeddings` on a multi-row ndarray raises ValueError ("truth
+        value of an array... is ambiguous") instead of testing emptiness —
+        this went unnoticed because the vector store was empty in every
+        environment until RAG's cwd-relative path bug was fixed, so no real
+        query had ever reached this line with actual data."""
+        results = {
+            "documents": [["a", "b", "c"]],
+            "ids": [["id_a", "id_b", "id_c"]],
+            "distances": [[0.1, 0.2, 0.3]],
+            "metadatas": [[{}, {}, {}]],
+            "embeddings": [np.array([[1.0, 0.0], [0.9, 0.1], [0.0, 1.0]])],
+        }
+        mmr = store._mmr_rerank(results, results["embeddings"][0], n_results=2, lambda_mult=0.5)
+        assert len(mmr["documents"][0]) == 2
+        assert mmr["ids"][0][0] == "id_a"
+
+    def test_mmr_rerank_empty_embeddings_returns_results_unchanged(
+        self, store: TherapyVectorStore
+    ) -> None:
+        results = {
+            "documents": [[]],
+            "ids": [[]],
+            "distances": [[]],
+            "metadatas": [[]],
+            "embeddings": [np.array([])],
+        }
+        mmr = store._mmr_rerank(results, results["embeddings"][0], n_results=2, lambda_mult=0.5)
+        assert mmr is results
 
     def test_cosine_sim_identical(self, store: TherapyVectorStore) -> None:
         a = [1.0, 0.0, 0.0]

@@ -1,12 +1,20 @@
 """
 MindLens Therapy Retriever
 ===========================
-MMR-based retriever for therapy knowledge.
+MMR-based retriever for therapy knowledge, with cross-encoder reranking.
 
-- Builds retrieval query from EOS state
-- MMR search with diversity-relevance tradeoff
-- Re-ranks by user age group (teen vs adult content)
-- Returns top-k chunks as strings for prompt injection
+Pipeline per query:
+
+1. Build a retrieval query from the EOS state.
+2. MMR search over the vector store for ``fetch_k`` candidates — deliberately
+   wider than the ``k`` we return, so the reranker has something to choose
+   between. Reranking only the final 5 would waste the model.
+3. Score every ``(query, chunk)`` pair with the fine-tuned cross-encoder
+   (``mindlens-rag-reranker``) and sort by relevance.
+4. Break ties by age group, then truncate to ``k``.
+
+The cross-encoder is a single-label regression head (``num_labels=1``), so the
+pipeline's sigmoid score *is* the relevance score and higher is better.
 
 Usage:
     retriever = get_retriever()
@@ -15,17 +23,25 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from app.config import settings
 from app.core.emotional_os import EmotionalOperatingState
 from app.rag.vector_store import TherapyVectorStore, get_vector_store
 from app.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from app.models.loader import ModelManager
 
 logger = get_logger(__name__)
 
 _DEFAULT_K = 5
 _DEFAULT_FETCH_K = 20
 _DEFAULT_LAMBDA = 0.5
+
+#: Recorded on the turn's degradation set when the cross-encoder fails, so a
+#: turn served on raw MMR order is never mistaken for a reranked one.
+RERANKER_DEGRADED = "rag_reranker"
 
 
 class TherapyRetriever:
@@ -39,11 +55,23 @@ class TherapyRetriever:
         k: int = _DEFAULT_K,
         fetch_k: int = _DEFAULT_FETCH_K,
         lambda_mult: float = _DEFAULT_LAMBDA,
+        model_manager: ModelManager | None = None,
     ) -> None:
         self.store = vector_store or get_vector_store()
         self.k = k
         self.fetch_k = fetch_k
         self.lambda_mult = lambda_mult
+        self._model_manager = model_manager
+
+    @property
+    def model_manager(self) -> ModelManager:
+        """The process-wide ModelManager, imported lazily to avoid a cycle
+        (``app.models.loader`` pulls in config, which pulls in the RAG paths)."""
+        if self._model_manager is None:
+            from app.models.loader import model_manager
+
+            self._model_manager = model_manager
+        return self._model_manager
 
     # -----------------------------------------------------------------------
     # Core retrieval
@@ -69,28 +97,21 @@ class TherapyRetriever:
         query = self._build_query(user_text, eos)
         top_k = k or self.k
 
-        try:
-            self.store.connect()
-            results = self.store.query_mmr(
-                query_texts=[query],
-                n_results=top_k,
-                fetch_k=self.fetch_k,
-                lambda_mult=self.lambda_mult,
-            )
-        except Exception as exc:
-            logger.warning("RAG retrieval failed: %s", exc)
+        results = self._query(query)
+        if results is None:
             return []
 
         documents = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0] or []
 
-        # Re-rank by age group relevance (boost teen/adult specific content)
-        ranked = self._rerank_by_age_group(
-            documents, metadatas, age_group=eos.age_group
-        )
+        order = self._ranked_indices(query, documents, metadatas, eos.age_group)
+        ranked = [documents[i] for i in order][:top_k]
 
         logger.info(
-            "RAG retrieved %d chunks for query '%s'", len(ranked), query[:60]
+            "RAG retrieved %d chunks (from %d candidates) for query '%s'",
+            len(ranked),
+            len(documents),
+            query[:60],
         )
         return ranked
 
@@ -108,16 +129,8 @@ class TherapyRetriever:
         query = self._build_query(user_text, eos)
         top_k = k or self.k
 
-        try:
-            self.store.connect()
-            results = self.store.query_mmr(
-                query_texts=[query],
-                n_results=top_k,
-                fetch_k=self.fetch_k,
-                lambda_mult=self.lambda_mult,
-            )
-        except Exception as exc:
-            logger.warning("RAG retrieval failed: %s", exc)
+        results = self._query(query)
+        if results is None:
             return []
 
         docs = results.get("documents", [[]])[0]
@@ -125,35 +138,122 @@ class TherapyRetriever:
         ids = results.get("ids", [[]])[0]
         distances = results.get("distances", [[]])[0]
 
-        ranked = self._rerank_by_age_group(
-            docs, metas, age_group=eos.age_group
-        )
+        # Index-based ordering, shared with retrieve(). The previous version
+        # matched documents back to metadata by text equality, which silently
+        # mis-paired any two chunks with identical text.
+        order = self._ranked_indices(query, docs, metas, eos.age_group)
 
-        # Rebuild metadata list in same order as ranked docs
-        ranked_set = set(ranked)
-        output = []
-        for doc, meta, doc_id, dist in zip(docs, metas, ids, distances, strict=False):
-            if doc in ranked_set:
-                output.append(
-                    {
-                        "id": doc_id,
-                        "text": doc,
-                        "category": meta.get("category", "general"),
-                        "title": meta.get("title", ""),
-                        "tags": meta.get("tags", ""),
-                        "score": 1.0 - float(dist),
-                    }
-                )
+        output: list[dict[str, Any]] = []
+        for i in order[:top_k]:
+            meta = metas[i] if i < len(metas) else {}
+            output.append(
+                {
+                    "id": ids[i] if i < len(ids) else "",
+                    "text": docs[i],
+                    "category": meta.get("category", "general"),
+                    "title": meta.get("title", ""),
+                    "tags": meta.get("tags", ""),
+                    "score": 1.0 - float(distances[i]) if i < len(distances) else 0.0,
+                }
+            )
+        return output
 
-        # Reorder to match ranked
-        output_ordered = []
-        for doc in ranked:
-            for item in output:
-                if item["text"] == doc:
-                    output_ordered.append(item)
-                    break
+    # -----------------------------------------------------------------------
+    # Candidate fetch + ranking
+    # -----------------------------------------------------------------------
 
-        return output_ordered[:top_k]
+    def _query(self, query: str) -> dict[str, Any] | None:
+        """Fetch ``fetch_k`` MMR candidates. None if the store is unavailable.
+
+        Note this asks for ``fetch_k`` results, not ``k``: the cross-encoder
+        needs a wide candidate pool to be worth running at all.
+        """
+        try:
+            self.store.connect()
+            return self.store.query_mmr(
+                query_texts=[query],
+                n_results=self.fetch_k,
+                fetch_k=self.fetch_k,
+                lambda_mult=self.lambda_mult,
+            )
+        except Exception as exc:
+            logger.warning("RAG retrieval failed: %s", exc)
+            return None
+
+    def _ranked_indices(
+        self,
+        query: str,
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
+        age_group: str | None,
+    ) -> list[int]:
+        """Order candidate indices best-first.
+
+        Final score is the cross-encoder's sigmoid relevance plus a bounded
+        additive boost (``settings.rag_age_boost``) for chunks whose metadata
+        matches the user's age group; ties fall back to the original MMR
+        position.
+
+        The boost is additive rather than a tie-breaker on purpose. Sorting by
+        float relevance first and using the heuristic only to split exact ties
+        would mean it effectively never fires — a control that exists but does
+        nothing, which is the failure mode CLAUDE.md rule #1 forbids. Being
+        additive and bounded, it can reorder genuinely close candidates without
+        ever overturning a decisive relevance gap.
+
+        The magnitude is an empirical question, not a defended constant: T7c
+        sweeps it and reports the ranking curve.
+
+        When the cross-encoder is disabled or has failed every relevance score
+        is 0.0, so the heuristic decides alone — exactly the pre-reranker
+        behaviour, preserved as the fallback.
+        """
+        if not documents:
+            return []
+
+        relevance = self._cross_encoder_scores(query, documents)
+        boost = settings.rag_age_boost
+
+        def score(i: int) -> float:
+            meta = metadatas[i] if i < len(metadatas) else {}
+            # A flat boost on match, not one scaled by keyword count — one
+            # knob keeps the T7c sweep interpretable.
+            matched = self._age_score(meta, age_group) > 0
+            return relevance[i] + (boost if matched else 0.0)
+
+        return sorted(range(len(documents)), key=lambda i: (-score(i), i))
+
+    def _cross_encoder_scores(self, query: str, documents: list[str]) -> list[float]:
+        """Relevance score per document from the fine-tuned cross-encoder.
+
+        Returns all-zero scores when reranking is disabled or the model fails —
+        a reranker fault must never fail a chat turn, it just costs us the
+        improved ordering. Failures are recorded on the turn's degradation set.
+        """
+        if not settings.rag_reranker_enabled:
+            logger.debug("Cross-encoder reranking disabled; serving MMR order")
+            return [0.0] * len(documents)
+
+        try:
+            # ModelManager owns the batched call so the timing lands in the
+            # health entry the admin Model drawer reads.
+            return self.model_manager.rerank(query, documents)
+        except Exception as exc:
+            logger.warning(
+                "RAG reranking failed (%s); falling back to MMR order", exc
+            )
+            self._record_degraded()
+            return [0.0] * len(documents)
+
+    @staticmethod
+    def _record_degraded() -> None:
+        """Mark this turn as degraded, if a turn is in progress."""
+        try:
+            from app.agents.groq_client import _record_degradation
+
+            _record_degradation(RERANKER_DEGRADED)
+        except Exception:  # pragma: no cover - degradation is best-effort
+            pass
 
     # -----------------------------------------------------------------------
     # Query construction
@@ -186,6 +286,27 @@ class TherapyRetriever:
     # Re-ranking
     # -----------------------------------------------------------------------
 
+    #: Metadata keywords that mark a chunk as written for an age group.
+    _AGE_KEYWORDS = {
+        "teen": ["teen", "adolescent", "school", "exam", "peer", "parent"],
+        "adult": ["adult", "work", "career", "relationship", "partner", "colleague"],
+    }
+
+    @classmethod
+    def _age_score(cls, meta: dict[str, Any], age_group: str | None) -> int:
+        """How well one chunk's metadata matches the age group.
+
+        A metadata heuristic — keyword counting over tags and category — not a
+        model. It runs *after* the cross-encoder as a tie-breaker.
+        """
+        if not age_group:
+            return 0
+        keywords = cls._AGE_KEYWORDS.get(age_group.lower(), [])
+        if not keywords:
+            return 0
+        text = f"{meta.get('tags', '')} {meta.get('category', '')}".lower()
+        return sum(1 for kw in keywords if kw in text)
+
     def _rerank_by_age_group(
         self,
         documents: list[str],
@@ -193,34 +314,23 @@ class TherapyRetriever:
         age_group: str | None,
     ) -> list[str]:
         """
-        Boost documents whose tags or category match the age group.
+        Order documents by age-group match alone, stable within equal scores.
 
-        Teen: boost entries tagged 'teen', 'adolescent', 'school', 'exam'
-        Adult: boost entries tagged 'adult', 'work', 'career', 'relationship'
+        A metadata heuristic, not a model — retained for direct use and tests.
+        The live path calls `_ranked_indices`, which applies this only as a
+        tie-breaker behind the cross-encoder.
         """
-        if not age_group:
+        if not age_group or not self._AGE_KEYWORDS.get(age_group.lower()):
             return documents
 
-        boost_keywords = {
-            "teen": ["teen", "adolescent", "school", "exam", "peer", "parent"],
-            "adult": ["adult", "work", "career", "relationship", "partner", "colleague"],
-        }
-
-        keywords = boost_keywords.get(age_group.lower(), [])
-        if not keywords:
-            return documents
-
-        scored = []
-        for doc, meta in zip(documents, metadatas, strict=False):
-            tags = meta.get("tags", "")
-            category = meta.get("category", "")
-            text = f"{tags} {category}".lower()
-            score = sum(1 for kw in keywords if kw in text)
-            scored.append((score, doc))
-
-        # Sort by score descending, then keep original order for ties
-        scored.sort(key=lambda x: (-x[0], documents.index(x[1])))
-        return [doc for _, doc in scored]
+        order = sorted(
+            range(len(documents)),
+            key=lambda i: (
+                -self._age_score(metadatas[i] if i < len(metadatas) else {}, age_group),
+                i,
+            ),
+        )
+        return [documents[i] for i in order]
 
 
 # ---------------------------------------------------------------------------

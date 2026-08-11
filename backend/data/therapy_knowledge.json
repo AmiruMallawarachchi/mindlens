@@ -54,5 +54,429 @@
     "tags": ["crisis", "emergency", "self-harm", "suicide", "Sri Lanka"],
     "source_url": "https://nimh.health.gov.lk/en/1926-national-mental-health-helpline/",
     "content": "MindLens is not an emergency or clinical service. In Sri Lanka, the National Institute of Mental Health lists 1926 as the National Mental Health Helpline. If there is an immediate emergency requiring police assistance, Sri Lanka Police uses emergency hotline 119. Move toward a safer place if possible, contact a trusted person who can stay with you, and seek urgent human help."
+  },
+  {
+    "id": "nimh_crisis_support_general",
+    "title": "Supporting someone in emotional pain",
+    "category": "Crisis",
+    "tags": ["crisis", "support", "friend", "family", "USA"],
+    "source_url": "https://www.nimh.nih.gov/health/publications/5-action-steps-for-helping-someone-in-emotional-pain",
+    "content": "If someone close to you seems to be struggling, it can help to ask directly and gently whether they are okay, rather than avoiding the subject. Listen without judgment, and try not to rush to fix things. Help them think about staying safe, and help them connect with a trusted person or a professional. Checking in again afterwards, even briefly, matters more than most people expect. This is general guidance, not a substitute for local emergency services."
+  },
+  {
+    "id": "nhs_young_people_support",
+    "title": "Where young people can find support",
+    "category": "Crisis",
+    "tags": ["teen", "young-people", "self-harm", "support", "UK"],
+    "source_url": "https://www.nhs.uk/mental-health/children-and-young-adults/mental-health-support/mental-health-services/",
+    "content": "Young people struggling with their mental health, including difficult urges around self-harm, do not have to manage it alone. Support can include talking to a trusted adult, a school counsellor, or a doctor, and free confidential services exist specifically for young people to talk things through. Reaching out early, before a situation becomes a crisis, tends to make the biggest difference."
+  },
+  {
+    "id": "nhs_thought_record_situation",
+    "title": "Starting a thought record: the situation",
+    "category": "CBT",
+    "tags": ["cbt", "thought-record", "thoughts", "feelings", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/thought-record/",
+    "content": "A thought record is a simple way to examine a difficult moment rather than just replaying it. Start by writing down what actually happened — the situation itself, as plainly as you can, separate from your interpretation of it. Then note the feelings that came up and how strong they were. Separating the event from the feeling is the first step toward seeing the thought that connected them."
+  },
+  {
+    "id": "nhs_thought_record_evidence",
+    "title": "Weighing the evidence for and against a thought",
+    "category": "CBT",
+    "tags": ["cbt", "thought-record", "evidence", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/thought-record/",
+    "content": "Once you've named the unhelpful thought behind a difficult feeling, look at it like a claim rather than a fact. What evidence actually supports it? What evidence sits against it, or complicates it? Most unhelpful thoughts feel airtight in the moment but loosen once you deliberately look for what doesn't fit them."
+  },
+  {
+    "id": "nhs_thought_record_balance",
+    "title": "Writing a more balanced thought",
+    "category": "CBT",
+    "tags": ["cbt", "thought-record", "balance", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/thought-record/",
+    "content": "After weighing the evidence, try writing a more balanced version of the original thought — one that fits the fuller picture rather than only the harshest reading of events. This isn't about forcing positivity; a balanced thought can still acknowledge something genuinely difficult. The point is noticing whether your feelings shift at all once the thought is more accurate."
+  },
+  {
+    "id": "nhs_worry_time",
+    "title": "Setting aside a worry time",
+    "category": "CBT",
+    "tags": ["cbt", "worry", "anxiety", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/tackling-your-worries/",
+    "content": "If worries keep intruding through the day, try setting aside a specific ten to fifteen minute 'worry time' rather than trying to suppress them entirely. When a worry shows up outside that window, jot it down and gently tell yourself you'll come back to it later. Most worries lose some intensity by the time worry time actually arrives."
+  },
+  {
+    "id": "nhs_worry_tree",
+    "title": "Solvable problems versus hypothetical worries",
+    "category": "CBT",
+    "tags": ["cbt", "worry", "problem-solving", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/tackling-your-worries/",
+    "content": "It helps to sort a worry into one of two kinds: something you can actually act on, or a hypothetical 'what if' outside your control. For the first kind, a short concrete plan — what you'll do, how, and when — turns the worry into a task instead of a loop. For the second kind, the more workable move is deliberately accepting the uncertainty and redirecting your attention, since no amount of thinking resolves what hasn't happened yet."
+  },
+  {
+    "id": "nhs_mindfulness_what_is",
+    "title": "What mindfulness actually means",
+    "category": "Mindfulness",
+    "tags": ["mindfulness", "present-moment", "stress", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/what-is-mindfulness/",
+    "content": "Mindfulness means paying attention to the present moment on purpose, rather than being pulled into replaying the past or rehearsing the future. It isn't about clearing your mind or feeling calm on command. It's a skill built through small, repeated practice, and over time it tends to make stress and anxiety feel more manageable and sleep a little easier."
+  },
+  {
+    "id": "nhs_mindfulness_senses",
+    "title": "Anchoring in the body and senses",
+    "category": "Mindfulness",
+    "tags": ["mindfulness", "grounding", "body", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/what-is-mindfulness/",
+    "content": "One simple way into mindfulness is noticing physical sensation: how your feet feel against the ground, the texture of something you're touching, the air on your skin. Another is noticing your surroundings in detail — colours, shapes, sounds nearby. These small anchors pull attention out of a spiral of thought and back into where you actually are."
+  },
+  {
+    "id": "nhs_mindfulness_watching_thoughts",
+    "title": "Watching a thought rather than being pulled by it",
+    "category": "Mindfulness",
+    "tags": ["mindfulness", "thoughts", "unhooking", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/what-is-mindfulness/",
+    "content": "When a difficult thought arrives, it can help to picture stepping back and watching it rather than climbing inside it — noticing it as something passing through, not a command you have to obey. Naming a recurring thought when it shows up again ('there's that one') often takes a little of its power away, even before you've resolved anything about it."
+  },
+  {
+    "id": "nhs_wellbeing_five_areas",
+    "title": "Five everyday levers for wellbeing",
+    "category": "Routine",
+    "tags": ["wellbeing", "routine", "activity", "sleep", "communication", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/",
+    "content": "A handful of ordinary things reliably support mental wellbeing: moving your body, sleeping reasonably well, practising some form of mindfulness or relaxation, talking honestly with someone you trust, and building small routines that help you handle change. None of these need to be done perfectly or all at once — picking one and doing it consistently tends to matter more than doing all of them occasionally."
+  },
+  {
+    "id": "nhs_wellbeing_movement",
+    "title": "Movement as a mood lever",
+    "category": "Routine",
+    "tags": ["exercise", "physical-activity", "mood", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/",
+    "content": "Physical activity is one of the more reliable things you can do for your mood, and it doesn't need to be intense to help. A short walk, stretching, or a few minutes of movement can shift how a difficult stretch of the day feels. The goal isn't a fitness routine — it's giving your body and mind something other than stillness and rumination."
+  },
+  {
+    "id": "nhs_sleep_wind_down",
+    "title": "Winding down before bed",
+    "category": "Routine",
+    "tags": ["sleep", "routine", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/how-to-fall-asleep-faster-and-sleep-better/",
+    "content": "Giving yourself sixty to ninety minutes to wind down before bed — reading, a warm bath, quiet music, or gentle stretching — makes it easier for your body to actually feel ready for sleep. Screens in that window tend to work against it, since the stimulation and light can keep your mind alert right when you're trying to slow it down."
+  },
+  {
+    "id": "nhs_sleep_cant_sleep",
+    "title": "What to do when sleep won't come",
+    "category": "Routine",
+    "tags": ["sleep", "insomnia", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/how-to-fall-asleep-faster-and-sleep-better/",
+    "content": "If you've been lying awake for around twenty minutes, it can help to get up rather than force it — sit somewhere comfortable and do something quiet and low-stimulation, like reading or gentle music, until you feel sleepy again. Lying in bed fighting for sleep often makes the bed itself start to feel stressful, which makes the next night harder too."
+  },
+  {
+    "id": "wikipedia_distortion_all_or_nothing",
+    "title": "All-or-nothing thinking",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "all-or-nothing", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "All-or-nothing thinking (also called dichotomous or black-and-white thinking) sorts experience into absolute categories with no middle ground — a success or a total failure, trustworthy or worthless. Most real situations sit somewhere in between, so this pattern tends to make ordinary setbacks feel far more damning than they are."
+  },
+  {
+    "id": "wikipedia_distortion_catastrophizing",
+    "title": "Catastrophizing",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "catastrophizing", "cbt", "anxiety"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Catastrophizing means assuming the worst possible outcome is not just possible but likely, and treating an uncomfortable situation as unbearable before it's actually played out. It's a common companion to anxiety, and noticing it as a pattern — rather than a prediction — is often the first step to loosening its grip."
+  },
+  {
+    "id": "wikipedia_distortion_mind_reading",
+    "title": "Mind reading",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "mind-reading", "cbt", "social"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Mind reading is assuming you know what someone else is thinking about you, usually something critical, without any real evidence and without checking. It quietly shapes how you act toward people based on a story you never confirmed — and often couldn't have, since you're guessing at something only they actually know."
+  },
+  {
+    "id": "wikipedia_distortion_personalization",
+    "title": "Personalization",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "personalization", "cbt", "guilt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Personalization is taking disproportionate blame for something that was only partly, or not at all, within your control. It can feel like responsibility, but it often just adds guilt on top of a situation that already had other causes — other people's choices, timing, or plain circumstance."
+  },
+  {
+    "id": "wikipedia_distortion_overgeneralization",
+    "title": "Overgeneralization",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "overgeneralization", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Overgeneralization takes one negative event and treats it as proof of an endless pattern — 'this always happens' or 'I never get it right' — from a single data point. Naming it as overgeneralization, rather than fact, opens room to ask what actually happened this one time, separate from every other time."
+  },
+  {
+    "id": "wikipedia_distortion_emotional_reasoning",
+    "title": "Emotional reasoning",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "emotional-reasoning", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Emotional reasoning treats a feeling as if it were evidence of fact — 'I feel like a failure, so I must be one.' Feelings are real and worth taking seriously, but they aren't a reliable measure of what's actually true; a feeling can be intense and still be pointing at something inaccurate."
+  },
+  {
+    "id": "wikipedia_distortion_should_statements",
+    "title": "Should statements",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "should-statements", "cbt", "guilt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Should statements use rigid rules — 'I should have known,' 'they shouldn't act that way' — that create pressure and guilt without accounting for the actual circumstances or for reasonable differences between people. Swapping a 'should' for a more flexible 'it would have been nice if' often reveals how much of the pressure was self-imposed."
+  },
+  {
+    "id": "wikipedia_distortion_jumping_to_conclusions",
+    "title": "Jumping to conclusions",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "jumping-to-conclusions", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Jumping to conclusions means landing on a negative interpretation with little or no evidence, before other explanations have even been considered. Pausing to ask 'what's another way to read this' — even one alternative — often shows the first conclusion wasn't the only, or even the most likely, one."
+  },
+  {
+    "id": "wikipedia_distortion_magnification",
+    "title": "Magnification and minimization",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "magnification", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "Magnification inflates mistakes, flaws, or threats far beyond their real weight, while minimization shrinks strengths and successes down to nothing. Used together, they quietly tilt the whole picture of a situation — or of yourself — toward the negative, even when the underlying facts wouldn't support that on their own."
+  },
+  {
+    "id": "wikipedia_distortion_mental_filter",
+    "title": "Mental filter",
+    "category": "CBT",
+    "tags": ["cognitive-distortion", "mental-filter", "cbt"],
+    "source_url": "https://en.wikipedia.org/wiki/Cognitive_distortion",
+    "content": "A mental filter is fixating on one negative detail from an experience while screening out everything positive or neutral that also happened. A day with one difficult moment and several ordinary or good ones can end up remembered entirely by that one moment, simply because it was the loudest."
+  },
+  {
+    "id": "dbt_wise_mind_accepts",
+    "title": "Distracting with Wise Mind ACCEPTS",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "distraction"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "When a feeling is too intense to work through right now, deliberate distraction can buy you time rather than making things worse. Wise Mind ACCEPTS covers a range of options: Activities, Contributing to someone else, Comparisons to other hard moments you've survived, other Emotions (like a funny video), Pushing away the situation mentally for now, other Thoughts, and physical Sensations. The point isn't to avoid the feeling forever — it's to get through the next few minutes."
+  },
+  {
+    "id": "dbt_self_soothe",
+    "title": "Self-soothing with the five senses",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "self-soothe"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "Self-soothing means deliberately comforting yourself through your senses during a hard moment: a familiar smell, a warm drink, soft fabric against your skin, quiet music, or a calming image. It's a small, physical way of signaling safety to your body when your thoughts alone can't do it."
+  },
+  {
+    "id": "dbt_tipp",
+    "title": "TIPP: changing your body chemistry fast",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "tipp", "panic"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "TIPP is for when distress is high enough that thinking your way out isn't working. It stands for Temperature (like cold water on your face or wrists), Intense exercise (a short burst to burn off physical arousal), Paced breathing (slowing the exhale longer than the inhale), and Progressive muscle relaxation. These work on the body directly, which can bring intensity down faster than words can."
+  },
+  {
+    "id": "dbt_stop_skill",
+    "title": "STOP: pausing before reacting",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "impulse"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "STOP is a quick pause skill for the moment right before an impulsive reaction: Stop — don't act yet. Take a step back, physically or mentally. Observe what's happening, inside you and around you. Proceed only once you've actually thought about what would help. A few seconds of pause here can change what happens next."
+  },
+  {
+    "id": "dbt_radical_acceptance",
+    "title": "Radical acceptance",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "acceptance"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "Radical acceptance means fully accepting reality as it is right now, not because it's fair or okay, but because fighting a fact that's already true tends to add a second layer of suffering on top of the first. Accepting what happened doesn't mean approving of it or giving up on changing what comes next — it just stops the extra pain of denying what's already real."
+  },
+  {
+    "id": "dbt_pros_and_cons",
+    "title": "Weighing pros and cons before acting",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "decision"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "Before acting on an urge that could make things worse, it can help to briefly list the pros and cons — both of tolerating the distress and of giving in to the urge. Seeing it written out, even roughly, often makes the actual trade-off clearer than it feels in the heat of the moment."
+  },
+  {
+    "id": "dbt_improve_the_moment",
+    "title": "IMPROVE the moment",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "improve"],
+    "source_url": "https://dbtselfhelp.com/improve-the-moment/",
+    "content": "IMPROVE is a set of small ways to make a hard moment more bearable when you can't change it yet: Imagery (picture somewhere calming), finding Meaning even in the difficulty, Prayer or checking in with your own wise mind, Relaxation (breathing, a hot shower, music), One thing in the moment (full attention on just this), a brief mental Vacation, and Encouragement — talking to yourself the way you'd talk to someone you care about. Even a moment of relief is worth it, and you can repeat any of them."
+  },
+  {
+    "id": "act_about_flexibility",
+    "title": "What ACT is aiming for",
+    "category": "ACT",
+    "tags": ["act", "psychological-flexibility", "acceptance"],
+    "source_url": "https://contextualscience.org/about_act",
+    "content": "Acceptance and Commitment Therapy isn't about eliminating difficult thoughts and feelings — it's about changing your relationship to them so they get in the way less. The goal is psychological flexibility: being able to stay present with discomfort, hold difficult thoughts more lightly, and still act in line with what actually matters to you, rather than what your mind is telling you to avoid."
+  },
+  {
+    "id": "who_act_making_room",
+    "title": "Making room for difficult feelings",
+    "category": "ACT",
+    "tags": ["act", "acceptance", "feelings", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "Trying to push a difficult feeling away often makes it louder, not quieter. An alternative is making room for it — letting it be present without fighting it or acting on it immediately. This isn't resignation. It's freeing up the energy that fighting the feeling was using, so you have more available for something that actually helps."
+  },
+  {
+    "id": "who_act_unhooking",
+    "title": "Unhooking from a thought",
+    "category": "ACT",
+    "tags": ["act", "unhooking", "thoughts", "defusion", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "A thought like 'I always mess this up' can feel like a fact the moment it appears. Unhooking means noticing that it's just a thought passing through — not an instruction, not a verdict — and choosing your next action independent of it. It gets easier with practice, the same way any skill does."
+  },
+  {
+    "id": "sc_three_components",
+    "title": "The three parts of self-compassion",
+    "category": "Self-compassion",
+    "tags": ["self-compassion", "self-kindness", "common-humanity", "mindfulness"],
+    "source_url": "https://self-compassion.org/",
+    "content": "Self-compassion, as researcher Kristin Neff describes it, has three connected parts: self-kindness instead of harsh self-judgment, recognizing common humanity instead of feeling isolated in your struggle, and mindfulness instead of over-identifying with painful feelings. Together they offer a steadier way to meet a hard moment than either self-criticism or pushing feelings away."
+  },
+  {
+    "id": "sc_common_humanity",
+    "title": "You're not the only one",
+    "category": "Self-compassion",
+    "tags": ["self-compassion", "common-humanity", "isolation"],
+    "source_url": "https://self-compassion.org/",
+    "content": "Struggling can feel isolating, as if everyone else has it figured out and you're the exception. Common humanity is the reminder that imperfection, difficulty, and failure are part of being human, not evidence that something is uniquely wrong with you. That doesn't erase the difficulty — but it changes what the difficulty means about you."
+  },
+  {
+    "id": "sc_treat_like_a_friend",
+    "title": "Talking to yourself like you would a friend",
+    "category": "Self-compassion",
+    "tags": ["self-compassion", "self-kindness", "self-talk"],
+    "source_url": "https://self-compassion.org/",
+    "content": "One of the simplest tests for self-compassion is asking: would I say this to a friend who was going through the same thing? Most people are far gentler and more patient with others than with themselves. Practising even a slightly kinder inner voice — not a falsely positive one, just a fairer one — tends to change how setbacks land."
+  },
+  {
+    "id": "ba_core_idea",
+    "title": "Acting your way into a better mood",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "depression", "activity", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "Low mood often shrinks activity, and shrinking activity tends to lower mood further — a loop that can be hard to notice from the inside. Behavioural activation works from the outside in: rather than waiting to feel motivated before doing something, you do a small thing first and let the mood follow. It's a gentler ask than it sounds, because the actions can be genuinely small."
+  },
+  {
+    "id": "ba_monitor_mood",
+    "title": "Tracking activity and mood together",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "mood", "tracking", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "A useful starting point is simply noticing, for a few days, what you did and roughly how your mood felt during and after each thing. Patterns tend to show up quickly — certain activities reliably lift mood a little, others reliably flatten it further. You don't need to change anything yet, just see the pattern."
+  },
+  {
+    "id": "ba_pleasure_and_mastery",
+    "title": "Balancing pleasure and accomplishment",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "pleasure", "mastery", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "Activities worth scheduling tend to fall into two kinds: ones that feel good (a hobby, time with someone you like) and ones that give a sense of accomplishment (finishing a task, tidying one corner of a room). Depression tends to squeeze out both. Deliberately including a little of each, even in small doses, gives the day more to stand on."
+  },
+  {
+    "id": "ba_start_small",
+    "title": "Starting smaller than feels necessary",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "motivation", "small-steps", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "When everything feels heavy, the plan that actually works is usually smaller than the one that feels 'proper.' A five-minute version of a task still counts, and it's far more likely to actually happen than an ambitious version that keeps getting postponed. Momentum tends to build from completed small things, not from planned big ones."
+  },
+  {
+    "id": "ba_barriers",
+    "title": "Naming what's getting in the way",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "barriers", "problem-solving", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "If a planned activity keeps not happening, it's worth naming the specific thing in the way — tiredness, a practical obstacle, a feeling of pointlessness — rather than treating it as a general failure of willpower. A named barrier can usually be worked around or shrunk; a vague feeling of 'I just can't' is much harder to act on."
+  },
+  {
+    "id": "who_managing_change",
+    "title": "Handling uncertainty and change",
+    "category": "Routine",
+    "tags": ["change", "uncertainty", "stress", "adult", "teen"],
+    "source_url": "https://www.who.int/news-room/questions-and-answers/item/stress",
+    "content": "Periods of change or uncertainty are reliably harder on stress levels, even when the change itself is neutral or positive. Keeping a few small, predictable anchors — a regular meal time, a short daily routine, a check-in with someone you trust — can make an unpredictable stretch feel more manageable without requiring the uncertainty itself to resolve."
+  },
+  {
+    "id": "who_asking_for_help",
+    "title": "Asking for a specific kind of help",
+    "category": "Social support",
+    "tags": ["support", "connection", "asking-for-help", "adult", "teen"],
+    "source_url": "https://www.who.int/news-room/questions-and-answers/item/stress",
+    "content": "It's often easier for both people when a request for support is specific rather than general. 'Can you just listen for a bit, I don't need advice' or 'could you sit with me while I make this call' gives the other person something concrete to say yes to, and it's more likely to actually get you what you needed."
+  },
+  {
+    "id": "dbt_alternate_rebellion",
+    "title": "Alternate rebellion",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "urges"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "Sometimes an unhelpful urge is really an urge to rebel against a rule, a feeling, or a situation you didn't choose. Alternate rebellion means finding a way to express that same rebellious energy without the harmful action attached — something bold, loud, or unconventional that still leaves you okay afterward. The need to push back can be real even when the usual way of pushing back isn't safe."
+  },
+  {
+    "id": "dbt_mindful_of_thoughts",
+    "title": "Being mindful of your current thoughts",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "mindfulness", "thoughts"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "During a distressing moment, it can help to simply observe your own thoughts as they pass — not agreeing with them, not arguing with them, just noticing that they're there and that they're temporary. This is different from trying to think your way out of distress. It's stepping slightly to the side of your thoughts instead of being carried by them."
+  },
+  {
+    "id": "dbt_willingness_half_smile",
+    "title": "Willingness and the half-smile",
+    "category": "DBT",
+    "tags": ["dbt", "distress-tolerance", "acceptance"],
+    "source_url": "https://dbtselfhelp.com/dbt-skills-list/distress-tolerance/",
+    "content": "Willingness means meeting a difficult situation as it is, rather than bracing against it or fighting it internally — the opposite of a clenched, resistant stance. A small physical version of this is the half-smile: gently relaxing your facial muscles rather than tensing them, which can, in a small way, nudge your whole body out of fight mode."
+  },
+  {
+    "id": "act_committed_action",
+    "title": "Committed action",
+    "category": "ACT",
+    "tags": ["act", "values", "action", "commitment"],
+    "source_url": "https://contextualscience.org/about_act",
+    "content": "Committed action means continuing to act in line with what matters to you even when it's difficult, uncomfortable, or when motivation hasn't shown up yet. It isn't about willpower or forcing positivity — it's about choosing the next small step based on your values rather than on how you happen to feel in this particular moment."
+  },
+  {
+    "id": "sc_not_self_pity",
+    "title": "Self-compassion isn't self-pity",
+    "category": "Self-compassion",
+    "tags": ["self-compassion", "misconceptions"],
+    "source_url": "https://self-compassion.org/",
+    "content": "A common worry about self-compassion is that it's just an excuse to feel sorry for yourself or let standards slide. In practice it tends to do the opposite: people who treat themselves with more compassion are often more willing to acknowledge a mistake honestly, because acknowledging it doesn't come with a pile of self-punishment attached. It's closer to steadiness than indulgence."
+  },
+  {
+    "id": "nhs_reaching_out",
+    "title": "Talking about it, even when it's hard to start",
+    "category": "Social support",
+    "tags": ["communication", "support", "connection", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/",
+    "content": "Talking honestly about how you're doing is often the hardest first step, especially if it's not something you'd normally do. It doesn't have to be a big conversation — a short, plain sentence to one person you trust is enough to start. Most people find that saying it out loud, even briefly, takes some of the weight off the thought."
+  },
+  {
+    "id": "who_ordinary_moments_practice",
+    "title": "Practising skills before you need them",
+    "category": "Mindfulness",
+    "tags": ["mindfulness", "practice", "grounding", "adult", "teen"],
+    "source_url": "https://www.who.int/publications/i/item/9789240003927",
+    "content": "Grounding, noticing thoughts, and other coping skills are easier to use in a crisis if they're already familiar. Practising them during calm, ordinary moments — not just when things are hard — builds the habit so it's available automatically when you actually need it, rather than being one more thing to figure out under pressure."
+  },
+  {
+    "id": "ba_scheduling",
+    "title": "Putting activities on the calendar",
+    "category": "Behavioral Activation",
+    "tags": ["behavioral-activation", "planning", "routine", "adult"],
+    "source_url": "https://www.matrix.nhs.scot/explore-the-recommended-interventions-therapies/behavioural-activation/",
+    "content": "Intending to do something is easy to postpone indefinitely; scheduling it for a specific time makes it far more likely to happen. Treating a small planned activity — a walk, a call, ten minutes of tidying — with the same seriousness as an appointment removes the daily decision of 'should I do this now,' which is often where the plan quietly falls apart."
+  },
+  {
+    "id": "nhs_managing_change_routine",
+    "title": "Small routines during unpredictable times",
+    "category": "Routine",
+    "tags": ["routine", "change", "uncertainty", "adult", "teen"],
+    "source_url": "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/",
+    "content": "When the bigger picture feels unpredictable, small consistent routines — the same wake time, a regular meal, a short walk — give the day something steady to hold onto. They don't resolve the uncertainty, but they reduce the number of things being decided from scratch each day, which tends to lower the overall load."
   }
 ]

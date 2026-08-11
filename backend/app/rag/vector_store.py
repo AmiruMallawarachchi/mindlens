@@ -72,7 +72,19 @@ class TherapyVectorStore:
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
             embedding_function=self._embedding_function,
-            metadata={"hnsw:space": "cosine"},
+            # hnsw:search_ef defaults low enough (well under 20) that
+            # query_mmr's fetch_k=20 request on this small a corpus (67
+            # chunks) intermittently failed with hnswlib's "Cannot return
+            # the results in a contiguous 2D array. Probably ef or M is too
+            # small" -- the index just couldn't guarantee that many
+            # candidates at the default search width. 100 comfortably
+            # covers fetch_k with room to grow; hnsw:construction_ef raised
+            # to match for graph quality, both cheap at this corpus size.
+            metadata={
+                "hnsw:space": "cosine",
+                "hnsw:search_ef": 100,
+                "hnsw:construction_ef": 100,
+            },
         )
         logger.info(
             "ChromaDB connected: collection=%s count=%d",
@@ -189,7 +201,14 @@ class TherapyVectorStore:
         metadatas = results.get("metadatas", [[]])[0] or []
         embeddings = results.get("embeddings", [[]])[0]
 
-        if not docs or not embeddings:
+        # `embeddings` is a numpy.ndarray (chromadb returns query results
+        # this way), not a plain list — `not embeddings` on a multi-row array
+        # raises "truth value of an array... is ambiguous" rather than
+        # testing emptiness. This was never exercised until the vector store
+        # actually held data (see ingest.py's cwd-relative path fix): every
+        # real query hit this line and silently returned zero chunks via
+        # retriever.py's broad except.
+        if len(docs) == 0 or len(embeddings) == 0:
             return results
 
         # Convert distances to relevance scores (lower distance = higher relevance)
@@ -259,7 +278,7 @@ def get_vector_store() -> TherapyVectorStore:
     global _vector_store
     if _vector_store is None:
         _vector_store = TherapyVectorStore(
-            persist_directory=settings.chromadb_persist_dir,
+            persist_directory=settings.resolved_chromadb_persist_dir,
             collection_name=settings.rag_collection_name,
             embedding_model=settings.rag_embed_model,
         )
