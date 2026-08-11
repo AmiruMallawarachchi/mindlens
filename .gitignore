@@ -72,3 +72,7 @@ notebooks/*.ipynb
 notebooks/**/*.ipynb
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+
+# Pulled-back Kaggle kernel copies. Superseded by the canonical notebooks in
+# training/ — kept locally for reference, not worth 6.5MB in the repo.
+artifacts/
