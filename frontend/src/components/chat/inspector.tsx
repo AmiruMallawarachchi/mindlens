@@ -3,7 +3,7 @@
 /**
  * Inspector — design.md §4.1, fixed 336px, collapsible, hidden below 981px.
  *
- * Nimbus hero card, the emotion picker, today's weather, what we worked on,
+ * Companion hero card, the emotion picker, today's weather, what we worked on,
  * and the privacy note pinned to the bottom.
  */
 

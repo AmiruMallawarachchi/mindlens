@@ -4,19 +4,20 @@
  * The message flow — ported from the approved mockup (Mindlens Chat.dc.html).
  *
  * User turns: right-aligned bubbles with an asymmetric 18/18/5/18 radius and
- * the emotion read strip beneath. Assistant turns: no bubble — the Nimbus
+ * the emotion read strip beneath. Assistant turns: no bubble — the companion
  * blob avatar, the reasoning trail, editorial text, then a compact actions
  * row (Copy / Regenerate / Read aloud–soon) and any inline cards in a
  * two-column grid.
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, Copy, RefreshCw, Volume2 } from "lucide-react";
+import { BookOpen, Check, Copy, RefreshCw, Volume2 } from "lucide-react";
 import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { EmotionRead } from "./emotion-read";
 import { ReasoningTrail } from "./reasoning-trail";
 import { BreatheCard } from "./breathe-card";
 import { MusicCard } from "./music-card";
+import { createJournalEntry } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
 import { buildReasoningTrail } from "@/lib/reasoning";
 import type { ChatMessage } from "@/lib/types";
@@ -81,6 +82,10 @@ export function AssistantTurn({
   const music = message.music ?? null;
   const hasCards = offersBreathing || music !== null;
 
+  // The "asking" state — the companion tilts and a "?" blooms. Only once the
+  // reply is complete; mid-stream a trailing "?" isn't yet the final shape.
+  const endsInQuestion = !isStreaming && message.text.trimEnd().endsWith("?");
+
   if (message.kind === "error") {
     return (
       <div
@@ -94,14 +99,24 @@ export function AssistantTurn({
 
   return (
     <div className="flex w-full gap-3">
-      <div className="w-[30px] shrink-0 pt-0.5">
-        <CompanionAvatar companionId={companionId} size={30} mood={reading.state.id} activity={isStreaming ? "thinking" : "idle"} />
+      {/* 44px, matching the thinking row in chat-screen.tsx — the two sit in
+        * the same transcript gutter and must stay the same width. */}
+      <div className="w-[44px] shrink-0 pt-0.5">
+        {/* Crisis: the companion holds completely still — "safety kills the
+          * spectacle". `frozen` gates every animation, ambient and per-state. */}
+        <CompanionAvatar
+          companionId={companionId}
+          size={44}
+          mood={reading.state.id}
+          activity={isStreaming ? "thinking" : endsInQuestion ? "asking" : "idle"}
+          frozen={!!message.crisis}
+        />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3.5 pb-2">
         {steps.length > 0 && <ReasoningTrail steps={steps} isStreaming={isStreaming} />}
 
-        <p className="m-0 text-[14.5px] leading-[1.68]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
+        <p className="ml-display m-0 text-[19.5px] leading-[1.6]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
           {message.text}
           {isStreaming && (
             <span
@@ -127,11 +142,14 @@ export function AssistantTurn({
 }
 
 /**
- * Actions row from the mockup: Copy · Regenerate · Read aloud (soon).
- * Regenerate resends the previous user message — only offered on the last
- * assistant turn, where "try that again" has a well-defined meaning.
- * Read-aloud is explicitly labelled "soon" in the mockup; it's a visible
- * declared-future control there, so it renders disabled rather than hidden.
+ * Actions row from the mockup: Copy · save-to-journal · Regenerate · Read
+ * aloud (soon). Regenerate resends the previous user message — only offered
+ * on the last assistant turn, where "try that again" has a well-defined
+ * meaning. Read-aloud is explicitly labelled "soon" in the mockup; it's a
+ * visible declared-future control there, so it renders disabled rather than
+ * hidden. Save-to-journal uses the same journal CRUD the Journal page
+ * already calls (lib/api.ts's createJournalEntry) — this was the one action
+ * §4.1 lists that had no button anywhere.
  */
 function TurnActions({
   text,
@@ -141,6 +159,7 @@ function TurnActions({
   onRegenerate: (() => void) | null;
 }) {
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState<"idle" | "saving" | "done" | "error">("idle");
 
   const copy = useCallback(() => {
     navigator.clipboard
@@ -152,10 +171,27 @@ function TurnActions({
       .catch(() => setCopied(false));
   }, [text]);
 
+  const saveToJournal = useCallback(() => {
+    if (saved === "saving" || saved === "done") return;
+    setSaved("saving");
+    createJournalEntry({ text })
+      .then(() => setSaved("done"))
+      .catch(() => {
+        setSaved("error");
+        setTimeout(() => setSaved("idle"), 2200);
+      });
+  }, [text, saved]);
+
+  const journalTitle =
+    saved === "done" ? "Saved to journal" : saved === "error" ? "Couldn't save — try again" : "Save to journal";
+
   return (
     <div className="-my-1 flex gap-0.5">
       <ActionButton title={copied ? "Copied" : "Copy"} onClick={copy} active={copied}>
         {copied ? <Check size={13} strokeWidth={1.7} /> : <Copy size={13} strokeWidth={1.7} />}
+      </ActionButton>
+      <ActionButton title={journalTitle} onClick={saveToJournal} active={saved === "done"} disabled={saved === "saving"}>
+        {saved === "done" ? <Check size={13} strokeWidth={1.7} /> : <BookOpen size={13} strokeWidth={1.7} />}
       </ActionButton>
       {onRegenerate && (
         <ActionButton title="Regenerate" onClick={onRegenerate}>

@@ -25,6 +25,12 @@ export function MemoryPage() {
   const [editingPerson, setEditingPerson] = useState<string | null>(null);
   const [editRole, setEditRole] = useState("");
   const [editContext, setEditContext] = useState("");
+  // A "Forget" click arms that one item rather than deleting immediately —
+  // the second click within the window confirms. Proportionate friction for
+  // a single recoverable-ish item; the typed-password panel in Settings >
+  // Privacy is reserved for the one truly irreversible action (the account).
+  const [armedKey, setArmedKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     fetchMemory()
@@ -33,6 +39,24 @@ export function MemoryPage() {
   };
 
   useEffect(load, []);
+
+  /** Arms `key` on first call, runs `action` and disarms on the second
+   * (confirming) call. Surfaces a failure instead of leaving an unhandled
+   * rejection and a button stuck mid-delete. */
+  const confirmThenRun = async (key: string, action: () => Promise<unknown>) => {
+    if (armedKey !== key) {
+      setArmedKey(key);
+      return;
+    }
+    setArmedKey(null);
+    setError(null);
+    try {
+      await action();
+      load();
+    } catch {
+      setError("Couldn't forget that — try again.");
+    }
+  };
 
   if (memory === null) {
     return <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>Loading…</p>;
@@ -53,10 +77,8 @@ export function MemoryPage() {
   const notes = memory.raw_notes ?? [];
   const threadCount = people.length + triggerTopics.length + effectiveCoping.length + notes.length;
 
-  const forgetPerson = async (name: string) => {
-    await deleteMemoryEntry("people", name);
-    load();
-  };
+  const forgetPerson = (name: string) =>
+    confirmThenRun(`people:${name}`, () => deleteMemoryEntry("people", name));
 
   const savePersonEdit = async (name: string) => {
     const current = memory.people[name];
@@ -64,36 +86,39 @@ export function MemoryPage() {
       ...memory.people,
       [name]: { role: editRole, context: editContext, sentiment: current?.sentiment ?? "positive" },
     };
-    await updateMemoryPeople(updated);
-    setEditingPerson(null);
-    load();
+    setError(null);
+    try {
+      await updateMemoryPeople(updated);
+      setEditingPerson(null);
+      load();
+    } catch {
+      setError("Couldn't save that — try again.");
+    }
   };
 
-  const removeListItem = async (
+  const removeListItem = (
     section: "trigger_topics" | "effective_coping",
     value: string,
-  ) => {
-    await deleteMemoryEntry(section, value);
-    load();
-  };
+  ) => confirmThenRun(`${section}:${value}`, () => deleteMemoryEntry(section, value));
 
   const addNote = async () => {
     const text = noteDraft.trim();
     if (!text) return;
     setSavingNote(true);
+    setError(null);
     try {
       await addMemoryNote(text);
       setNoteDraft("");
       load();
+    } catch {
+      setError("Couldn't save that note — try again.");
     } finally {
       setSavingNote(false);
     }
   };
 
-  const forgetNote = async (noteId: string) => {
-    await deleteMemoryNote(noteId);
-    load();
-  };
+  const forgetNote = (noteId: string) =>
+    confirmThenRun(`notes:${noteId}`, () => deleteMemoryNote(noteId));
 
   return (
     <div className="flex flex-col gap-9">
@@ -106,6 +131,12 @@ export function MemoryPage() {
           Everything here is visible and editable — nothing is remembered without appearing on this page first. This is not a diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
         </p>
       </div>
+
+      {error && (
+        <p className="text-[12.5px]" style={{ color: "#e08a8a" }}>
+          {error}
+        </p>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
         <MemoryCategory title="Important people" empty={people.length === 0} emptyText="No one on file yet.">
@@ -157,8 +188,14 @@ export function MemoryPage() {
                       >
                         Edit
                       </button>
-                      <button type="button" onClick={() => forgetPerson(name)} className="text-[11.5px]" style={{ color: "#e08a8a" }}>
-                        Forget
+                      <button
+                        type="button"
+                        onClick={() => forgetPerson(name)}
+                        onBlur={() => setArmedKey((k) => (k === `people:${name}` ? null : k))}
+                        className="text-[11.5px] font-medium"
+                        style={{ color: "#e08a8a" }}
+                      >
+                        {armedKey === `people:${name}` ? "Click to confirm" : "Forget"}
                       </button>
                     </div>
                   </>
@@ -172,22 +209,40 @@ export function MemoryPage() {
       </div>
 
       <MemoryCategory title="What's been hard" icon={<MessageSquareWarning size={14} strokeWidth={1.8} />} empty={triggerTopics.length === 0} emptyText="Nothing flagged as a hard topic.">
-        <ChipList items={triggerTopics} onRemove={(v) => removeListItem("trigger_topics", v)} />
+        <ChipList
+          items={triggerTopics}
+          onRemove={(v) => removeListItem("trigger_topics", v)}
+          isArmed={(v) => armedKey === `trigger_topics:${v}`}
+        />
       </MemoryCategory>
 
       <MemoryCategory title="What's helped" icon={<Sparkles size={14} strokeWidth={1.8} />} empty={effectiveCoping.length === 0} emptyText="No coping strategies on file yet.">
-        <ChipList items={effectiveCoping} onRemove={(v) => removeListItem("effective_coping", v)} />
+        <ChipList
+          items={effectiveCoping}
+          onRemove={(v) => removeListItem("effective_coping", v)}
+          isArmed={(v) => armedKey === `effective_coping:${v}`}
+        />
       </MemoryCategory>
 
       <MemoryCategory title="Your notes" icon={<StickyNote size={14} strokeWidth={1.8} />} empty={notes.length === 0} emptyText="No notes yet.">
-        {notes.map((note) => (
-          <div key={note.note_id} className="flex items-start justify-between gap-3 rounded-[var(--r-13)] p-3" style={{ border: "1px solid var(--ml-hairline)" }}>
-            <p className="text-[13px] leading-[1.55]" style={{ color: "var(--ml-ink)" }}>{note.text}</p>
-            <button type="button" onClick={() => forgetNote(note.note_id)} aria-label="Delete note" style={{ color: "var(--ml-faint)" }}>
-              <Trash2 size={13} strokeWidth={1.8} />
-            </button>
-          </div>
-        ))}
+        {notes.map((note) => {
+          const key = `notes:${note.note_id}`;
+          return (
+            <div key={note.note_id} className="flex items-start justify-between gap-3 rounded-[var(--r-13)] p-3" style={{ border: "1px solid var(--ml-hairline)" }}>
+              <p className="text-[13px] leading-[1.55]" style={{ color: "var(--ml-ink)" }}>{note.text}</p>
+              <button
+                type="button"
+                onClick={() => forgetNote(note.note_id)}
+                onBlur={() => setArmedKey((k) => (k === key ? null : k))}
+                aria-label={armedKey === key ? `Click to confirm forgetting this note` : "Delete note"}
+                className="shrink-0"
+                style={{ color: armedKey === key ? "#e08a8a" : "var(--ml-faint)" }}
+              >
+                {armedKey === key ? <span className="text-[11px] font-medium">Confirm</span> : <Trash2 size={13} strokeWidth={1.8} />}
+              </button>
+            </div>
+          );
+        })}
         <div className="mt-1 flex gap-2">
           <input
             value={noteDraft}
@@ -286,28 +341,44 @@ function TheLoom({ threadCount }: { threadCount: number }) {
       </div>
       <p className="text-[11.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
         {threadCount > 0
-          ? `${threadCount} thread${threadCount === 1 ? "" : "s"} so far. Every person and worry you mention becomes one — the fabric only grows.`
-          : "Every person and worry you mention becomes a thread. Nothing is remembered without appearing here first."}
+          ? `${threadCount} thread${threadCount === 1 ? "" : "s"} so far. A person, a hard topic, or something that helped can turn into one as you talk — or add one yourself below.`
+          : "Nothing on file yet. Mention someone or something that helped as you talk, or add one yourself below."}
       </p>
     </div>
   );
 }
 
-function ChipList({ items, onRemove }: { items: string[]; onRemove: (value: string) => void }) {
+function ChipList({
+  items,
+  onRemove,
+  isArmed,
+}: {
+  items: string[];
+  onRemove: (value: string) => void;
+  isArmed: (value: string) => boolean;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
+      {items.map((item) => {
+        const armed = isArmed(item);
+        return (
         <span
           key={item}
           className="inline-flex items-center gap-1.5 rounded-[99px] py-1.5 pl-3 pr-2 text-[12.5px]"
-          style={{ border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
+          style={{ border: armed ? "1px solid #e08a8a" : "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
         >
           {item}
-          <button type="button" onClick={() => onRemove(item)} aria-label={`Forget ${item}`} style={{ color: "var(--ml-faint)" }}>
-            <X size={12} strokeWidth={2} />
+          <button
+            type="button"
+            onClick={() => onRemove(item)}
+            aria-label={armed ? `Click to confirm forgetting ${item}` : `Forget ${item}`}
+            style={{ color: armed ? "#e08a8a" : "var(--ml-faint)" }}
+          >
+            {armed ? <span className="text-[10.5px] font-medium">Confirm</span> : <X size={12} strokeWidth={2} />}
           </button>
         </span>
-      ))}
+        );
+      })}
     </div>
   );
 }

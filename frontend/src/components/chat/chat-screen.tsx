@@ -27,6 +27,7 @@ import { Inspector } from "./inspector";
 import { AssistantTurn, UserTurn } from "./message-flow";
 import { ReasoningTrail } from "./reasoning-trail";
 import {
+  capIntensity,
   EMOTION_STATES,
   emotionCssVars,
   RESTING_READING,
@@ -64,10 +65,12 @@ export function ChatScreen({
     previewMode,
     companionId,
     companionName,
+    intensityCap,
   } = client;
 
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [typing, setTyping] = useState(false);
+  const [sending, setSending] = useState(false);
   const [manualEmotion, setManualEmotion] = useState<EmotionId | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
@@ -105,11 +108,19 @@ export function ChatScreen({
 
   const activeSession = sessions.find((s) => s.session_id === activeSessionId);
   const title = activeSession?.title ?? "A new conversation";
+  const cappedPalette = useMemo(
+    () => capIntensity(paletteColour, intensityCap),
+    [paletteColour, intensityCap],
+  );
 
   const handleSend = useCallback(
     (text: string) => {
       sendMessage(text);
       setTyping(false);
+      // The "sending" pose is a single pop, not a loop — it holds just long
+      // enough to read, then the companion returns to the transcript.
+      setSending(true);
+      window.setTimeout(() => setSending(false), 700);
     },
     [sendMessage],
   );
@@ -123,9 +134,9 @@ export function ChatScreen({
       // Colour comes from paletteReading, not reading: in manual mode the
       // user has pinned the palette, and crisis freezes the field to neutral
       // regardless. The read strip and inspector still show the real verdict.
-      style={emotionCssVars(paletteColour) as React.CSSProperties}
+      style={emotionCssVars(cappedPalette) as React.CSSProperties}
     >
-      <EmotionField reading={paletteColour} />
+      <EmotionField reading={cappedPalette} />
 
       <div className="hidden min-[780px]:block">
         <ChatSidebar
@@ -271,8 +282,10 @@ export function ChatScreen({
              * its working rather than an anonymous typing dot. */}
             {thinking && !streamingId && thinkingSteps.length > 0 && (
               <div className="flex w-full gap-3">
-                <div className="w-[30px] shrink-0">
-                  <CompanionAvatar companionId={companionId} size={30} mood={reading.state.id} activity="thinking" />
+                {/* Same 44px gutter as an assistant turn (message-flow.tsx),
+                  * so the trail doesn't jump sideways when the text arrives. */}
+                <div className="w-[44px] shrink-0">
+                  <CompanionAvatar companionId={companionId} size={44} mood={reading.state.id} activity="thinking" frozen={!!crisis} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <ReasoningTrail steps={thinkingSteps} isStreaming />
@@ -314,11 +327,18 @@ export function ChatScreen({
         </div>
       )}
 
-      {/* The companion leans toward the composer while the user types (§3).
-       * Kept out of the message flow so it doesn't shift the transcript. */}
+      {/* The companion leans toward the composer while the user types, then
+       * pops once as the message goes. Kept out of the message flow so it
+       * doesn't shift the transcript. */}
       <span className="pointer-events-none fixed bottom-28 right-[360px] hidden min-[981px]:block">
-        {typing && !crisis && (
-          <CompanionAvatar companionId={companionId} size={56} mood={reading.state.id} activity="listening" withShadow />
+        {(typing || sending) && !crisis && (
+          <CompanionAvatar
+            companionId={companionId}
+            size={56}
+            mood={reading.state.id}
+            activity={sending ? "sending" : "listening"}
+            withShadow
+          />
         )}
       </span>
     </div>

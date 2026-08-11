@@ -61,11 +61,46 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The access token is short-lived (backend: `jwt_expire_minutes`, 15 by
+ * default) on purpose. The refresh token is a 7-day httpOnly cookie the
+ * backend already sets on login/register/onboarding — `/api/v1/auth/refresh`
+ * exchanges it for a new access token — but nothing ever called it, so every
+ * session died after 15 minutes and dropped the user back to the login
+ * screen regardless of how recently they'd signed in. This is the one call
+ * in the module that needs the cookie, so it opts into `credentials:
+ * "include"` rather than the header comment's `omit` — the cookie is scoped
+ * to `/api/v1/auth` and same-site in dev (`SameSite=Lax`), cross-site+Secure
+ * in production, so it survives the fetch without needing anything else
+ * here to change.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        const data = (await response.json()) as { access_token: string };
+        setAccessToken(data.access_token);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
 async function request<T>(
   path: string,
-  init: RequestInit & { auth?: boolean } = {},
+  init: RequestInit & { auth?: boolean; _retried?: boolean } = {},
 ): Promise<T> {
-  const { auth = true, ...rest } = init;
+  const { auth = true, _retried = false, ...rest } = init;
   const headers = new Headers(rest.headers);
   headers.set("Content-Type", "application/json");
   if (auth) {
@@ -73,17 +108,56 @@ async function request<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers,
-    credentials: "omit",
-  });
+  // `fetch` only rejects when no HTTP response happened at all — the device is
+  // offline, DNS failed, or nothing is listening on API_BASE_URL. Left bare,
+  // that surfaced through callers' generic fallbacks ("Could not sign in."),
+  // which reads as a rejected password and sends people to check credentials
+  // that were never actually sent. Status 0 means "never reached the server",
+  // so it can't be confused with a real 401.
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers,
+      credentials: "omit",
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      typeof navigator !== "undefined" && !navigator.onLine
+        ? "You're offline. Check your connection and try again."
+        : "Couldn't reach Mindlens. It may be down — try again in a moment.",
+    );
+  }
+
+  if (response.status === 401 && auth && !_retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return request<T>(path, { ...init, _retried: true });
+  }
 
   if (!response.ok) {
     let detail = response.statusText;
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      if (typeof body?.detail === "string") {
+        detail = body.detail;
+      } else if (Array.isArray(body?.detail)) {
+        // FastAPI's own 422s (pydantic validation failures) shape `detail`
+        // as a list of {msg, loc, ...} objects, not a string — the check
+        // above always missed it, so every validation error in the app
+        // surfaced as the raw HTTP reason phrase ("Unprocessable Entity")
+        // instead of what actually failed ("value is not a valid email
+        // address: ..."). Join every message rather than just the first,
+        // since a single request can fail more than one field at once.
+        const messages = body.detail
+          .map((item: unknown) =>
+            typeof item === "object" && item !== null && "msg" in item
+              ? String((item as { msg: unknown }).msg)
+              : null,
+          )
+          .filter((msg: string | null): msg is string => Boolean(msg));
+        if (messages.length > 0) detail = messages.join(" ");
+      }
     } catch {
       // Body wasn't JSON — keep the status text.
     }

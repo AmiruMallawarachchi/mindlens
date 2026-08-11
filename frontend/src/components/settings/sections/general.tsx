@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { LANGUAGES, PERSONALITIES } from "@/lib/personalities";
+import { PERSONALITIES } from "@/lib/personalities";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 import type { MemoryPreferences } from "@/lib/types";
 import { Row, SaveBar, Select, SettingsGroup, SettingsHeading, TextInput } from "../ui";
@@ -16,7 +16,6 @@ import { usePrefs } from "../use-prefs";
 const KEYS: (keyof MemoryPreferences)[] = [
   "personality",
   "custom_instructions",
-  "language",
   "tone_preference",
 ];
 
@@ -109,18 +108,6 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
               value={(draft.tone_preference ?? "balanced") as string}
               options={TONES.map((t) => ({ id: t.id as string, label: t.label, hint: t.hint }))}
               onChange={(id) => set("tone_preference", id as MemoryPreferences["tone_preference"])}
-            />
-          }
-        />
-        <Row
-          label="Language"
-          description="Mindlens replies in this language."
-          control={
-            <Select
-              ariaLabel="Language"
-              value={(draft.language ?? "en") as string}
-              options={LANGUAGES}
-              onChange={(id) => set("language", id)}
             />
           }
         />

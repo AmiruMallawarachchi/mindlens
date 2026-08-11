@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthGate } from "./auth-gate";
 import { ChatScreen } from "./chat/chat-screen";
 import { MindlensMark } from "./brand/wordmark";
@@ -19,6 +20,10 @@ export function MindLensApp() {
   const client = useMindLensClient();
   const [view, setView] = useState<View>("chat");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Home's "Sign up" link (/app?auth=register) should land on the register
+  // tab, not the login one AuthGate defaults to.
+  const searchParams = useSearchParams();
+  const initialAuthMode = searchParams.get("auth") === "register" ? "register" : "login";
 
   if (client.authStatus === "onboarding" && client.user) {
     return (
@@ -50,6 +55,7 @@ export function MindLensApp() {
             error={client.authError}
             onLogin={client.login}
             onRegister={client.register}
+            initialMode={initialAuthMode}
           />
         )}
       </main>

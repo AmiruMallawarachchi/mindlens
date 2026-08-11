@@ -77,7 +77,7 @@ export function useMindLensClient() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  // The user's chosen companion (lib/companions.ts) — defaults to Nimbus
+  // The user's chosen companion (lib/companions.ts) — defaults to Ember
   // until (if) the real preference loads, so chat never waits on this fetch.
   const [companionId, setCompanionId] = useState<CompanionId>(DEFAULT_COMPANION_ID);
   const [companionName, setCompanionName] = useState<string>(getCompanion(DEFAULT_COMPANION_ID).name);
@@ -85,6 +85,9 @@ export function useMindLensClient() {
   // stops tracking the conversation; the read itself is unaffected.
   const [paletteMode, setPaletteMode] = useState<"auto" | "manual">("auto");
   const [manualPalette, setManualPalette] = useState<EmotionId>("calm");
+  // Settings > Appearance > Intensity — caps field opacity, glow radius,
+  // companion amplitude and accent saturation together (design.md §2).
+  const [intensityCap, setIntensityCap] = useState<number>(1);
 
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("idle");
@@ -253,7 +256,7 @@ export function useMindLensClient() {
   }, []);
 
   // --- Companion preference: fetched once, so chat renders the user's
-  // actual chosen shape/name instead of always defaulting to Nimbus. -------
+  // actual chosen shape/name instead of always defaulting to Ember. -------
   useEffect(() => {
     if (authStatus !== "ready" || PREVIEW_MODE) return;
     let cancelled = false;
@@ -267,9 +270,12 @@ export function useMindLensClient() {
         if (doc.preferences?.manual_palette && doc.preferences.manual_palette in EMOTION_STATES) {
           setManualPalette(doc.preferences.manual_palette as EmotionId);
         }
+        if (typeof doc.preferences?.intensity_cap === "number") {
+          setIntensityCap(doc.preferences.intensity_cap);
+        }
       })
       .catch(() => {
-        // No memory doc yet, or the fetch failed — Nimbus default stands.
+        // No memory doc yet, or the fetch failed — the Ember default stands.
       });
     return () => {
       cancelled = true;
@@ -290,6 +296,12 @@ export function useMindLensClient() {
   const applyPalettePreference = useCallback((mode: "auto" | "manual", palette: EmotionId) => {
     setPaletteMode(mode);
     setManualPalette(palette);
+  }, []);
+
+  /** Same contract — applied immediately on save rather than waiting on a
+   * refetch, so dragging the slider down visibly calms the room right away. */
+  const applyIntensityCap = useCallback((cap: number) => {
+    setIntensityCap(cap);
   }, []);
 
   /** Rename yourself. Updates the user record and refreshes local state so
@@ -324,13 +336,38 @@ export function useMindLensClient() {
         if (cancelled) return;
         setMessages(hydrateMessages(detail.turns));
       } else {
-        const created = await createSession();
+        // No specific session requested — either a fresh mount, or "New
+        // conversation" while already on one. Either way, reuse the most
+        // recent session if it's still empty rather than creating another:
+        // otherwise every reload (and every "New conversation" click on an
+        // already-empty chat) left one more untouched session behind,
+        // inflating the sidebar and dashboard.py's session_count gate.
+        const existing = await listSessions();
         if (cancelled) return;
-        targetId = created.session_id;
+        const reusable = existing[0]?.turn_count === 0 ? existing[0] : null;
+        targetId = reusable ? reusable.session_id : (await createSession()).session_id;
+        if (cancelled) return;
       }
 
       setActiveSessionId(targetId);
       refreshSessions();
+
+      // The WebSocket auths once at handshake and is never re-checked (see
+      // chat.py: token is verified on connect only), so unlike a REST call
+      // it can't recover from an expired access token by itself. A cheap
+      // authenticated call first guarantees `request()`'s 401-refresh path
+      // (lib/api.ts) has run and localStorage holds a live token before the
+      // socket reads it — otherwise reopening chat after >15 minutes idle
+      // (a reload, or switching sessions) would hand the socket a token
+      // that's already dead on arrival.
+      try {
+        await fetchMe();
+      } catch {
+        // Both tokens are gone — the mount-time auth check will already be
+        // routing this user back to the login screen; nothing to connect to.
+        return;
+      }
+      if (cancelled) return;
 
       const token = getAccessToken();
       if (!token) return;
@@ -536,6 +573,8 @@ export function useMindLensClient() {
     companionName,
     applyCompanionPreference,
     applyPalettePreference,
+    intensityCap,
+    applyIntensityCap,
     saveNickname,
   };
 }

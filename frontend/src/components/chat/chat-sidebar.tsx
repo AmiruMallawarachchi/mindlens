@@ -11,10 +11,10 @@ import { useEffect } from "react";
 import {
   BookOpen,
   Brain,
-  ChevronsLeft,
-  ChevronsRight,
   LineChart,
   MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Settings2,
   ShieldCheck,
@@ -155,7 +155,7 @@ export function ChatSidebar({
               className="grid size-8 place-items-center rounded-full transition-colors hover:bg-white/[0.06]"
               style={{ color: "var(--ml-faint)" }}
             >
-              <ChevronsRight size={15} strokeWidth={1.7} />
+              <PanelLeftOpen size={15} strokeWidth={1.7} />
             </button>
           )}
           <span
@@ -189,7 +189,7 @@ export function ChatSidebar({
             className="grid size-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-white/[0.06]"
             style={{ color: "var(--ml-faint)" }}
           >
-            <ChevronsLeft size={14} strokeWidth={1.7} />
+            <PanelLeftClose size={14} strokeWidth={1.7} />
           </button>
         )}
       </div>
@@ -198,7 +198,7 @@ export function ChatSidebar({
         <button
           type="button"
           onClick={onNewConversation}
-          className="flex w-full items-center gap-2 rounded-[var(--r-13)] px-3.5 py-2.5 text-[13px] font-medium transition-transform hover:scale-[1.015] active:scale-[0.99]"
+          className="flex w-full items-center gap-2.5 rounded-[var(--r-13)] px-3.5 py-2.5 text-[13px] font-medium leading-none transition-transform hover:scale-[1.015] active:scale-[0.99]"
           style={{
             background:
               "linear-gradient(135deg, color-mix(in oklab, var(--e1) 26%, transparent), color-mix(in oklab, var(--e2) 18%, transparent))",
@@ -206,9 +206,9 @@ export function ChatSidebar({
             color: "var(--ml-ink)",
           }}
         >
-          <Plus size={15} strokeWidth={1.7} />
-          New conversation
-          <span className="ml-num ml-auto text-[10px]" style={{ opacity: 0.5 }}>
+          <Plus size={15} strokeWidth={1.7} className="shrink-0" />
+          <span className="truncate">New conversation</span>
+          <span className="ml-num ml-auto shrink-0 text-[10px] leading-none" style={{ opacity: 0.5 }}>
             ⌘K
           </span>
         </button>

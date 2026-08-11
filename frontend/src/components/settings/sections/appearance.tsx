@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { CompanionAvatar } from "@/components/companion/companion-avatar";
-import { COMPANIONS, getCompanion, type CompanionId } from "@/lib/companions";
+import { COMPANIONS, DEFAULT_COMPANION_ID, getCompanion, type CompanionId } from "@/lib/companions";
 import { EMOTION_ORDER, EMOTION_STATES, type EmotionId } from "@/lib/emotion";
 import type { MemoryPreferences } from "@/lib/types";
 import { useGrade } from "@/lib/use-grade";
@@ -25,10 +25,11 @@ const KEYS: (keyof MemoryPreferences)[] = [
   "companion_name",
   "palette_mode",
   "manual_palette",
+  "intensity_cap",
 ];
 
 export function AppearanceSection({ client }: { client: MindLensClient }) {
-  const { isDay, setGrade } = useGrade();
+  const { mode, setMode } = useGrade();
   const { draft, set, save, isDirty, loading, saving, justSaved, error } = usePrefs();
   const [nameTouched, setNameTouched] = useState(false);
 
@@ -36,10 +37,11 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
     return <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>Loading…</p>;
   }
 
-  const companionId = (draft.companion_id ?? "nimbus") as CompanionId;
+  const companionId = (draft.companion_id ?? DEFAULT_COMPANION_ID) as CompanionId;
   const companionName = draft.companion_name ?? getCompanion(companionId).name;
   const paletteMode = draft.palette_mode ?? "auto";
   const manualPalette = draft.manual_palette ?? "calm";
+  const intensityCap = draft.intensity_cap ?? 1;
 
   const pickCompanion = (id: CompanionId) => {
     // Only auto-rename while the name is still a cast default — once someone
@@ -54,6 +56,7 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
     await save(KEYS);
     client.applyCompanionPreference(companionId, companionName.trim() || getCompanion(companionId).name);
     client.applyPalettePreference(paletteMode, manualPalette as EmotionId);
+    client.applyIntensityCap(intensityCap);
   };
 
   return (
@@ -62,27 +65,31 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
 
       <SettingsGroup title="Theme">
         <Row
-          label="Day or night"
-          description="Applies everywhere, including the marketing site."
+          label="Light, dark, or auto"
+          description={
+            mode === "auto"
+              ? "Auto — follows your system's setting, everywhere including the marketing site."
+              : "Applies everywhere, including the marketing site."
+          }
           control={
             <div
               className="inline-flex rounded-[99px] p-1"
               style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
             >
-              {(["day", "night"] as const).map((mode) => {
-                const active = (mode === "day") === isDay;
+              {(["day", "night", "auto"] as const).map((option) => {
+                const active = mode === option;
                 return (
                   <button
-                    key={mode}
+                    key={option}
                     type="button"
-                    onClick={() => setGrade(mode)}
+                    onClick={() => setMode(option)}
                     className="rounded-[99px] px-4 py-1.5 text-[12.5px] font-medium capitalize transition-colors"
                     style={{
                       background: active ? "var(--ml-ink)" : "transparent",
                       color: active ? "var(--ml-canvas)" : "var(--ml-muted)",
                     }}
                   >
-                    {mode}
+                    {option === "day" ? "Light" : option === "night" ? "Dark" : "Auto"}
                   </button>
                 );
               })}
@@ -94,7 +101,7 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
       <SettingsGroup title="Companion">
         <Row
           label="Who's with you"
-          description="Ten shapes, one job — the one you pick is who shows up in chat."
+          description="Five companions, one job — the one you pick is who shows up in chat."
           stacked
           control={
             <div className="grid grid-cols-5 gap-2.5">
@@ -106,6 +113,7 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
                     type="button"
                     onClick={() => pickCompanion(companion.id)}
                     title={companion.tagline}
+                    aria-pressed={active}
                     className="flex flex-col items-center gap-2 rounded-[var(--r-13)] p-3 text-center transition-colors"
                     style={{
                       border: active ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
@@ -114,9 +122,12 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
                         : "var(--ml-panel)",
                     }}
                   >
-                    <CompanionAvatar companionId={companion.id} size={34} />
+                    <CompanionAvatar companionId={companion.id} size={44} />
                     <span className="text-[11.5px]" style={{ color: "var(--ml-ink)" }}>
                       {companion.name}
+                    </span>
+                    <span className="text-[9.5px] leading-[1.5]" style={{ color: "var(--ml-faint)" }}>
+                      {companion.words}
                     </span>
                   </button>
                 );
@@ -215,6 +226,27 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
             }
           />
         )}
+
+        <Row
+          label="Intensity"
+          description={
+            intensityCap >= 1
+              ? "Uncapped — the room can go as vivid as the read gets."
+              : `Capped at ${intensityCap.toFixed(1)}. At 0.1 the room is barely tinted; at 1.0 the field and companion agree with the read.`
+          }
+          control={
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.1}
+              value={intensityCap}
+              aria-label="Intensity cap"
+              onChange={(e) => set("intensity_cap", Number(e.target.value))}
+              className="w-[160px] accent-[var(--e1)]"
+            />
+          }
+        />
       </SettingsGroup>
 
       {error && (

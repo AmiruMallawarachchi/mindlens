@@ -3,7 +3,7 @@
 /**
  * Scroll reveal — the mockup (Mindlens Home.dc.html) uses GSAP+ScrollTrigger
  * for its "fade up once, on entering view" sections. motion/react is already
- * a dependency for the whole app (Nimbus, cards), so this reproduces the
+ * a dependency for the whole app (the companion, cards), so this reproduces the
  * same one-time reveal with `whileInView` instead of adding a second
  * animation library for one page.
  */

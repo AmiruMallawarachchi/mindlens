@@ -4,14 +4,23 @@
  * Journal — design.md §4.2: prompt hero ("A prompt for today" + Start
  * writing), recent-entries grid, new entry composer. Backed by the real
  * journal CRUD + daily-prompt endpoints.
+ *
+ * Entries are openable, editable and deletable — updateJournalEntry and
+ * deleteJournalEntry already existed in lib/api.ts with nothing in the UI
+ * calling them, which meant a user's own writing could go in but never come
+ * back out. The composer now serves both "new" and "edit" through the same
+ * form, keyed on `editingId`.
  */
 
 import { useEffect, useState } from "react";
-import { BookOpenText, PenLine, X } from "lucide-react";
+import { BookOpenText, PenLine, Trash2, X } from "lucide-react";
 import {
   createJournalEntry,
+  deleteJournalEntry,
   fetchJournalPrompt,
+  getJournalEntry,
   listJournalEntries,
+  updateJournalEntry,
 } from "@/lib/api";
 import type { JournalEntrySummary, JournalPrompt } from "@/lib/types";
 
@@ -19,10 +28,14 @@ export function JournalPage() {
   const [prompt, setPrompt] = useState<JournalPrompt | null>(null);
   const [entries, setEntries] = useState<JournalEntrySummary[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [composerError, setComposerError] = useState<string | null>(null);
 
   const load = () => {
     Promise.all([fetchJournalPrompt(), listJournalEntries(30)])
@@ -35,29 +48,76 @@ export function JournalPage() {
 
   useEffect(load, []);
 
-  const openComposer = (usePrompt = false) => {
+  const openNewEntry = () => {
+    setEditingId(null);
     setDraftText("");
     setDraftTitle("");
+    setDeleteArmed(false);
+    setComposerError(null);
     setComposerOpen(true);
-    if (usePrompt && prompt) setDraftTitle("");
+  };
+
+  const openExistingEntry = async (entryId: string) => {
+    setEditingId(entryId);
+    setDraftText("");
+    setDraftTitle("");
+    setDeleteArmed(false);
+    setComposerError(null);
+    setComposerOpen(true);
+    try {
+      const full = await getJournalEntry(entryId);
+      setDraftTitle(full.title ?? "");
+      setDraftText(full.text);
+    } catch {
+      setComposerError("Couldn't load that entry.");
+    }
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    setDeleteArmed(false);
   };
 
   const save = async () => {
     const text = draftText.trim();
     if (!text) return;
     setSaving(true);
+    setComposerError(null);
     try {
-      await createJournalEntry({
-        title: draftTitle.trim() || undefined,
-        text,
-        prompt_used: prompt?.prompt,
-      });
-      setComposerOpen(false);
+      if (editingId) {
+        await updateJournalEntry(editingId, { title: draftTitle.trim() || null, text });
+      } else {
+        await createJournalEntry({
+          title: draftTitle.trim() || undefined,
+          text,
+          prompt_used: prompt?.prompt,
+        });
+      }
+      closeComposer();
       load();
     } catch {
-      setError("Couldn't save that entry — try again.");
+      setComposerError("Couldn't save that entry — try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!editingId) return;
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
+    setDeleting(true);
+    setComposerError(null);
+    try {
+      await deleteJournalEntry(editingId);
+      closeComposer();
+      load();
+    } catch {
+      setComposerError("Couldn't delete that entry — try again.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -85,7 +145,7 @@ export function JournalPage() {
         </p>
         <button
           type="button"
-          onClick={() => openComposer(true)}
+          onClick={openNewEntry}
           className="inline-flex items-center gap-2 rounded-[99px] px-5 py-2.5 text-[13px] font-medium"
           style={{
             background: "linear-gradient(135deg, var(--e1), var(--e2))",
@@ -103,7 +163,7 @@ export function JournalPage() {
           <p className="ml-eyebrow">Recent entries</p>
           <button
             type="button"
-            onClick={() => openComposer(false)}
+            onClick={openNewEntry}
             className="text-[12px] font-medium"
             style={{ color: "var(--e1)" }}
           >
@@ -127,9 +187,11 @@ export function JournalPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-3">
             {entries.map((entry) => (
-              <div
+              <button
                 key={entry.entry_id}
-                className="flex flex-col gap-2 rounded-[var(--r-16)] p-4"
+                type="button"
+                onClick={() => openExistingEntry(entry.entry_id)}
+                className="flex flex-col gap-2 rounded-[var(--r-16)] p-4 text-left transition-colors hover:border-[var(--ml-hairline-strong)]"
                 style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
               >
                 <span className="ml-num text-[10.5px]" style={{ color: "var(--ml-faint)" }}>
@@ -141,7 +203,7 @@ export function JournalPage() {
                 <p className="text-[12.5px] leading-[1.55]" style={{ color: "var(--ml-muted)" }}>
                   {entry.excerpt}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -154,8 +216,8 @@ export function JournalPage() {
             style={{ background: "var(--ml-panel-legible)" }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <p className="ml-eyebrow">New entry</p>
-              <button type="button" onClick={() => setComposerOpen(false)} aria-label="Close" style={{ color: "var(--ml-faint)" }}>
+              <p className="ml-eyebrow">{editingId ? "Edit entry" : "New entry"}</p>
+              <button type="button" onClick={closeComposer} aria-label="Close" style={{ color: "var(--ml-faint)" }}>
                 <X size={16} strokeWidth={1.8} />
               </button>
             </div>
@@ -175,24 +237,47 @@ export function JournalPage() {
               className="w-full resize-none bg-transparent text-[14.5px] leading-[1.6] outline-none"
               style={{ color: "var(--ml-ink)" }}
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setComposerOpen(false)}
-                className="rounded-[99px] px-4 py-2 text-[12.5px]"
-                style={{ border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-muted)" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving || !draftText.trim()}
-                className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium disabled:opacity-50"
-                style={{ background: "linear-gradient(135deg, var(--e1), var(--e2))", color: "#fffdf8" }}
-              >
-                {saving ? "Saving…" : "Save entry"}
-              </button>
+            {composerError && (
+              <p className="mt-2 text-[12px]" style={{ color: "#e08a8a" }}>{composerError}</p>
+            )}
+            <div className="mt-4 flex items-center justify-between gap-2">
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  onBlur={() => setDeleteArmed(false)}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded-[99px] px-3 py-2 text-[12px] font-medium disabled:opacity-50"
+                  style={{
+                    color: "#e08a8a",
+                    border: deleteArmed ? "1px solid #e08a8a" : "1px solid transparent",
+                  }}
+                >
+                  <Trash2 size={13} strokeWidth={1.8} />
+                  {deleteArmed ? "Click to confirm delete" : "Delete entry"}
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={closeComposer}
+                  className="rounded-[99px] px-4 py-2 text-[12.5px]"
+                  style={{ border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-muted)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving || !draftText.trim()}
+                  className="rounded-[99px] px-4 py-2 text-[12.5px] font-medium disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, var(--e1), var(--e2))", color: "#fffdf8" }}
+                >
+                  {saving ? "Saving…" : "Save entry"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

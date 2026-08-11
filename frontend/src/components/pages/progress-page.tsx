@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Heart, MessageCircle, TrendingDown, TrendingUp } from "lucide-react";
-import { fetchMoodLogs, fetchProgressInsight } from "@/lib/api";
+import { fetchDashboardSummary, fetchMoodLogs, fetchProgressInsight } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
 import type { MoodLogEntry, ProgressInsight } from "@/lib/types";
 
@@ -25,6 +25,7 @@ export function ProgressPage() {
   const [moodsError, setMoodsError] = useState<string | null>(null);
   const [insight, setInsight] = useState<ProgressInsight | null>(null);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [sessionCount, setSessionCount] = useState<number | null>(null);
 
   // Two independent data sources — a failure in one (e.g. the insight
   // endpoint's occasional LLM call timing out) must not blank out mood data
@@ -47,6 +48,23 @@ export function ProgressPage() {
     fetchProgressInsight()
       .then((data) => !cancelled && setInsight(data))
       .catch(() => !cancelled && setInsightError("Couldn't load your weekly insight."));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The real session count (dashboard.py: db.sessions.count_documents),
+  // not a proxy — this card used to count distinct mood-log dates, which
+  // undercounts multiple sessions on the same day and is a different number
+  // from what the >=7-session insight gate actually checks.
+  useEffect(() => {
+    let cancelled = false;
+    fetchDashboardSummary()
+      .then((data) => !cancelled && setSessionCount(data.session_count))
+      .catch(() => {
+        // Silent — the card just falls back to "—"; a third failing request
+        // shouldn't add a third error banner to this page.
+      });
     return () => {
       cancelled = true;
     };
@@ -113,7 +131,7 @@ export function ProgressPage() {
         <MetricCard
           icon={<MessageCircle size={17} strokeWidth={1.7} style={{ color: "var(--e2)" }} />}
           label="Sessions so far"
-          value={moods ? String(new Set(moods.map((m) => m.timestamp.slice(0, 10))).size) : "—"}
+          value={sessionCount !== null ? String(sessionCount) : "—"}
           footnote="Every conversation counts"
         />
         <MetricCard

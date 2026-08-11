@@ -149,7 +149,7 @@ export function BreatheCard() {
               background: `rgba(255,253,248,${line.o})`,
               animation: reduceMotion
                 ? undefined
-                : `nimbusViz ${line.dur}s ease-in-out ${line.delay}s infinite`,
+                : `mlViz ${line.dur}s ease-in-out ${line.delay}s infinite`,
               animationPlayState: breathing ? "running" : "paused",
             }}
           />

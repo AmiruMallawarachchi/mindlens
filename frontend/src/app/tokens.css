@@ -206,33 +206,7 @@
     --intensity 900ms var(--ml-ease);
 }
 
-/* --------------------------------------------------------------------------
- * Nimbus — the companion. Ported verbatim from the approved mockup
- * (Mindlens Chat.dc.html): a single morphing blob, not the layered-shape
- * cloud an earlier build attempted from design.md's text description alone.
- * ----------------------------------------------------------------------- */
-@keyframes nimbusMorph {
-  0%, 100% { border-radius: 48% 52% 55% 45% / 52% 48% 52% 48%; }
-  33% { border-radius: 55% 45% 48% 52% / 45% 55% 45% 55%; }
-  66% { border-radius: 45% 55% 52% 48% / 55% 45% 55% 45%; }
-}
-@keyframes nimbusFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-@keyframes nimbusBlink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  96% { transform: scaleY(0.1); }
-}
-@keyframes nimbusHalo {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.14); opacity: 0.18; }
-}
-@keyframes nimbusSparkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
-@keyframes nimbusViz {
+@keyframes mlViz {
   0%, 100% { transform: scaleY(0.45); }
   50% { transform: scaleY(1); }
 }
@@ -243,6 +217,67 @@
 @keyframes mlCaret {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+ * The five companions — Ember, The Lens, Flit, Tide, Fern. Ambient loops and
+ * per-state fx, ported verbatim from the approved design file "Companion
+ * Expressions" (project "Mindlens: Emotional AI Companion"). The state poses
+ * themselves are spring-driven in companion-avatar.tsx; these are only the
+ * loops that must keep running underneath a pose, so they deliberately live
+ * on layers that carry no pose transform of their own.
+ * ----------------------------------------------------------------------- */
+@keyframes coBlob {
+  0%, 100% { border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%; }
+  50% { border-radius: 46% 54% 52% 48% / 58% 66% 34% 42%; }
+}
+@keyframes coBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.08); }
+}
+@keyframes coSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes coFlicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  28% { transform: scaleY(1.045) scaleX(0.98); }
+  54% { transform: scaleY(0.975) scaleX(1.02); }
+  76% { transform: scaleY(1.03) scaleX(0.99); }
+}
+@keyframes coSway {
+  0%, 100% { transform: rotate(-3.2deg); }
+  50% { transform: rotate(3.2deg); }
+}
+@keyframes coWing {
+  0%, 100% { transform: rotate(-16deg) scaleY(1); }
+  50% { transform: rotate(28deg) scaleY(0.6); }
+}
+@keyframes coWingR {
+  0%, 100% { transform: rotate(16deg) scaleY(1); }
+  50% { transform: rotate(-28deg) scaleY(0.6); }
+}
+@keyframes coWave {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(2.2deg); }
+}
+@keyframes coQBloom {
+  0% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  22% { opacity: 1; transform: translateY(-10px) scale(1.08); }
+  70% { opacity: 0.9; transform: translateY(-14px) scale(1); }
+  100% { opacity: 0; transform: translateY(-22px) scale(0.94); }
+}
+@keyframes coSparkUp {
+  0% { opacity: 0; transform: translateY(4px) scale(0.5); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-46px) scale(0.3); }
+}
+@keyframes coOrbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes coScatter {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
 }
 
 /* --------------------------------------------------------------------------

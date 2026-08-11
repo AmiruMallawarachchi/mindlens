@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import { EmotionField } from "@/components/field/emotion-field";
 import { ChatSidebar, type ChatNavView } from "@/components/chat/chat-sidebar";
-import { emotionCssVars, type EmotionReading } from "@/lib/emotion";
+import { capIntensity, emotionCssVars, type EmotionReading } from "@/lib/emotion";
 import { useGrade } from "@/lib/use-grade";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
@@ -31,18 +31,19 @@ export function PageShell({
   title: string;
   children: React.ReactNode;
 }) {
-  const { reading, paletteReading, sessions, activeSessionId, startNewConversation, openSession, user } =
+  const { reading, paletteReading, sessions, activeSessionId, startNewConversation, openSession, user, intensityCap } =
     client;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
+  const cappedPalette = capIntensity(paletteReading as EmotionReading, intensityCap);
 
   return (
     <div
       className="ml-root relative flex h-dvh w-full gap-3 p-3"
-      style={emotionCssVars(paletteReading as EmotionReading) as React.CSSProperties}
+      style={emotionCssVars(cappedPalette) as React.CSSProperties}
     >
-      <EmotionField reading={paletteReading} />
+      <EmotionField reading={cappedPalette} />
 
       <div className="hidden min-[780px]:block">
         <ChatSidebar

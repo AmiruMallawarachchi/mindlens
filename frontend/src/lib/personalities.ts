@@ -30,11 +30,3 @@ export const PERSONALITIES: PersonalityDef[] = [
 export function getPersonality(id: string | null | undefined): PersonalityDef | null {
   return PERSONALITIES.find((p) => p.id === id) ?? null;
 }
-
-/** Languages Mindlens can reply in. Sri Lanka's two national languages sit
- * beside English deliberately — the project's users are local. */
-export const LANGUAGES: { id: string; label: string }[] = [
-  { id: "en", label: "English" },
-  { id: "si", label: "සිංහල (Sinhala)" },
-  { id: "ta", label: "தமிழ் (Tamil)" },
-];

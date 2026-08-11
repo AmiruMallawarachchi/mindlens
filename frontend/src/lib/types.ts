@@ -148,7 +148,7 @@ export interface MemoryPreferences {
   /** "auto" = recolour from each turn's read; "manual" = pinned palette. */
   palette_mode?: "auto" | "manual";
   manual_palette?: string;
-  language?: string;
+  intensity_cap?: number;
 }
 
 export interface MemoryEmotionalPatterns {

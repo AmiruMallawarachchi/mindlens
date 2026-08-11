@@ -355,6 +355,19 @@ export function resolveEmotion(eos: EosSnapshot | null | undefined): EmotionRead
 }
 
 /**
+ * Settings > Appearance's intensity cap (design.md §2: "users who want
+ * stillness can cap it"). Returns a new reading with `intensity` clamped so
+ * every consumer downstream — the field's wash opacity, this module's own
+ * emotionCssVars — agrees, rather than only the CSS variable capping while
+ * the field's own opacity math (which reads `reading.intensity` directly,
+ * not the CSS var) ignores it.
+ */
+export function capIntensity(reading: EmotionReading, cap = 1): EmotionReading {
+  if (cap >= 1) return reading;
+  return { ...reading, intensity: Math.min(reading.intensity, cap) };
+}
+
+/**
  * The CSS custom properties the field, companion and accents all read from.
  * Applied to the app root; @property registration in tokens.css is what makes
  * these crossfade over 1.6s instead of snapping (§2, §6).

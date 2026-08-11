@@ -208,13 +208,20 @@ export function HomePage() {
         >
           {isDay ? <SunIcon /> : <MoonIcon />}
         </button>
+        <Link
+          href="/app"
+          className="hidden text-[12.5px] font-medium no-underline sm:inline"
+          style={{ color: "var(--ml-muted)" }}
+        >
+          Log in
+        </Link>
         <Magnetic strength={0.25}>
           <Link
-            href="/app"
+            href="/app?auth=register"
             className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[99px] px-4 py-[9px] text-[12.5px] font-medium no-underline"
             style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)" }}
           >
-            Open the app <span className="text-[14px] leading-none">→</span>
+            Sign up <span className="text-[14px] leading-none">→</span>
           </Link>
         </Magnetic>
       </motion.nav>
@@ -309,16 +316,53 @@ export function HomePage() {
       </header>
 
       {/* --- Portrait band ------------------------------------------------- */}
+      {/* board 7a's mockup slot here is a photo ("calm portrait / warm
+       * still"). There's no real photography to drop in and no image-gen
+       * tool wired into this build, and a stock photo of a stranger is the
+       * wrong call for a wellbeing app's hero without the user choosing one
+       * — so instead of a flat gradient standing in for a photo that isn't
+       * there, this is genuine motion: the same token-driven blob technique
+       * (mlBlobA/mlBlobB, tokens.css) already driving the hero background
+       * above, just bounded to this frame. Real generative art, not a fake
+       * screenshot. Swap for `next/image` the day real photography exists. */}
       <section className="px-6">
         <Reveal
-          className="relative mx-auto h-[min(72vh,560px)] max-w-[1200px] overflow-hidden rounded-[30px]"
+          className="ml-grain relative mx-auto h-[min(72vh,560px)] max-w-[1200px] overflow-hidden rounded-[30px]"
           delay={0.1}
         >
           <div
             className="absolute inset-0"
             style={{
-              background: "linear-gradient(160deg, color-mix(in oklab, var(--e1) 45%, var(--ml-canvas)), color-mix(in oklab, var(--e2) 35%, var(--ml-canvas)))",
+              background: "linear-gradient(160deg, color-mix(in oklab, var(--e1) 30%, var(--ml-canvas)), color-mix(in oklab, var(--e2) 24%, var(--ml-canvas)))",
               boxShadow: "0 34px 80px -30px color-mix(in oklab, var(--e1) 60%, rgba(36,26,14,.4))",
+            }}
+          />
+          {!reduceMotion && (
+            <>
+              <span
+                aria-hidden="true"
+                className="absolute left-[6%] top-[10%] aspect-square w-[52%] rounded-full"
+                style={{
+                  background: "radial-gradient(circle, color-mix(in oklab, var(--e1) 65%, transparent), transparent 70%)",
+                  filter: "blur(60px)",
+                  animation: "mlBlobA 18s ease-in-out infinite",
+                }}
+              />
+              <span
+                aria-hidden="true"
+                className="absolute right-[2%] bottom-[6%] aspect-square w-[48%] rounded-full"
+                style={{
+                  background: "radial-gradient(circle, color-mix(in oklab, var(--e2) 60%, transparent), transparent 70%)",
+                  filter: "blur(70px)",
+                  animation: "mlBlobB 24s ease-in-out infinite",
+                }}
+              />
+            </>
+          )}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "radial-gradient(120% 90% at 50% 100%, transparent 40%, color-mix(in oklab, var(--ml-deep) 55%, transparent) 100%)",
             }}
           />
           <div

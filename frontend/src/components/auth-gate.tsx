@@ -11,6 +11,7 @@ export function AuthGate({
   error,
   onLogin,
   onRegister,
+  initialMode = "login",
 }: {
   busy: boolean;
   error: string | null;
@@ -21,8 +22,11 @@ export function AuthGate({
     name: string;
     age: number;
   }) => void;
+  /** So a "Sign up" link (Home's nav) can land straight on the register tab
+   * instead of the login one it'd otherwise default to. */
+  initialMode?: Mode;
 }) {
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
