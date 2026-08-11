@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import os
+import threading
+import time
 from collections.abc import Callable
 from typing import Any, cast
 
 import torch
-from transformers import Pipeline, pipeline
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer, Pipeline, pipeline
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -19,11 +23,48 @@ _DEVICE = 0 if torch.cuda.is_available() else -1
 _TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
 
 
+def _quantized_dir(name: str) -> str | None:
+    """Local dynamic-int8 ONNX directory for `name`, or None if quantized
+    loading is off (`USE_QUANTIZED_MODELS`) or that model hasn't been
+    converted yet (`scripts/quantize_models.py`) — the caller falls back to
+    the normal float32 HF checkpoint either way, so enabling the flag is
+    safe before every model has a converted copy on disk."""
+    if not settings.use_quantized_models:
+        return None
+    candidate = os.path.join(settings.resolved_onnx_models_dir, name)
+    if os.path.isfile(os.path.join(candidate, "model.onnx")):
+        return candidate
+    return None
+
+
+def _score_of(item: Any) -> float:
+    """Pull the scalar score out of one text-classification result.
+
+    The pipeline wraps each result in a list when ``top_k`` is set and returns
+    a bare dict when it isn't. Accept both rather than pinning the shape.
+    """
+    if isinstance(item, list):
+        item = item[0]
+    return float(item["score"])
+
+
 class ModelManager:
     """Process-wide model registry with lazy loading and health metadata."""
 
     _instance: ModelManager | None = None
-    _lock = asyncio.Lock()
+    # A plain thread lock, not asyncio.Lock: `_load_pipeline` runs inside
+    # `asyncio.to_thread` (see `_predict` and `warmup_all`), so callers for
+    # different models are genuinely concurrent OS threads, not coroutines
+    # on one event loop — an asyncio.Lock doesn't coordinate across threads.
+    # Declared but never acquired anywhere before this: the first real turn
+    # after startup fired 4 model loads across 4 threads simultaneously,
+    # each independently building a multi-hundred-MB torch model under
+    # shared memory pressure. Live-observed failure mode on this machine:
+    # "Cannot copy out of meta tensor; no data!" — a load that lost the
+    # race for memory partway through. Serializing the *loading* phase
+    # (inference on already-loaded models stays fully concurrent) is what
+    # this lock is for.
+    _load_lock = threading.Lock()
 
     def __new__(cls) -> ModelManager:
         if cls._instance is None:
@@ -61,6 +102,7 @@ class ModelManager:
         task: str,
         *,
         top_k: int | None = 1,
+        tokenizer_model_input_names: list[str] | None = None,
         **kwargs: Any,
     ) -> Pipeline:
         pipelines: dict[str, Pipeline] = object.__getattribute__(self, "_pipelines")
@@ -68,30 +110,71 @@ class ModelManager:
             return pipelines[name]
 
         health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
-        health[name] = {
-            "status": "loading",
-            "model_id": model_id,
-            "error_count": health.get(name, {}).get("error_count", 0),
-        }
-        logger.info("Loading model '%s' from %s", name, model_id)
-        try:
-            loaded = pipeline(
-                task,
-                model=model_id,
-                tokenizer=model_id,
-                device=_DEVICE,
-                torch_dtype=_TORCH_DTYPE,
-                top_k=top_k,
-                **kwargs,
-            )
-        except Exception as exc:
-            self._record_error(name, exc, model_id=model_id)
-            raise
 
-        pipelines[name] = loaded
+        # Serializes the *loading* phase only — see _load_lock's class-level
+        # comment. Inference on already-loaded models never touches this
+        # lock, so normal per-turn concurrency is unaffected; only the
+        # narrow window of the first turn(s) after startup, where several
+        # models are cold at once, is forced one-at-a-time.
+        with self._load_lock:
+            # Re-check: another thread may have finished loading this exact
+            # model while this one was waiting for the lock.
+            if name in pipelines:
+                return pipelines[name]
+
+            health[name] = {
+                "status": "loading",
+                "model_id": model_id,
+                "error_count": health.get(name, {}).get("error_count", 0),
+            }
+
+            onnx_dir = _quantized_dir(name)
+            try:
+                # `tokenizer_model_input_names` exists for the crisis model:
+                # its HF repo pairs a BertTokenizerFast (which emits
+                # token_type_ids by default) with a
+                # DistilBertForSequenceClassification model (which has no
+                # segment embeddings and rejects that kwarg outright) —
+                # every real call raised, was swallowed by predict_all()'s
+                # return_exceptions=True, and silently zeroed out the
+                # classifier layer of crisis detection on every single turn.
+                # Restricting the tokenizer's output keys at construction
+                # time is the standard fix for this exact mismatch.
+                tokenizer_source = onnx_dir or model_id
+                tokenizer = (
+                    AutoTokenizer.from_pretrained(
+                        tokenizer_source, model_input_names=tokenizer_model_input_names
+                    )
+                    if tokenizer_model_input_names
+                    else tokenizer_source
+                )
+                if onnx_dir:
+                    logger.info("Loading model '%s' as quantized ONNX from %s", name, onnx_dir)
+                    ort_model = ORTModelForSequenceClassification.from_pretrained(onnx_dir)
+                    loaded = pipeline(
+                        task, model=ort_model, tokenizer=tokenizer, top_k=top_k, **kwargs
+                    )
+                else:
+                    logger.info("Loading model '%s' from %s", name, model_id)
+                    loaded = pipeline(
+                        task,
+                        model=model_id,
+                        tokenizer=tokenizer,
+                        device=_DEVICE,
+                        torch_dtype=_TORCH_DTYPE,
+                        top_k=top_k,
+                        **kwargs,
+                    )
+            except Exception as exc:
+                self._record_error(name, exc, model_id=model_id)
+                raise
+
+            pipelines[name] = loaded
+
         health[name] = {
             "status": "ready",
             "model_id": model_id,
+            "quantized": onnx_dir is not None,
             "loaded_at": datetime.datetime.now(datetime.UTC).isoformat(),
             "error_count": health.get(name, {}).get("error_count", 0),
         }
@@ -116,6 +199,9 @@ class ModelManager:
             top_k=1,
             truncation=True,
             max_length=512,
+            # See _load_pipeline's comment — this model's tokenizer/
+            # architecture pairing crashes on every call without it.
+            tokenizer_model_input_names=["input_ids", "attention_mask"],
         )
 
     def mental_health(self) -> Pipeline:
@@ -147,6 +233,47 @@ class ModelManager:
             truncation=True,
             max_length=512,
         )
+
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        """Score each ``(query, document)`` pair with the cross-encoder.
+
+        Synchronous on purpose: the only caller (``TherapyRetriever``) already
+        runs inside a worker thread, and the whole candidate set goes through
+        in a single batched call rather than one call per chunk.
+
+        The head is ``num_labels=1``, so the pipeline emits one sigmoid score
+        per pair and higher means more relevant.
+
+        Raises on failure — the retriever decides whether to fall back, since
+        it is the one that knows an empty ranking is survivable.
+        """
+        if not documents:
+            return []
+
+        started = time.perf_counter()
+        try:
+            pipe = self.rag_reranker()
+            raw = pipe([{"text": query, "text_pair": doc} for doc in documents])
+            scores = [_score_of(item) for item in raw]
+        except Exception as exc:
+            self._record_error("rag_reranker", exc)
+            raise
+
+        if len(scores) != len(documents):
+            exc = ValueError(
+                f"reranker returned {len(scores)} scores for {len(documents)} documents"
+            )
+            self._record_error("rag_reranker", exc)
+            raise exc
+
+        health: dict[str, dict[str, Any]] = object.__getattribute__(self, "_health")
+        health["rag_reranker"] = {
+            **health.get("rag_reranker", {}),
+            "status": "ready",
+            "error": None,
+            "last_inference_ms": round((time.perf_counter() - started) * 1000, 2),
+        }
+        return scores
 
     async def _predict(
         self, name: str, accessor: Callable[[], Pipeline], text: str
