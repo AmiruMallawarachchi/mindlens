@@ -9,6 +9,11 @@ Blueprint from the repository, then provide the environment values marked
 Required production values:
 
 - `MONGODB_URL`: MongoDB Atlas connection string with a least-privilege user.
+  Local development uses `mongodb://localhost:27017` instead (see
+  `backend/.env.example`) — `db.py` detects a `localhost`/`127.0.0.1` URL and
+  skips the TLS/OCSP options Atlas needs, so the same code path serves both
+  without a flag. Atlas is a deployment-environment value only; never point a
+  local dev box at it just to get a working database.
 - `GROQ_API_KEY`: production Groq credential.
 - `HF_TOKEN`: required when any configured model is private.
 - `CORS_ORIGINS`: JSON array containing the exact Vercel production and preview
