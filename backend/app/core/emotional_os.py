@@ -121,6 +121,18 @@ class EmotionalOperatingState(BaseModel):
         description="Social energy available",
     )
 
+    introvert_score: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description=(
+            "Standing social-disposition profile: 0.0 introvert, 1.0 extrovert. "
+            "Inferred by PersonalityAgent over many turns and persisted at "
+            "preferences.introvert_score — distinct from social_energy, which "
+            "is how much social capacity is available *right now*."
+        ),
+    )
+
     # --- Relationship with System ---
     trust_level: float = Field(
         default=0.3,
@@ -178,6 +190,21 @@ class EmotionalOperatingState(BaseModel):
     custom_instructions: str | None = Field(
         default=None,
         description="Free-text 'instructions for Mindlens' (Settings > General)",
+    )
+
+    checkin_preferred_time: typing.Literal["morning", "evening", "whenever"] | None = Field(
+        default=None,
+        description="Onboarding step 3 — when CheckInScheduler should land a proactive check-in",
+    )
+
+    memory_depth: typing.Literal["everything", "key_details", "nothing"] = Field(
+        default="everything",
+        description=(
+            "Your Mindlens > Memory depth control. 'nothing' also stops "
+            "SessionMemorySave's own extraction, not just recall — a user "
+            "who asked MindLens not to draw on memory shouldn't have new "
+            "memory quietly building up behind the scenes either."
+        ),
     )
 
     # --- Intervention Preferences ---
@@ -266,7 +293,15 @@ class EmotionalOperatingState(BaseModel):
         return routing
 
     def to_dict(self) -> dict:
-        return self.model_dump()
+        # mode="json" so PeopleGraph.mentioned_at, last_crisis_mention and
+        # calculated_at come out as ISO strings, not native datetime objects.
+        # This dict routinely ends up in a WebSocket send_json() call
+        # (streaming.py -> connection_manager), which uses the stdlib json
+        # module and has no datetime support -- a plain .model_dump() here
+        # crashed that send outright the moment any of those fields was
+        # populated (e.g. the first turn after a person exists in memory),
+        # silently dropping the reply with no error reaching the user.
+        return self.model_dump(mode="json")
 
     @classmethod
     def from_dict(cls, data: dict) -> "EmotionalOperatingState":

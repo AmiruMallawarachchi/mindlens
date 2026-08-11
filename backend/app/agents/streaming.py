@@ -67,7 +67,12 @@ class StreamingResponse:
         memory_recalled: list[str] | None = None,
     ) -> None:
         """Send thinking panel update to client."""
-        eos_dict = eos.model_dump() if isinstance(eos, EmotionalOperatingState) else eos
+        # mode="json" — see EmotionalOperatingState.to_dict()'s docstring;
+        # a plain model_dump() here leaves any populated datetime field
+        # (PeopleGraph.mentioned_at, etc.) unserializable by send_json().
+        eos_dict = (
+            eos.model_dump(mode="json") if isinstance(eos, EmotionalOperatingState) else eos
+        )
         await self.conn_manager.send_thinking_update(
             user_id=self.user_id,
             agents_active=agents_active,
@@ -127,7 +132,7 @@ class StreamingResponse:
         primary message that carries the full response.
         """
         eos_dict = (
-            eos_snapshot.model_dump()
+            eos_snapshot.model_dump(mode="json")
             if isinstance(eos_snapshot, EmotionalOperatingState)
             else eos_snapshot
         )

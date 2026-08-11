@@ -32,13 +32,31 @@ _RE_DIAGNOSTIC: Pattern = re.compile(
     re.IGNORECASE,
 )
 
-# Medication advice (absolutely prohibited)
+# Medication advice (absolutely prohibited).
+#
+# "i recommend" / "you should take" / "try taking" / "start taking" used to
+# be bare triggers on their own — but they're also completely ordinary
+# supportive phrasing ("I recommend taking a short walk", "you should take
+# a break", "try taking a few deep breaths"), so every reply using any of
+# them got blocked as critical medication advice regardless of content.
+# Live-observed: a plain "I've been anxious about my exam" turn got the
+# generic fallback because the empathy agent's reply opened with "I
+# recommend..." about something unrelated entirely. These four now only
+# fire when a medication-specific term actually follows in the same
+# clause; drug names and unambiguous phrases ("consider medication",
+# "prescription of", "dosage of", "mg of") still match standalone, since
+# those were never the source of false positives.
+_MEDICATION_TERMS = (
+    r"medication|medicine|medications|pills?|tablets?|doses?|dosage|"
+    r"milligrams?|prozac|zoloft|lexapro|xanax|valium|ativan|klonopin|"
+    r"adderall|ritalin|wellbutrin|sertraline|fluoxetine|escitalopram|alprazolam"
+)
 _RE_MEDICATION: Pattern = re.compile(
-    r"\b(you should take|i recommend|try taking|start taking|"
-    r"consider medication|ask your doctor for|prescription of|"
-    r"dosage of|mg of|milligrams of|prozac|zoloft|lexapro|xanax|"
-    r"valium|ativan|klonopin|adderall|ritalin|wellbutrin|"
-    r"sertraline|fluoxetine|escitalopram|alprazolam)\b",
+    r"\b(?:you should take|i recommend|try taking|start taking)\b"
+    rf"(?:(?![.!?])[\s\S]){{0,50}}\b(?:{_MEDICATION_TERMS})\b"
+    r"|\b(?:consider medication|ask your doctor for|prescription of|"
+    r"dosage of|mg of|milligrams of|"
+    rf"{_MEDICATION_TERMS})\b",
     re.IGNORECASE,
 )
 
@@ -131,10 +149,18 @@ class ResponseValidator:
 
         blocked: list[str] = []
         severity = "clean"
+        matched_snippets: list[str] = []
 
         for category, pattern in self.PATTERNS.items():
-            if pattern.search(text):
+            match = pattern.search(text)
+            if match:
                 blocked.append(category)
+                # Log the matched phrase, not the surrounding reply — enough
+                # to tell a real hit from an over-broad pattern (e.g. "i
+                # recommend" firing on ordinary CBT phrasing with nothing to
+                # do with medication) without logging what could be a reply
+                # that echoes back something the user said.
+                matched_snippets.append(f"{category}:{match.group(0)!r}")
                 # Escalate severity
                 if category in {"harm_encouragement", "medication"}:
                     severity = "critical"
@@ -145,9 +171,10 @@ class ResponseValidator:
 
         if not passed:
             logger.warning(
-                "Response validation FAILED: categories=%s, severity=%s",
+                "Response validation FAILED: categories=%s, severity=%s, matched=%s",
                 blocked,
                 severity,
+                matched_snippets,
             )
 
         return ValidationReport(
