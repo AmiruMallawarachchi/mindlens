@@ -70,7 +70,7 @@ class RoutineAgent(BaseAgent):
         """SYSTEM.md §5.9: Personalised, introvert-aware, sleep-linked."""
         name = ctx.user_name or "friend"
         age_group = ctx.eos.age_group.value
-        introvert_score = ctx.eos.social_energy
+        introvert_score = ctx.eos.introvert_score
 
         # Introvert-aware guidance
         introvert_note = ""

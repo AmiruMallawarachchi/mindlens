@@ -40,6 +40,30 @@ class MemoryRecall:
     # fetched separately by the agent.
     personality: str | None = None
     custom_instructions: str | None = None
+    # Onboarding step 3 (morning/evening/whenever) — CheckInScheduler reads
+    # this off the EOS to decide *when* a check-in lands, not just *whether*
+    # distress warrants one.
+    checkin_preferred_time: str | None = None
+    # Standing social disposition (0.0 introvert … 1.0 extrovert), inferred by
+    # PersonalityAgent across sessions. RoutineAgent reads it off the EOS to
+    # decide whether to suggest solo or social activities. None means nothing
+    # has been inferred yet, which is different from a genuine 0.5.
+    introvert_score: float | None = None
+    # Your Mindlens > Memory depth (design.md §4.2). Carried through onto the
+    # EOS so SessionMemorySave can also honour "nothing" — not just recall.
+    memory_depth: str = "everything"
+
+
+def _coerce_score(value: Any) -> float | None:
+    """Read a stored 0..1 score, ignoring anything malformed.
+
+    Returns None rather than a default when absent or out of range, so a
+    never-inferred profile stays distinguishable from a genuine 0.5.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    score = float(value)
+    return score if 0.0 <= score <= 1.0 else None
 
 
 def _people_from_doc(memory: dict[str, Any]) -> list[PeopleGraph]:
@@ -89,17 +113,26 @@ def recall_for_turn(
     # means the user asked MindLens not to draw on anything from before —
     # honour that before computing any recall at all, not just at display time.
     memory_depth = preferences.get("memory_depth") or "everything"
+    checkin_preferred_time = preferences.get("checkin_preferred_time") or None
+    introvert_score = _coerce_score(preferences.get("introvert_score"))
     if memory_depth == "nothing":
         # "Nothing" turns off *recall of past conversations*. It deliberately
         # does not disable personality, tone or custom instructions: those are
         # settings the user typed on purpose, not things MindLens remembered
         # about them, and silently ignoring them would be the wrong reading of
         # the control.
+        #
+        # introvert_score is on the other side of that line and is therefore
+        # withheld here: nobody typed it, MindLens inferred it from things the
+        # user said in past sessions. Applying it under "nothing" would be
+        # drawing on remembered material while telling the user we aren't.
         return MemoryRecall(
             preferred_modality=preferred_modality,
             tone_preference=tone_preference,
             personality=personality,
             custom_instructions=custom_instructions,
+            checkin_preferred_time=checkin_preferred_time,
+            memory_depth=memory_depth,
         )
 
     people_graph = _people_from_doc(memory)
@@ -119,6 +152,9 @@ def recall_for_turn(
             memory_recalled=recalled,
             preferred_modality=preferred_modality,
             tone_preference=tone_preference,
+            checkin_preferred_time=checkin_preferred_time,
+            introvert_score=introvert_score,
+            memory_depth=memory_depth,
         )
 
     patterns = memory.get("emotional_patterns") or {}
@@ -142,4 +178,7 @@ def recall_for_turn(
         tone_preference=tone_preference,
         personality=personality,
         custom_instructions=custom_instructions,
+        checkin_preferred_time=checkin_preferred_time,
+        introvert_score=introvert_score,
+        memory_depth=memory_depth,
     )

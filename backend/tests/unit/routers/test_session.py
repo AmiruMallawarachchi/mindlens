@@ -100,6 +100,8 @@ class TestCreateSession:
     async def test_create_session_success(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict) -> None:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
         mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        # No reusable empty session on file — falls through to creating one.
+        mock_db.sessions.find_one = AsyncMock(return_value=None)
         mock_db.sessions.insert_one = AsyncMock(return_value=MagicMock(inserted_id="sess_abc"))
         mock_db.safety_events = MagicMock()
 
@@ -118,6 +120,31 @@ class TestCreateSession:
         assert data["status"] == "active"
         assert "session_id" in data
         assert data["title"] == "Exam stress"
+
+    async def test_create_session_reuses_empty_active_session(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        """A zero-turn active session on file is returned instead of minting
+        another — this is what stops a page reload from filling the sidebar
+        with empty sessions and inflating the dashboard's session count."""
+        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.sessions.find_one = AsyncMock(return_value=sample_session_doc)
+        mock_db.sessions.insert_one = AsyncMock()
+        mock_db.safety_events = MagicMock()
+
+        tokens = create_token_pair("user_123", "test@example.com", role="user")
+        access_token = tokens["access_token"]
+
+        response = await session_client.post(
+            "/api/v1/sessions",
+            json={},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["session_id"] == sample_session_doc["session_id"]
+        mock_db.sessions.insert_one.assert_not_called()
 
     async def test_create_session_no_token(self, session_client: Any, mock_db: MagicMock) -> None:
         response = await session_client.post("/api/v1/sessions", json={"title": "No auth"})

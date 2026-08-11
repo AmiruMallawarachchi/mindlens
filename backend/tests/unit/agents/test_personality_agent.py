@@ -40,7 +40,7 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_skips_when_no_indicators(self, agent: PersonalityAgent) -> None:
         """No social/solo keywords → skip."""
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="I feel okay today.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["skipped"] is True
@@ -55,12 +55,14 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_social_positive_increases_extroversion(self, agent: PersonalityAgent) -> None:
         """Mentioning social activities positively → +0.05."""
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="I had a great time hanging out with friends today.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["skipped"] is not True
         assert result.metadata["delta"] == 0.05
-        assert result.metadata["introvert_score"] == 0.55
+        # EMA: 0.8*0.50 + 0.2*(0.50+0.05) = 0.51 — the observation moves the
+        # standing score by a fifth of its raw size, not all of it.
+        assert result.metadata["introvert_score"] == pytest.approx(0.51)
         assert "social_positive" in str(result.metadata["reasons"])
 
     # -----------------------------------------------------------------------
@@ -70,11 +72,11 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_solo_preference_decreases_extroversion(self, agent: PersonalityAgent) -> None:
         """Mentioning solo activities → -0.05."""
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="I need some alone time to recharge.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["delta"] == -0.05
-        assert result.metadata["introvert_score"] == 0.45
+        assert result.metadata["introvert_score"] == pytest.approx(0.49)
         assert "solo_preference" in str(result.metadata["reasons"])
 
     # -----------------------------------------------------------------------
@@ -84,11 +86,11 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_social_drain_decreases_extroversion(self, agent: PersonalityAgent) -> None:
         """Mentioning social drain → -0.05."""
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="People are so draining after work.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["delta"] == -0.05
-        assert result.metadata["introvert_score"] == 0.45
+        assert result.metadata["introvert_score"] == pytest.approx(0.49)
         assert "social_drain" in str(result.metadata["reasons"])
 
     # -----------------------------------------------------------------------
@@ -98,7 +100,8 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_score_capped_at_0_1(self, agent: PersonalityAgent) -> None:
         """Score cannot go below 0.1."""
-        eos = EmotionalOperatingState(social_energy=0.12)
+        # At the floor the smoothed value (0.09) would dip under it.
+        eos = EmotionalOperatingState(introvert_score=0.1)
         ctx = AgentContext(eos=eos, user_text="I love being alone by myself.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["introvert_score"] == 0.1
@@ -107,7 +110,7 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_score_capped_at_0_9(self, agent: PersonalityAgent) -> None:
         """Score cannot go above 0.9."""
-        eos = EmotionalOperatingState(social_energy=0.88)
+        eos = EmotionalOperatingState(introvert_score=0.9)
         ctx = AgentContext(eos=eos, user_text="I had fun at a party with friends.", user_name="Amiru")
         result = await agent.run(ctx)
         assert result.metadata["introvert_score"] == 0.9
@@ -132,12 +135,13 @@ class TestPersonalityAgent:
 
     @pytest.mark.asyncio
     async def test_returns_score_update(self, agent: PersonalityAgent) -> None:
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="I went to a party with friends and had fun.", user_name="Amiru")
         result = await agent.run(ctx)
         assert "score_update" in result.metadata
-        assert result.metadata["score_update"]["introvert_score"] == 0.55
+        assert result.metadata["score_update"]["introvert_score"] == pytest.approx(0.51)
         assert result.metadata["score_update"]["previous_score"] == 0.5
+        assert result.metadata["score_update"]["observed"] == pytest.approx(0.55)
         assert result.metadata["score_update"]["delta"] == 0.05
         assert "rule_based" in result.metadata
         assert result.metadata["rule_based"] is True
@@ -149,9 +153,57 @@ class TestPersonalityAgent:
     @pytest.mark.asyncio
     async def test_no_api_calls_made(self, agent: PersonalityAgent) -> None:
         """SYSTEM.md §5.14: Rule-based, zero external calls."""
-        eos = EmotionalOperatingState(social_energy=0.5)
+        eos = EmotionalOperatingState(introvert_score=0.5)
         ctx = AgentContext(eos=eos, user_text="I love hanging out with friends.", user_name="Amiru")
         # Run without any mocking — proves no external API is called
         result = await agent.run(ctx)
         assert result is not None
         assert result.metadata["llm_tier"] == "none"
+
+    # -----------------------------------------------------------------------
+    # T2 — smoothing behaviour
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_one_message_cannot_flip_a_long_standing_profile(
+        self, agent: PersonalityAgent
+    ) -> None:
+        """A single party does not make a settled introvert an extrovert."""
+        eos = EmotionalOperatingState(introvert_score=0.15)
+        ctx = AgentContext(
+            eos=eos,
+            user_text="I had fun at a party with friends.",
+            user_name="Amiru",
+        )
+        result = await agent.run(ctx)
+        # Moves toward extroversion, but stays unmistakably introvert-leaning.
+        assert result.metadata["introvert_score"] == pytest.approx(0.16)
+        assert result.metadata["introvert_score"] < 0.4
+
+    @pytest.mark.asyncio
+    async def test_repeated_evidence_does_shift_the_profile(
+        self, agent: PersonalityAgent
+    ) -> None:
+        """Smoothing slows the profile down; it must not freeze it."""
+        score = 0.5
+        for _ in range(30):
+            eos = EmotionalOperatingState(introvert_score=score)
+            ctx = AgentContext(
+                eos=eos,
+                user_text="I need some alone time to recharge.",
+                user_name="Amiru",
+            )
+            score = (await agent.run(ctx)).metadata["introvert_score"]
+
+        assert score < 0.4, "sustained solo preference never reached RoutineAgent's branch"
+
+    @pytest.mark.asyncio
+    async def test_skipped_turn_reports_the_unchanged_score(
+        self, agent: PersonalityAgent
+    ) -> None:
+        """A turn with no indicators must not report a drift toward 0.5."""
+        eos = EmotionalOperatingState(introvert_score=0.22)
+        ctx = AgentContext(eos=eos, user_text="I feel okay today.", user_name="Amiru")
+        result = await agent.run(ctx)
+        assert result.metadata["skipped"] is True
+        assert result.metadata["introvert_score"] == 0.22

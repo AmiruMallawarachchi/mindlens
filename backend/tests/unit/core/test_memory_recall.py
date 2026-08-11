@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from app.core.memory_recall import MemoryRecall, recall_for_turn
 
 
@@ -123,3 +124,49 @@ class TestRecallForTurn:
             memory, user_text="text", surface_emotion="joy", core_emotion="joy"
         )
         assert recall.people_graph == []
+
+    # -----------------------------------------------------------------------
+    # T2 — the standing social profile
+    # -----------------------------------------------------------------------
+
+    def test_introvert_score_read_from_preferences(self) -> None:
+        memory = {"preferences": {"introvert_score": 0.2}}
+        recall = recall_for_turn(
+            memory, user_text="text", surface_emotion="joy", core_emotion="joy"
+        )
+        assert recall.introvert_score == 0.2
+
+    def test_absent_introvert_score_is_none_not_a_default(self) -> None:
+        """None means 'never inferred', which is not the same as a real 0.5."""
+        recall = recall_for_turn(
+            {"preferences": {}}, user_text="t", surface_emotion="joy", core_emotion="joy"
+        )
+        assert recall.introvert_score is None
+
+    @pytest.mark.parametrize("bad", ["0.4", None, True, -0.1, 1.4, {"v": 0.3}])
+    def test_malformed_introvert_score_is_ignored(self, bad: object) -> None:
+        memory = {"preferences": {"introvert_score": bad}}
+        recall = recall_for_turn(
+            memory, user_text="t", surface_emotion="joy", core_emotion="joy"
+        )
+        assert recall.introvert_score is None
+
+    def test_memory_depth_nothing_withholds_the_inferred_score(self) -> None:
+        """Nobody typed this score — MindLens inferred it from past sessions,
+        so applying it under "nothing" would contradict the control."""
+        memory = {
+            "preferences": {"introvert_score": 0.2, "memory_depth": "nothing"},
+        }
+        recall = recall_for_turn(
+            memory, user_text="text", surface_emotion="joy", core_emotion="joy"
+        )
+        assert recall.introvert_score is None
+
+    def test_memory_depth_key_details_keeps_the_score(self) -> None:
+        memory = {
+            "preferences": {"introvert_score": 0.2, "memory_depth": "key_details"},
+        }
+        recall = recall_for_turn(
+            memory, user_text="text", surface_emotion="joy", core_emotion="joy"
+        )
+        assert recall.introvert_score == 0.2

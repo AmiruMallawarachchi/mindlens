@@ -20,10 +20,9 @@ EMOTION → AUDIO FEATURES (SYSTEM.md §5.11):
 
 from __future__ import annotations
 
-import os
-
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,14 +43,17 @@ EMOTION_AUDIO_FEATURES = {
     "stress":      {"tempo": (60, 80),   "energy": (0.2, 0.4), "valence": (0.3, 0.5), "genres": ["ambient", "classical"]},
 }
 
-# Static fallback tracks (royalty-free / well-known, used when Spotify is down)
+# Static fallback tracks (used when Spotify is down). No spotify_url/youtube_url
+# here: these were placeholder IDs that resolved to nothing, and the client
+# (music-card.tsx) already renders an honest "Connect Spotify to play" state
+# when a track has no URL rather than a link that 404s.
 STATIC_FALLBACK = {
     "anxiety": [
-        {"name": "Weightless", "artist": "Marconi Union", "spotify_url": "https://open.spotify.com/track/6k3KWxKmnJ8e", "youtube_url": "https://www.youtube.com/watch?v=UfcAVejslrU"},
-        {"name": "Clair de Lune", "artist": "Claude Debussy", "spotify_url": "https://open.spotify.com/track/6CuJQ3WlX", "youtube_url": "https://www.youtube.com/watch?v=WNcsurk"},
+        {"name": "Weightless", "artist": "Marconi Union"},
+        {"name": "Clair de Lune", "artist": "Claude Debussy"},
     ],
     "sadness": [
-        {"name": "Holocene", "artist": "Bon Iver", "spotify_url": "https://open.spotify.com/track/1", "youtube_url": "https://www.youtube.com/watch?v=2"},
+        {"name": "Holocene", "artist": "Bon Iver"},
     ],
 }
 
@@ -74,7 +76,7 @@ class MusicAgent(BaseAgent):
             always_runs=False,
         )
         # MCP client endpoint (Spotify MCP server)
-        self._mcp_base_url = os.environ.get("SPOTIFY_MCP_URL", "http://localhost:8001")
+        self._mcp_base_url = settings.spotify_mcp_url
 
     async def run(self, ctx: AgentContext) -> AgentOutput:
         """

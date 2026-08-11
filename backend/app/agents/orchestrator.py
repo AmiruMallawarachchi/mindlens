@@ -130,8 +130,14 @@ class Orchestrator:
         # Track LLM fallbacks for the whole turn, across every agent.
         degradation = begin_degradation_tracking()
 
-        # Step 1: Model inference + EOS
-        turn_result = await self.process_turn(user_text, user_id=user_id)
+        # Step 1: Model inference + EOS. The turn count comes from the history
+        # the caller already loaded — without it, personality, progress and
+        # checkin_scheduler sit permanently unselectable behind a 0.
+        turn_result = await self.process_turn(
+            user_text,
+            user_id=user_id,
+            session_turn_count=len(session_history or []),
+        )
         eos = EmotionalOperatingState(**turn_result["eos"])
         agent_names = turn_result["agents"]
         crisis_flag = turn_result["crisis_flag"]
@@ -152,6 +158,24 @@ class Orchestrator:
             # the user typed into settings.
             eos.personality = recall.personality
             eos.custom_instructions = recall.custom_instructions
+            eos.checkin_preferred_time = recall.checkin_preferred_time
+            # Settings > General > Tone (Gentle/Balanced/Direct). Read by
+            # empathy_agent's tone_instruction branch — without this
+            # assignment the setting saved and round-tripped correctly but
+            # never reached the EOS, so it changed nothing about the reply.
+            if recall.tone_preference:
+                eos.tone_preference = recall.tone_preference  # type: ignore[assignment]
+            # Settings > Memory depth. Read by SessionMemorySave to also gate
+            # its own extraction, not just recall — see MemoryRecall.memory_depth.
+            if recall.memory_depth in {"everything", "key_details", "nothing"}:
+                eos.memory_depth = recall.memory_depth  # type: ignore[assignment]
+            # The standing social profile RoutineAgent branches on. Without
+            # this the EOS is rebuilt at its 0.5 default every turn, so
+            # RoutineAgent's <0.4 / >0.7 branches could never fire and
+            # PersonalityAgent scored every update from a blank slate.
+            # Non-crisis only, for the same reason as the style preferences.
+            if recall.introvert_score is not None:
+                eos.introvert_score = recall.introvert_score
             # A stated modality preference wins over the distress-based
             # default, but never over the high-distress DBT escalation —
             # a standing preference shouldn't block the safer choice.
@@ -215,7 +239,11 @@ class Orchestrator:
         )
 
         return {
-            "eos": eos.model_dump(),
+            # mode="json": eos carries PeopleGraph.mentioned_at and other
+            # datetime fields that don't survive a plain model_dump() into
+            # the WebSocket send_json() call downstream — see
+            # EmotionalOperatingState.to_dict()'s docstring.
+            "eos": eos.model_dump(mode="json"),
             "agents": agent_names,
             "crisis_flag": crisis_flag,
             "assembled_text": assembled_text,
@@ -238,13 +266,19 @@ class Orchestrator:
     # -----------------------------------------------------------------------
 
     async def process_turn(
-        self, user_text: str, *, user_id: str | None = None
+        self, user_text: str, *, user_id: str | None = None, session_turn_count: int = 0
     ) -> dict[str, Any]:
         """
         1. Run all four classifiers concurrently.
         2. Parse outputs into structured scores.
         3. Build EOS state.
         4. Return routing decision + EOS snapshot.
+
+        `session_turn_count` is how many turns this session already holds. It
+        must be supplied: three agents in `_select_agents` are gated on it
+        (personality > 2, progress every 5, checkin_scheduler every 3), and
+        while it defaulted to 0 on every real turn none of the three could
+        ever be selected.
         """
         safety_result = await self._safety.evaluate(user_text, user_id=user_id)
         if safety_result.is_crisis:
@@ -257,7 +291,11 @@ class Orchestrator:
                 modality=Modality.DBT,
             )
             return {
-                "eos": eos.model_dump(),
+                # mode="json": eos carries PeopleGraph.mentioned_at and other
+            # datetime fields that don't survive a plain model_dump() into
+            # the WebSocket send_json() call downstream — see
+            # EmotionalOperatingState.to_dict()'s docstring.
+            "eos": eos.model_dump(mode="json"),
                 "agents": ["crisis"],
                 "crisis_flag": True,
                 "safety": safety_result.model_dump(exclude={"user_message_snippet"}),
@@ -333,6 +371,7 @@ class Orchestrator:
             trust_level=0.5,
             session_depth=0.0,
             distortion_label=distortion_label,
+            session_turn_count=session_turn_count,
         )
 
         # Routing decision
@@ -347,7 +386,11 @@ class Orchestrator:
         eos.run_routine = "routine" in agents
 
         return {
-            "eos": eos.model_dump(),
+            # mode="json": eos carries PeopleGraph.mentioned_at and other
+            # datetime fields that don't survive a plain model_dump() into
+            # the WebSocket send_json() call downstream — see
+            # EmotionalOperatingState.to_dict()'s docstring.
+            "eos": eos.model_dump(mode="json"),
             "agents": agents,
             "crisis_flag": crisis_flag,
             "safety": safety_result.model_dump(exclude={"user_message_snippet"}),

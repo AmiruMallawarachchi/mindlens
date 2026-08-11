@@ -55,12 +55,9 @@ class PreferencesUpdate(BaseModel):
     tone_preference: str | None = Field(None, pattern="^(gentle|balanced|direct)$")
     memory_depth: str | None = Field(None, pattern="^(everything|key_details|nothing)$")
     companion_name: str | None = Field(None, min_length=1, max_length=40)
-    # Which shape from the approved 10-companion cast (frontend
-    # lib/companions.ts) renders as the user's default companion.
-    companion_id: str | None = Field(
-        None,
-        pattern="^(nimbus|flit|ember|tide|fern|lens|anchor|lantern|luna|comet)$",
-    )
+    # Which of the five locked companions (frontend lib/companions.ts)
+    # renders as the user's default companion.
+    companion_id: str | None = Field(None, pattern="^(ember|lens|flit|tide|fern)$")
     # --- Settings > General -------------------------------------------------
     # How the user describes themselves. Feeds the empathy agent's system
     # prompt, so it changes how replies are written — not a cosmetic label.
@@ -80,7 +77,12 @@ class PreferencesUpdate(BaseModel):
         pattern="^(calm|hopeful|joyful|tender|balanced|anxious|low|grief|angry|"
         "envious|ashamed|flat)$",
     )
-    language: str | None = Field(None, max_length=12)
+    # design.md §2: "user can cap it in Your Mindlens" — caps field opacity,
+    # glow radius, companion motion amplitude and accent saturation together.
+    # 1.0 = uncapped (the emotion's own read decides); lower values flatten
+    # the room for anyone who wants stillness over intensity.
+    intensity_cap: float | None = Field(None, ge=0.1, le=1.0)
+
 
 class EmotionalPatternsUpdate(BaseModel):
     most_common_emotion: str | None = None

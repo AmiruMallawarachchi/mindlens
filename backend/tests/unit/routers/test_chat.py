@@ -10,6 +10,7 @@ import pytest
 from app.agents.base_agent import AgentOutput
 from app.core.connection_manager import ConnectionManager
 from app.routers.chat import _CHECKIN_FALLBACK_TEXT, _save_mood_log, _save_pending_checkin
+from pymongo.errors import DuplicateKeyError
 
 
 @pytest.fixture
@@ -336,3 +337,241 @@ class TestSavePendingCheckin:
         await _save_pending_checkin(mock_db_ws, "sess_abc", "user_123", "Amiru", [], result)
 
         mock_db_ws.pending_checkins.update_one.assert_not_awaited()
+
+
+class TestSaveIntrovertScore:
+    """T2 — the write that closes the personality loop."""
+
+    @staticmethod
+    def _db():
+        db = MagicMock()
+        db.user_memory = MagicMock()
+        db.user_memory.update_one = AsyncMock()
+        return db
+
+    @staticmethod
+    def _result(metadata: dict) -> dict:
+        return {"agent_outputs": [{"agent": "personality", "metadata": metadata}]}
+
+    @pytest.mark.asyncio
+    async def test_score_is_written_with_a_dotted_path(self) -> None:
+        """A whole-subdocument $set would wipe the user's typed settings."""
+        from app.routers.chat import _save_introvert_score
+
+        db = self._db()
+        await _save_introvert_score(
+            db, "u1", self._result({"score_update": {"introvert_score": 0.31}})
+        )
+
+        # Call 0 bootstraps the document (_ensure_user_memory_doc); call 1 is
+        # the actual score write, which is why it's asserted by position.
+        assert db.user_memory.update_one.await_count == 2
+        query, update = db.user_memory.update_one.await_args_list[1].args[:2]
+        assert query == {"user_id": "u1"}
+        assert update["$set"]["preferences.introvert_score"] == 0.31
+        # Nothing may overwrite `preferences` wholesale.
+        assert "preferences" not in update["$set"]
+
+    @pytest.mark.asyncio
+    async def test_write_is_scoped_to_the_user(self) -> None:
+        from app.routers.chat import _save_introvert_score
+
+        db = self._db()
+        await _save_introvert_score(
+            db, "u42", self._result({"score_update": {"introvert_score": 0.6}})
+        )
+        assert db.user_memory.update_one.await_args.args[0]["user_id"] == "u42"
+
+    @pytest.mark.asyncio
+    async def test_skipped_turn_writes_nothing(self) -> None:
+        from app.routers.chat import _save_introvert_score
+
+        db = self._db()
+        await _save_introvert_score(
+            db, "u1", self._result({"skipped": True, "introvert_score": 0.5})
+        )
+        db.user_memory.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_turn_without_the_agent_writes_nothing(self) -> None:
+        from app.routers.chat import _save_introvert_score
+
+        db = self._db()
+        await _save_introvert_score(
+            db, "u1", {"agent_outputs": [{"agent": "empathy", "metadata": {}}]}
+        )
+        db.user_memory.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_malformed_score_writes_nothing(self) -> None:
+        from app.routers.chat import _save_introvert_score
+
+        db = self._db()
+        await _save_introvert_score(
+            db, "u1", self._result({"score_update": {"introvert_score": "high"}})
+        )
+        db.user_memory.update_one.assert_not_awaited()
+
+
+class TestSaveIntrovertScoreUpsert:
+    """Regression — nothing gates chat behind onboarding completion, so the
+    user_memory document is not guaranteed to exist when a turn runs."""
+
+    @pytest.mark.asyncio
+    async def test_write_upserts_so_a_missing_document_is_not_silent_loss(self) -> None:
+        from app.routers.chat import _save_introvert_score
+
+        db = MagicMock()
+        db.user_memory = MagicMock()
+        db.user_memory.update_one = AsyncMock()
+
+        await _save_introvert_score(
+            db,
+            "u1",
+            {"agent_outputs": [{
+                "agent": "personality",
+                "metadata": {"score_update": {"introvert_score": 0.4}},
+            }]},
+        )
+
+        # The bootstrap call (call 0) is the one that upserts, so a missing
+        # document doesn't discard the inference — see _ensure_user_memory_doc.
+        first_kwargs = db.user_memory.update_one.await_args_list[0].kwargs
+        assert first_kwargs.get("upsert") is True
+        first_update = db.user_memory.update_one.await_args_list[0].args[1]
+        assert first_update["$setOnInsert"]["user_id"] == "u1"
+
+
+class TestSaveExtractedMemory:
+    """The write that makes the Memory page's promise true — see
+    session_memory_save.py's module docstring."""
+
+    @staticmethod
+    def _db():
+        db = MagicMock()
+        db.user_memory = MagicMock()
+        db.user_memory.update_one = AsyncMock()
+        return db
+
+    @staticmethod
+    def _result(extracted: dict) -> dict:
+        return {
+            "agent_outputs": [
+                {"agent": "session_memory_save", "metadata": {"extracted": extracted}}
+            ]
+        }
+
+    @pytest.mark.asyncio
+    async def test_new_person_written_in_two_steps_no_upsert_on_the_conditional_call(
+        self,
+    ) -> None:
+        """A single upsert=True call with `people.<name>: exists:False` in
+        its filter would, once that name exists, match zero documents and
+        insert a *second* user_memory document — colliding with the unique
+        index on user_id and crashing the turn. Ensuring the document exists
+        first, then applying the conditional set with no upsert flag, is
+        what makes a name that's already on file a safe no-op instead."""
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(
+            db, "u1", self._result({"person_relation": "sister", "person_name": "Amaya"})
+        )
+
+        assert db.user_memory.update_one.await_count == 2
+        ensure_query, ensure_update = db.user_memory.update_one.await_args_list[0].args
+        assert ensure_query == {"user_id": "u1"}
+        assert db.user_memory.update_one.await_args_list[0].kwargs.get("upsert") is True
+        assert ensure_update["$setOnInsert"]["user_id"] == "u1"
+
+        set_query, set_update = db.user_memory.update_one.await_args_list[1].args
+        assert set_query == {"user_id": "u1", "people.Amaya": {"$exists": False}}
+        assert "upsert" not in db.user_memory.update_one.await_args_list[1].kwargs
+        assert set_update["$set"]["people.Amaya"]["role"] == "sister"
+
+    @pytest.mark.asyncio
+    async def test_trigger_topic_and_coping_use_add_to_set(self) -> None:
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(
+            db, "u1", self._result({"trigger_topic": "exams", "effective_coping": "going for a walk"})
+        )
+
+        # Call 0 bootstraps the document; call 1 is the actual $addToSet,
+        # which is a plain (non-upsert) update once the doc is guaranteed to
+        # exist — see _ensure_user_memory_doc.
+        assert db.user_memory.update_one.await_count == 2
+        assert db.user_memory.update_one.await_args_list[0].kwargs.get("upsert") is True
+        query, update = db.user_memory.update_one.await_args_list[1].args
+        assert query == {"user_id": "u1"}
+        assert update["$addToSet"]["emotional_patterns.trigger_topics"] == "exams"
+        assert update["$addToSet"]["emotional_patterns.effective_coping"] == "going for a walk"
+        assert "upsert" not in db.user_memory.update_one.await_args_list[1].kwargs
+
+    @pytest.mark.asyncio
+    async def test_nothing_extracted_writes_nothing(self) -> None:
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(db, "u1", self._result({}))
+        db.user_memory.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_turn_without_the_agent_writes_nothing(self) -> None:
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(
+            db, "u1", {"agent_outputs": [{"agent": "empathy", "metadata": {}}]}
+        )
+        db.user_memory.update_one.assert_not_awaited()
+
+
+class TestEnsureUserMemoryDoc:
+    """persistence-review finding: a plain `upsert=True` bootstrap racing a
+    concurrent writer for the same user_id (a second backend process, in a
+    horizontally-scaled deployment) raises DuplicateKeyError on the unique
+    index in db.py — the other writer already did this job, so it must be
+    swallowed rather than propagating and crashing the turn."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_key_error_is_swallowed(self) -> None:
+        from app.routers.chat import _ensure_user_memory_doc
+
+        db = MagicMock()
+        db.user_memory = MagicMock()
+        db.user_memory.update_one = AsyncMock(side_effect=DuplicateKeyError("dup"))
+
+        # Must not raise.
+        await _ensure_user_memory_doc(db, "u1", datetime.datetime.now(datetime.UTC))
+        db.user_memory.update_one.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_a_failed_bootstrap_does_not_block_the_follow_up_write(self) -> None:
+        """Exactly the scenario the race produces: our bootstrap loses the
+        race and raises, but the concurrent writer already created the
+        document, so the caller's next (non-upsert) write still succeeds."""
+        from app.routers.chat import _save_introvert_score
+
+        db = MagicMock()
+        db.user_memory = MagicMock()
+        db.user_memory.update_one = AsyncMock(
+            side_effect=[DuplicateKeyError("dup"), None]
+        )
+
+        await _save_introvert_score(
+            db,
+            "u1",
+            {
+                "agent_outputs": [{
+                    "agent": "personality",
+                    "metadata": {"score_update": {"introvert_score": 0.4}},
+                }]
+            },
+        )
+
+        assert db.user_memory.update_one.await_count == 2
+        second_query, second_update = db.user_memory.update_one.await_args_list[1].args
+        assert second_query == {"user_id": "u1"}
+        assert second_update["$set"]["preferences.introvert_score"] == 0.4

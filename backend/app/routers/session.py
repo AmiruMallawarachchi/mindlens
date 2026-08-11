@@ -114,6 +114,29 @@ async def create_session(
     """
     user_id = str(current_user["_id"])
     now = datetime.datetime.now(datetime.UTC)
+
+    # Reuse the most recent empty active session rather than minting another.
+    # The frontend opens a session on every mount (use-mindlens-client.ts),
+    # so without this a reload with nothing sent yet left behind a brand-new,
+    # permanently-empty session document every time — filling the sidebar
+    # with junk and inflating db.sessions.count_documents(), which
+    # dashboard.py's >=7-session gate on the weekly insight reads directly.
+    # Skipped when the caller asked for a specific title/context: that's an
+    # explicit request for a new session, not an incidental reconnect.
+    if not (req and (req.title or req.context)):
+        reusable = await db.sessions.find_one(
+            {"user_id": user_id, "status": "active", "turns": []},
+            sort=[("started_at", -1)],
+        )
+        if reusable:
+            return SessionCreateResponse(
+                session_id=reusable["session_id"],
+                user_id=user_id,
+                title=reusable.get("title"),
+                started_at=reusable["started_at"],
+                status="active",
+            )
+
     session_id = _make_session_id()
 
     session_doc = {

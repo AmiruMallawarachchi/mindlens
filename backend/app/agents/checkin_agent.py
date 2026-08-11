@@ -1,7 +1,7 @@
 """
 Check-In Agent — MindLens v3 SYSTEM.md §5.12
 ================================================
-Trigger: End of every session (schedules a job via APScheduler).
+Trigger: End of every session (writes a pending_checkins entry).
 Uses Groq 8B (for the check-in message). Max 80 tokens.
 
 Purpose: Proactive follow-up 22 hours after session end.
@@ -21,8 +21,8 @@ from app.agents.groq_client import get_groq_client
 class CheckInAgent(BaseAgent):
     """
     Generates gentle, personalised check-in messages sent
-    proactively between sessions. The orchestrator schedules
-    these via APScheduler after each session ends.
+    proactively between sessions. The chat router schedules
+    these into pending_checkins after each session ends.
 
     Trigger: Background — scheduled at end of session.
     """

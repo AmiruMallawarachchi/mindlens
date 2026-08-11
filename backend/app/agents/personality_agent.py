@@ -8,9 +8,18 @@ Purpose: Track introvert/extrovert score to personalise recommendations.
 Score: 0.0 (introvert) to 1.0 (extrovert) — starts at 0.5.
 
 Updates:
-- +0.05 if user mentions social activity positively
-- -0.05 if user prefers solo activities or mentions social drain
-- Capped at [0.1, 0.9]
+- +0.05 observed if user mentions social activity positively
+- -0.05 observed if user prefers solo activities or mentions social drain
+- Smoothed into the standing score with an EMA, then capped at [0.1, 0.9]
+
+The EMA matters: without it a single message about a party would overwrite a
+disposition built over weeks. At alpha=0.2 one turn moves the score by at most
+0.01, so a genuine shift needs to be said repeatedly before it takes hold.
+
+The score is read from and written back to `eos.introvert_score`, persisted at
+`preferences.introvert_score` by the chat router. It is deliberately *not*
+`eos.social_energy` — that field means how much social capacity the user has
+right now, which is a different quantity that happens to share a scale.
 
 Used by: Routine agent, Music agent, Challenge agent (tone calibration).
 """
@@ -38,6 +47,13 @@ SOCIAL_DRAIN_KEYWORDS = [
     "people are tiring", "too many people", "overwhelmed by crowd",
     "need to be alone after", "social anxiety", "avoided the party",
 ]
+
+#: Weight given to this turn's observation. new = (1-a)*old + a*observed.
+EMA_ALPHA = 0.2
+
+#: The score never saturates — a profile must stay able to move back.
+SCORE_FLOOR = 0.1
+SCORE_CEILING = 0.9
 
 
 class PersonalityAgent(BaseAgent):
@@ -98,19 +114,25 @@ class PersonalityAgent(BaseAgent):
                     "skipped": True,
                     "reason": "no personality indicators detected",
                     "llm_tier": "none",
-                    "introvert_score": ctx.eos.social_energy,
+                    "introvert_score": ctx.eos.introvert_score,
                     "delta": 0.0,
                 },
             )
 
-        # Calculate new score, capped [0.1, 0.9]
-        current_score = ctx.eos.social_energy
-        new_score = max(0.1, min(0.9, current_score + delta))
+        # This turn's raw observation, then smoothed into the standing score.
+        # `delta` is what this message alone suggests; the EMA decides how much
+        # of that a long-running profile should actually absorb.
+        current_score = ctx.eos.introvert_score
+        observed = current_score + delta
+        smoothed = (1 - EMA_ALPHA) * current_score + EMA_ALPHA * observed
+        new_score = max(SCORE_FLOOR, min(SCORE_CEILING, smoothed))
 
-        # Store the score (caller is responsible for persisting to user_memory)
+        # Store the score. The chat router persists this to
+        # preferences.introvert_score — see _save_introvert_score there.
         score_update = {
             "introvert_score": new_score,
             "previous_score": current_score,
+            "observed": observed,
             "delta": delta,
             "reasons": reasons,
         }

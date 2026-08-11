@@ -35,6 +35,49 @@ class TestRoutineAgent:
         assert result.agent_name == "routine"
         assert "1." in result.text
 
+    # -----------------------------------------------------------------------
+    # T2 — the introvert branches must actually be reachable
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _ctx(score: float):
+        from app.agents.base_agent import AgentContext
+
+        return AgentContext(
+            eos=EmotionalOperatingState(introvert_score=score),
+            user_text="I'm burnt out and don't know what to do this evening.",
+            user_name="Amiru",
+        )
+
+    def test_introvert_profile_reaches_the_prompt(self, agent: RoutineAgent) -> None:
+        """Proposal use case #3 — an introvert must get solo suggestions.
+
+        This branch was unreachable before T2: the EOS was rebuilt at its 0.5
+        default every turn, so a stored 0.2 never arrived here.
+        """
+        prompt = agent._build_system_prompt(self._ctx(0.2))
+        assert "introvert-leaning" in prompt
+        assert "0.20" in prompt
+
+    def test_extrovert_profile_reaches_the_prompt(self, agent: RoutineAgent) -> None:
+        prompt = agent._build_system_prompt(self._ctx(0.85))
+        assert "extrovert-leaning" in prompt
+
+    def test_balanced_profile_is_the_middle_branch(self, agent: RoutineAgent) -> None:
+        prompt = agent._build_system_prompt(self._ctx(0.5))
+        assert "balanced socially" in prompt
+
+    def test_reads_introvert_score_not_social_energy(self, agent: RoutineAgent) -> None:
+        """The two are different quantities that share a scale."""
+        from app.agents.base_agent import AgentContext
+
+        ctx = AgentContext(
+            eos=EmotionalOperatingState(introvert_score=0.2, social_energy=0.9),
+            user_text="I'm burnt out.",
+            user_name="Amiru",
+        )
+        assert "introvert-leaning" in agent._build_system_prompt(ctx)
+
     @pytest.mark.asyncio
     async def test_system_prompt_tiny_routine(self, agent: RoutineAgent, agent_context: EmotionalOperatingState) -> None:
         prompt = agent._build_system_prompt(agent_context)
