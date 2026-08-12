@@ -1,3 +1,12 @@
+# Documented alternative to the primary deployment (a free Hugging Face
+# Docker Space — see docs/DEPLOYMENT.md). Kept correct and current, not
+# actively used: the five models want roughly 2.5–3.5GB resident, so this
+# needs at least Render's `pro` plan (4GB) to actually boot — the `standard`
+# plan below (2GB) will OOM on startup with PRELOAD_MODELS=true, and leaving
+# it false just moves that failure onto a live user's first message instead
+# (see loader.py's _load_lock comment for what that looked like locally:
+# concurrent cold loads timing out and one request paying for all of them).
+# Bump `plan` before using this path for real.
 services:
   - type: web
     name: mindlens-api
@@ -15,7 +24,7 @@ services:
       - key: USE_OPENAI_STUBS
         value: "false"
       - key: PRELOAD_MODELS
-        value: "false"
+        value: "true"
       - key: PRELOAD_RAG
         value: "true"
       - key: CHROMADB_PERSIST_DIR

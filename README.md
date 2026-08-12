@@ -11,9 +11,10 @@ emergency services.
 - `backend/app`: API, WebSocket chat, authentication, agents, models, and RAG
 - `backend/tests`: unit and integration coverage
 - `frontend`: web client (deployed separately to Vercel)
-- `render.yaml`: Render Blueprint for the backend and persistent Chroma storage
+- `render.yaml`: documented Render Blueprint alternative (not the primary
+  deployment — see docs/DEPLOYMENT.md for why)
 - `docs/API.md`: HTTP/WebSocket contract
-- `docs/DEPLOYMENT.md`: Render and Vercel deployment runbook
+- `docs/DEPLOYMENT.md`: Hugging Face Space + Vercel deployment runbook
 
 ## Backend Development
 
@@ -64,5 +65,4 @@ npm run build
 Production configuration fails closed when secrets, CORS origins, MongoDB, or
 the live LLM provider are missing. Start with
 [backend/.env.example](backend/.env.example) and follow
-[the deployment runbook](docs/DEPLOYMENT.md) before creating the Render
-service.
+[the deployment runbook](docs/DEPLOYMENT.md) before deploying.
