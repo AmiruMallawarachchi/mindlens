@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .venv/
+.coverage
+coverage.xml
+htmlcov/
 venv-train/
 venv/
 ENV/
@@ -16,12 +19,17 @@ env/
 
 # Data & Models (HUGE files - NEVER commit)
 data/
+!backend/data/
+backend/data/*
 notebooks/data/
 *.arrow
 *.parquet
 *.csv
 *.json
+!backend/data/therapy_knowledge.json
+!frontend/package-lock.json
 !data/reports/*.json
+!frontend/package-lock.json
 !data/figures/*.png
 *.pt
 *.bin
@@ -36,6 +44,12 @@ notebooks/data/
 # IDE
 .vscode/
 .idea/
+# Local Claude Code state stays out of git, but project subagents and skills
+# are part of the project's engineering setup and should be versioned —
+# otherwise they only exist on one machine and are lost on a fresh clone.
+.claude/*
+!.claude/agents/
+!.claude/skills/
 
 # Node (for later)
 node_modules/
@@ -47,8 +61,18 @@ build/
 .DS_Store
 Thumbs.db
 
+# Local server logs
+backend-server.log
+backend-server.err.log
+frontend-server.log
+frontend-server.err.log
+
 # Jupyter notebooks - keep code, exclude outputs
 notebooks/*.ipynb
 notebooks/**/*.ipynb
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+
+# Pulled-back Kaggle kernel copies. Superseded by the canonical notebooks in
+# training/ — kept locally for reference, not worth 6.5MB in the repo.
+artifacts/

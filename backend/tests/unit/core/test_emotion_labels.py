@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-
 from app.core.emotion_labels import (
     EMOTION_LABELS,
+    EMOTION_SEVERITY_WEIGHTS,
     NEGATIVE_EMOTIONS,
     POSITIVE_EMOTIONS,
-    EMOTION_SEVERITY_WEIGHTS,
     get_emotion_name,
     is_negative,
     severity_weight,
