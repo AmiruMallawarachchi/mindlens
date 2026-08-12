@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-import os
 import threading
 import time
 from collections.abc import Callable
 from typing import Any, cast
 
 import torch
-from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer, Pipeline, pipeline
 
 from app.config import settings
@@ -21,20 +19,6 @@ logger = get_logger(__name__)
 
 _DEVICE = 0 if torch.cuda.is_available() else -1
 _TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
-
-
-def _quantized_dir(name: str) -> str | None:
-    """Local dynamic-int8 ONNX directory for `name`, or None if quantized
-    loading is off (`USE_QUANTIZED_MODELS`) or that model hasn't been
-    converted yet (`scripts/quantize_models.py`) — the caller falls back to
-    the normal float32 HF checkpoint either way, so enabling the flag is
-    safe before every model has a converted copy on disk."""
-    if not settings.use_quantized_models:
-        return None
-    candidate = os.path.join(settings.resolved_onnx_models_dir, name)
-    if os.path.isfile(os.path.join(candidate, "model.onnx")):
-        return candidate
-    return None
 
 
 def _score_of(item: Any) -> float:
@@ -128,7 +112,6 @@ class ModelManager:
                 "error_count": health.get(name, {}).get("error_count", 0),
             }
 
-            onnx_dir = _quantized_dir(name)
             try:
                 # `tokenizer_model_input_names` exists for the crisis model:
                 # its HF repo pairs a BertTokenizerFast (which emits
@@ -140,31 +123,23 @@ class ModelManager:
                 # classifier layer of crisis detection on every single turn.
                 # Restricting the tokenizer's output keys at construction
                 # time is the standard fix for this exact mismatch.
-                tokenizer_source = onnx_dir or model_id
                 tokenizer = (
                     AutoTokenizer.from_pretrained(
-                        tokenizer_source, model_input_names=tokenizer_model_input_names
+                        model_id, model_input_names=tokenizer_model_input_names
                     )
                     if tokenizer_model_input_names
-                    else tokenizer_source
+                    else model_id
                 )
-                if onnx_dir:
-                    logger.info("Loading model '%s' as quantized ONNX from %s", name, onnx_dir)
-                    ort_model = ORTModelForSequenceClassification.from_pretrained(onnx_dir)
-                    loaded = pipeline(
-                        task, model=ort_model, tokenizer=tokenizer, top_k=top_k, **kwargs
-                    )
-                else:
-                    logger.info("Loading model '%s' from %s", name, model_id)
-                    loaded = pipeline(
-                        task,
-                        model=model_id,
-                        tokenizer=tokenizer,
-                        device=_DEVICE,
-                        torch_dtype=_TORCH_DTYPE,
-                        top_k=top_k,
-                        **kwargs,
-                    )
+                logger.info("Loading model '%s' from %s", name, model_id)
+                loaded = pipeline(
+                    task,
+                    model=model_id,
+                    tokenizer=tokenizer,
+                    device=_DEVICE,
+                    dtype=_TORCH_DTYPE,
+                    top_k=top_k,
+                    **kwargs,
+                )
             except Exception as exc:
                 self._record_error(name, exc, model_id=model_id)
                 raise
@@ -174,7 +149,6 @@ class ModelManager:
         health[name] = {
             "status": "ready",
             "model_id": model_id,
-            "quantized": onnx_dir is not None,
             "loaded_at": datetime.datetime.now(datetime.UTC).isoformat(),
             "error_count": health.get(name, {}).get("error_count", 0),
         }

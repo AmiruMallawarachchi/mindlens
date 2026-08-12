@@ -108,22 +108,6 @@ class Settings(BaseSettings):
     rag_knowledge_path: str = "backend/data/therapy_knowledge.json"
     chromadb_persist_dir: str = "backend/data/chroma_db"
 
-    # When true, ModelManager loads a model from `onnx_models_dir/<name>` —
-    # dynamic int8 ONNX produced by `scripts/quantize_models.py` — instead of
-    # the float32 HF checkpoint, for any model that's actually been converted.
-    # False by default: this laptop and Render's `standard` plan can't hold
-    # four float32 transformer models loaded concurrently (see that script's
-    # docstring for the numbers), but the fallback in loader.py means turning
-    # this on is safe even before every model has been converted.
-    use_quantized_models: bool = False
-    onnx_models_dir: str = "backend/data/onnx_models"
-
-    @property
-    def resolved_onnx_models_dir(self) -> str:
-        """`onnx_models_dir`, made cwd-independent — see `_REPO_ROOT`."""
-        path = pathlib.Path(self.onnx_models_dir)
-        return str(path if path.is_absolute() else _REPO_ROOT / path)
-
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: object) -> object:

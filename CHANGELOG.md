@@ -47,7 +47,6 @@ fakes for the parts that were actually failing.
   edited and deleted.
 - 28-class multi-label emotion trainer, generated from
   `emotion_labels.py` so the label order can't drift.
-- Optional int8 ONNX loading (off by default — see Known limitations).
 
 ### Changed
 - Tone, memory depth and social-disposition settings now reach the reply.
@@ -58,6 +57,13 @@ fakes for the parts that were actually failing.
 
 ### Security
 - Verified `backend/.env` has never been committed and is correctly ignored.
+- Dropped `optimum`/`onnx` and moved `transformers` to 5.15.0, clearing five
+  known CVEs. `optimum-onnx` caps `transformers` below 4.58, and every fix
+  for those advisories lands in 5.x — so the quantization dependency was
+  pinning the whole app to a vulnerable release. It existed only for an
+  int8 ONNX path that was disabled by default and measurably made resident
+  memory *worse* (ONNX Runtime loads alongside torch, not instead of it),
+  so it was buying nothing and costing five advisories.
 
 ### Known limitations
 - The distortion classifier scores **0.17 macro-F1** on ~690 weakly-labelled
@@ -72,8 +78,11 @@ fakes for the parts that were actually failing.
   (0.47). It was trained on Reddit comments, not on people describing
   distress. This is the strongest argument for finishing the in-house
   28-class trainer added in this release.
-- Quantization reduces artifact size but not resident memory, because
-  `optimum` loads ONNX Runtime alongside torch rather than instead of it.
+- The five models still load in float32 and want roughly 2.5–3.5 GB
+  resident. `PRELOAD_MODELS=true` moves that cost to startup so no user
+  waits on it, but it does not reduce it — the deployment target has to
+  have the headroom. Genuinely shrinking it means dropping torch from the
+  inference path entirely, which is not done here.
 
 ## [0.2.0] - 2026-06-16
 
