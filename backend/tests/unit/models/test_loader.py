@@ -320,12 +320,18 @@ class TestCrisisTokenizerMismatchFix:
             )
 
         mock_auto_tok.from_pretrained.assert_called_once_with(
-            "some/model", model_input_names=["input_ids", "attention_mask"]
+            "some/model",
+            revision="main",
+            model_input_names=["input_ids", "attention_mask"],
         )
         assert (
             mock_pipeline.call_args.kwargs["tokenizer"]
             is mock_auto_tok.from_pretrained.return_value
         )
+        # The pipeline must be pinned to the same commit as its tokenizer —
+        # fetching the two from different revisions is how you get a tokenizer
+        # and a model that disagree about the vocabulary.
+        assert mock_pipeline.call_args.kwargs["revision"] == "main"
 
     def test_a_model_without_the_flag_gets_the_plain_string_tokenizer(
         self, probe_name: str

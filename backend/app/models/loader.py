@@ -123,18 +123,32 @@ class ModelManager:
                 # classifier layer of crisis detection on every single turn.
                 # Restricting the tokenizer's output keys at construction
                 # time is the standard fix for this exact mismatch.
+                #
+                # `revision` pins which commit of the Hub repo is fetched.
+                # Left implicit, from_pretrained takes whatever is at the
+                # branch head *at download time*, so a compromised or simply
+                # re-pushed repo silently changes the weights this app runs —
+                # the supply-chain hole bandit's B615 flags. Per-model, so the
+                # third-party emotion checkpoint can be pinned to an exact
+                # commit while our own repos track a branch through retraining.
+                revision = settings.model_revision_for(name)
                 tokenizer = (
                     AutoTokenizer.from_pretrained(
-                        model_id, model_input_names=tokenizer_model_input_names
+                        model_id,
+                        revision=revision,
+                        model_input_names=tokenizer_model_input_names,
                     )
                     if tokenizer_model_input_names
                     else model_id
                 )
-                logger.info("Loading model '%s' from %s", name, model_id)
+                logger.info(
+                    "Loading model '%s' from %s @ %s", name, model_id, revision
+                )
                 loaded = pipeline(
                     task,
                     model=model_id,
                     tokenizer=tokenizer,
+                    revision=revision,
                     device=_DEVICE,
                     dtype=_TORCH_DTYPE,
                     top_k=top_k,

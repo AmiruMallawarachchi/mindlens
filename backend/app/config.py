@@ -69,6 +69,34 @@ class Settings(BaseSettings):
     mh_model_id: str = "AmiruMallawarachchi/mindlens-mh-classifier"
     distortion_model_id: str = "AmiruMallawarachchi/mindlens-distortion-classifier"
     rag_reranker_model_id: str = "AmiruMallawarachchi/mindlens-rag-reranker"
+
+    # Which commit of each Hub repo to fetch. Without this, from_pretrained
+    # takes whatever sits at the branch head when the download happens, so a
+    # repo that is re-pushed — or compromised — silently swaps the weights the
+    # app runs on.
+    #
+    # The emotion checkpoint is a third-party repo nobody here controls, so it
+    # is pinned to an exact commit; that is where the supply-chain exposure
+    # actually is. The other four are our own and track `main`, because they
+    # are still being retrained and a stale pin would quietly keep serving the
+    # superseded model after a push. Pin those too before anything that needs
+    # reproducible inference — a dissertation result, or a release.
+    emotion_model_revision: str = "d75048347613a25d77de8cf6412eaae9fa7b26be"
+    crisis_model_revision: str = "main"
+    mh_model_revision: str = "main"
+    distortion_model_revision: str = "main"
+    rag_reranker_model_revision: str = "main"
+
+    def model_revision_for(self, name: str) -> str:
+        """Revision to fetch for a registry entry, defaulting to `main` for
+        any name the registry gains without a matching setting."""
+        return {
+            "emotion": self.emotion_model_revision,
+            "crisis": self.crisis_model_revision,
+            "mental_health": self.mh_model_revision,
+            "distortion": self.distortion_model_revision,
+            "rag_reranker": self.rag_reranker_model_revision,
+        }.get(name, "main")
     preload_models: bool = False
     model_inference_timeout_seconds: float = 30.0
     preload_rag: bool = False
