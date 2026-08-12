@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     # are still being retrained and a stale pin would quietly keep serving the
     # superseded model after a push. Pin those too before anything that needs
     # reproducible inference — a dissertation result, or a release.
-    emotion_model_revision: str = "d75048347613a25d77de8cf6412eaae9fa7b26be"
+    emotion_model_revision: str = "d75048347613a25d77de8cf6412eaae9fa7b26be"  # pragma: allowlist secret
     crisis_model_revision: str = "main"
     mh_model_revision: str = "main"
     distortion_model_revision: str = "main"
