@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { PERSONALITIES } from "@/lib/personalities";
+import { PERSONALITIES, TONES } from "@/lib/personalities";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 import type { MemoryPreferences } from "@/lib/types";
 import { Row, SaveBar, Select, SettingsGroup, SettingsHeading, TextInput } from "../ui";
@@ -17,12 +17,6 @@ const KEYS: (keyof MemoryPreferences)[] = [
   "personality",
   "custom_instructions",
   "tone_preference",
-];
-
-const TONES = [
-  { id: "gentle" as const, label: "Gentle", hint: "Softer landings. Warmth before the point." },
-  { id: "balanced" as const, label: "Balanced", hint: "Warm, but says the hard thing when it matters." },
-  { id: "direct" as const, label: "Direct", hint: "Straight to it. Kind, not cushioned." },
 ];
 
 export function GeneralSection({ client }: { client: MindLensClient }) {
