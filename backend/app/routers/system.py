@@ -25,9 +25,16 @@ async def system_status(
     return {
         "status": "ok",
         "environment": settings.app_env,
+        "deployment_mode": settings.deployment_mode,
         "release": settings.render_git_commit[:12],
         "database": "connected",
         "models": model_manager.health_status(),
+        "resident_models": model_manager.resident_model_count(),
+        "rag": {
+            "mode": settings.rag_retrieval_mode,
+            "persist_dir": settings.chromadb_persist_dir,
+            "preload": settings.preload_rag,
+        },
         "timestamp": datetime.datetime.now(datetime.UTC),
     }
 
@@ -36,4 +43,7 @@ async def system_status(
 async def model_status(
     _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
-    return {"models": model_manager.health_status()}
+    return {
+        "models": model_manager.health_status(),
+        "resident_models": model_manager.resident_model_count(),
+    }

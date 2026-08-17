@@ -16,9 +16,14 @@ from __future__ import annotations
 import os
 from typing import Any
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-from chromadb.utils import embedding_functions
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+    from chromadb.utils import embedding_functions
+except ImportError:  # pragma: no cover - exercised by Render Free image smoke tests.
+    chromadb = None  # type: ignore[assignment]
+    ChromaSettings = None  # type: ignore[assignment]
+    embedding_functions = None  # type: ignore[assignment]
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -59,6 +64,8 @@ class TherapyVectorStore:
         """Initialize ChromaDB client and get/create collection."""
         if self._client is not None:
             return
+        if chromadb is None or ChromaSettings is None or embedding_functions is None:
+            raise RuntimeError("ChromaDB dependencies are not installed")
 
         self._embedding_function = (
             embedding_functions.SentenceTransformerEmbeddingFunction(

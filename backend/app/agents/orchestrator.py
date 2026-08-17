@@ -125,17 +125,29 @@ class Orchestrator:
         crisis_flag = turn_result["crisis_flag"]
 
         # Step 2: Retrieve RAG context if not provided
+        rag_status: dict[str, Any] = {"mode": "provided", "status": "provided"}
         if rag_chunks is None and not crisis_flag:
             try:
                 rag_chunks = await asyncio.to_thread(
                     self._retriever.retrieve, anonymize(user_text), eos
                 )
+                rag_status = getattr(
+                    self._retriever,
+                    "last_status",
+                    {"mode": "unknown", "status": "unknown"},
+                )
             except Exception as exc:
                 logger.warning("RAG retrieval failed: %s", exc)
                 rag_chunks = []
+                rag_status = {
+                    "mode": "none",
+                    "status": "error",
+                    "error": type(exc).__name__,
+                }
         elif crisis_flag:
             # Crisis: skip RAG, use crisis protocols directly
             rag_chunks = []
+            rag_status = {"mode": "none", "status": "bypassed_crisis"}
 
         # Step 3: Build agent context
         ctx = AgentContext(
@@ -187,6 +199,7 @@ class Orchestrator:
                 for o in outputs
             ],
             "safety": turn_result["safety"],
+            "rag": rag_status,
         }
 
     # -----------------------------------------------------------------------

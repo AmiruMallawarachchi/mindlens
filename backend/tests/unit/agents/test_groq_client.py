@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.agents import groq_client as groq_module
 from app.agents.groq_client import GroqClient, GroqResponse, get_groq_client
 
 
@@ -27,6 +28,7 @@ class TestGroqClientStubMode:
         with patch("app.agents.groq_client.settings") as mock_settings:
             mock_settings.use_openai_stubs = True
             mock_settings.groq_api_key = ""
+            mock_settings.is_production = False
             return GroqClient()
 
     @pytest.mark.asyncio
@@ -85,6 +87,7 @@ class TestGroqClientRealMode:
              patch("app.agents.groq_client.AsyncGroq") as mock_async_groq:
             mock_settings.use_openai_stubs = False
             mock_settings.groq_api_key = "gsk_test_key"
+            mock_settings.is_production = False
             mock_async_groq.return_value = MagicMock()
             return GroqClient()
 
@@ -136,6 +139,26 @@ class TestGroqClientRealMode:
         assert len(result.text) > 0
 
     @pytest.mark.asyncio
+    async def test_production_api_error_is_unavailable(
+        self,
+        real_client: GroqClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(groq_module.settings, "app_env", "production")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(side_effect=RuntimeError("quota"))
+        real_client._client = mock_client
+
+        result = await real_client.chat(
+            system_prompt="sys",
+            user_prompt="user",
+        )
+
+        assert result.finish_reason == "provider_unavailable"
+        assert result.tokens_used == 0
+        assert "temporarily unavailable" in result.text
+
+    @pytest.mark.asyncio
     async def test_70b_tier(self, real_client: GroqClient) -> None:
         mock_client = MagicMock()
         mock_chat = AsyncMock()
@@ -161,6 +184,7 @@ class TestGroqClientSingleton:
         with patch("app.agents.groq_client.settings") as mock_settings:
             mock_settings.use_openai_stubs = True
             mock_settings.groq_api_key = ""
+            mock_settings.is_production = False
             a = get_groq_client()
             b = get_groq_client()
             assert a is b

@@ -2,9 +2,14 @@
 
 ## Backend on Render
 
-The repository includes `render.yaml` and `backend/Dockerfile`. Create a Render
-Blueprint from the repository, then provide the environment values marked
-`sync: false`.
+The root `render.yaml` is the zero-cost Render Free demonstration Blueprint.
+Use [RENDER_FREE_DEPLOYMENT.md](RENDER_FREE_DEPLOYMENT.md) for that path.
+
+The paid persistent-storage example lives at `deploy/render.paid.example.yaml`
+and must not be deployed without explicit approval.
+
+For a full paid deployment, start from `deploy/render.paid.example.yaml` and
+`backend/Dockerfile`, then provide the environment values marked `sync: false`.
 
 Required production values:
 

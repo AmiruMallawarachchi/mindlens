@@ -132,7 +132,7 @@ class GroqClient:
         except TimeoutError:
             logger.error("Groq call timed out after %.1fs", timeout)
             return GroqResponse(
-                text="I'm having a moment — please try again in a few seconds.",
+                text="The AI response service is temporarily unavailable. Please try again soon.",
                 model_used=model_id,
                 tokens_used=0,
                 latency_ms=timeout * 1000,
@@ -140,6 +140,17 @@ class GroqClient:
             )
         except Exception as exc:
             logger.exception("Groq API error: %s", exc)
+            if settings.is_production:
+                return GroqResponse(
+                    text=(
+                        "The AI response service is temporarily unavailable. "
+                        "Please try again soon."
+                    ),
+                    model_used=model_id,
+                    tokens_used=0,
+                    latency_ms=round((asyncio.get_event_loop().time() - start) * 1000, 1),
+                    finish_reason="provider_unavailable",
+                )
             return self._stub_response(
                 system_prompt, user_prompt, model_tier, max_tokens
             )
