@@ -182,7 +182,7 @@ async def update_preferences(
     return {"message": "Preferences updated"}
 
 
-@router.patch("/emotional_patterns", summary="Update emotional patterns (system-managed, admin only)")
+@router.patch("/emotional_patterns", summary="Update emotional patterns (system-managed; any authenticated user may override their own)")
 async def update_emotional_patterns(
     req: EmotionalPatternsUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -190,6 +190,13 @@ async def update_emotional_patterns(
 ):
     """
     Update emotional patterns. Usually system-managed, but user can override.
+
+    Dotted paths, not {"emotional_patterns": updates} — the same whole-
+    subdocument bug fixed in update_preferences below. This endpoint is called
+    piecemeal (session_memory_save.py sends trigger_topics and
+    effective_coping in separate turns), so a caller sending only
+    most_common_emotion would otherwise wipe whatever the other calls had
+    just added.
     """
     user_id = str(current_user["_id"])
     now = datetime.datetime.now(datetime.UTC)
@@ -198,10 +205,10 @@ async def update_emotional_patterns(
     if not updates:
         raise HTTPException(status_code=400, detail="No pattern fields provided")
 
-    await db.user_memory.update_one(
-        {"user_id": user_id},
-        {"$set": {"emotional_patterns": updates, "updated_at": now}},
-    )
+    changes: dict[str, Any] = {f"emotional_patterns.{key}": value for key, value in updates.items()}
+    changes["updated_at"] = now
+
+    await db.user_memory.update_one({"user_id": user_id}, {"$set": changes})
     return {"message": "Emotional patterns updated"}
 
 

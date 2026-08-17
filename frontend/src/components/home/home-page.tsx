@@ -73,7 +73,7 @@ const STEPS = [
   {
     num: "05",
     title: "The record",
-    body: "Moods, progress and breakthroughs are logged to your private memory — so next week's Mindlens knows what this week's you worked through.",
+    body: "Moods and progress are logged so next week's Mindlens knows what this week's you worked through — and the people and topics it picks up land in Memory, where you can change them.",
   },
 ];
 
@@ -86,17 +86,20 @@ const STEPS = [
  * card is what tells people which one is actually running. */
 const MODELS = [
   { id: "SamLowe/roberta-base-go_emotions", adopted: true, title: "Emotion classifier", body: "28 emotion classes (GoEmotions), folded into the 12 named states that light the interface." },
-  { id: "mindlens-mh-classifier", adopted: false, title: "Mental-health signal", body: "Screens every message for anxiety, depression and stress signals — quietly, in context, and never shown back to you as a label." },
-  { id: "mindlens-crisis", adopted: false, title: "Crisis detector", body: "Second-layer screening, behind a hardwired keyword gate that runs first on every turn. Either one alone can stop the conversation and switch to templates." },
-  { id: "mindlens-rag-reranker", adopted: false, title: "RAG reranker", body: "Re-orders passages retrieved from a curated therapy corpus so the most relevant guidance wins." },
-  { id: "mindlens-distortion-classifier", adopted: false, title: "Distortion classifier", body: "Looks for thinking traps — catastrophizing, all-or-nothing, mind-reading. The weakest of the five; see its model card for how far to trust it." },
+  { id: "AmiruMallawarachchi/mindlens-mh-classifier", adopted: false, title: "Mental-health signal", body: "Screens every message for anxiety, depression and stress signals — quietly, in context, and never shown back to you as a label." },
+  { id: "AmiruMallawarachchi/mindlens-crisis", adopted: false, title: "Crisis detector", body: "Second-layer screening, behind a hardwired keyword gate that runs first on every turn. Either one alone can stop the conversation and switch to templates." },
+  { id: "AmiruMallawarachchi/mindlens-rag-reranker", adopted: false, title: "RAG reranker", body: "Re-orders passages retrieved from a curated therapy corpus so the most relevant guidance wins." },
+  { id: "AmiruMallawarachchi/mindlens-distortion-classifier", adopted: false, title: "Distortion classifier", body: "Looks for thinking traps — catastrophizing, all-or-nothing, mind-reading. The weakest of the five; see its model card for how far to trust it." },
 ];
 
+// href is the actual doc on GitHub, not the profile — each card ends in
+// "Open →", a promise to open *that* file, so the link has to go there.
 const DOCS = [
   { file: "SYSTEM.md", title: "The single source of truth", body: "Architecture, the five models, agent behavior, safety rules — everything that is non-negotiable, in one file." },
   { file: "API.md", title: "HTTP & WebSocket contract", body: "Every endpoint, the streaming chat protocol, and how agent activity reaches the client in real time." },
-  { file: "DEPLOYMENT.md", title: "Render & Vercel runbook", body: "How the backend, persistent vector store and web client ship — and how production fails closed." },
+  { file: "DEPLOYMENT.md", title: "Hugging Face Space & Vercel runbook", body: "How the backend, the vector store rebuilt fresh on every boot, and the web client ship — and how production fails closed." },
 ];
+const REPO_URL = "https://github.com/AmiruMallawarachchi/mindlens";
 
 /** Rules 03, 04 and 05 each overstated something and have been narrowed to
  * what the code actually guarantees: the access token is in browser storage
@@ -107,7 +110,7 @@ const DOCS = [
 const RULES = [
   { num: "01", title: "Crisis answers are template-only", body: "Zero LLM calls when it matters most. Every crisis response is written and vetted by humans." },
   { num: "02", title: "The safety gate runs first, every turn", body: "No agent, prompt or feature can skip it. Safety overrides convenience — by design." },
-  { num: "03", title: "Your words stay yours", body: "Every database query scoped to you, rate limits everywhere, and never sold or used for advertising. Replies are written by Groq, so your message text reaches them with identifiers stripped." },
+  { num: "03", title: "Your words stay yours", body: "Every database query scoped to you, rate limits everywhere, and never sold or used for advertising. Replies are written by Groq — this turn's message goes to them with emails, phone numbers and ID numbers stripped, though your name and anyone you've mentioned go with it, because that's what makes a reply sound like it knows you." },
   { num: "04", title: "Memory is visible", body: "Your conversations are saved so next week picks up where this one left off. Anything Mindlens learns from them shows up in Memory first, where you can edit or delete it." },
   { num: "05", title: "Never a diagnosis", body: "Mindlens names feelings in plain language and shows how sure it is. It never labels you." },
 ];
@@ -299,7 +302,7 @@ export function HomePage() {
             </Magnetic>
           </div>
           <p className="mt-[22px] font-[family-name:var(--font-geist-mono)] text-[10.5px] uppercase tracking-[.13em]" style={{ color: "var(--ml-faint)" }}>
-            Free · Private · Not a replacement for professional care
+            Free · Yours alone, not encrypted end-to-end · Not a replacement for professional care
           </p>
         </Reveal>
 
@@ -617,7 +620,7 @@ export function HomePage() {
             {DOCS.map((doc, i) => (
               <Reveal key={doc.file} delay={i * 0.05}>
                 <a
-                  href={GITHUB_URL}
+                  href={`${REPO_URL}/blob/main/docs/${doc.file}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex h-full min-h-[170px] flex-col gap-3 rounded-[22px] p-6 no-underline transition-colors"

@@ -70,6 +70,15 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   // --- 1. Safety gate ----------------------------------------------------
   // Labels come from the approved mockup's trail (Mindlens Chat.dc.html):
   // Safety gate / Emotion read / Memory / Approach.
+  //
+  // The gate is two layers (safety_gate.py): a keyword regex that always
+  // runs, and a crisis classifier that can fail like any model call. The
+  // regex layer alone still catches everything unsafe — recall isn't zero —
+  // but "Clear — no crisis signals" is a claim that *both* layers ran, and
+  // orchestrator.py records `model:crisis` on the turn's degradation set
+  // specifically for the case where that wasn't true. Reporting "Clear" in
+  // that case overstates how much was actually checked.
+  const crisisModelDown = degraded.includes("model:crisis");
   const safety: ReasoningStep = crisis
     ? {
         id: "safety",
@@ -77,15 +86,22 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
         text: "This needs to come before everything else. Everything pauses except your safety.",
         tone: "alert",
       }
-    : {
-        id: "safety",
-        label: "Safety gate",
-        text:
-          distress !== null && distress >= 0.65
-            ? `Clear — no crisis signals, though distress is running high at ${distress.toFixed(2)}, so I'm staying close to it.`
-            : "Clear — no crisis signals. The door stays open, quietly.",
-        tone: "normal",
-      };
+    : crisisModelDown
+      ? {
+          id: "safety",
+          label: "Safety gate",
+          text: "Screened by the keyword gate only — the second-layer crisis model isn't responding right now. If anything here is urgent, please reach a human.",
+          tone: "alert",
+        }
+      : {
+          id: "safety",
+          label: "Safety gate",
+          text:
+            distress !== null && distress >= 0.65
+              ? `Clear — no crisis signals, though distress is running high at ${distress.toFixed(2)}, so I'm staying close to it.`
+              : "Clear — no crisis signals. The door stays open, quietly.",
+          tone: "normal",
+        };
 
   // --- 2. What I'm reading ----------------------------------------------
   const surfaceName = reading.state.name.toLowerCase();
@@ -161,9 +177,21 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   if (!intent && !modality) {
     approachParts.push("Staying with what you said and following where it goes.");
   }
-  if (degraded.length > 0) {
+  // model:* entries are a classifier that didn't respond (already disclosed,
+  // for crisis, in the safety step above) — a different failure from an LLM
+  // fallback, and "this reply is more generic" is the wrong description for
+  // it, so the two are reported separately rather than pooled.
+  const modelDegraded = degraded.filter((d) => d.startsWith("model:"));
+  const llmDegraded = degraded.filter((d) => !d.startsWith("model:"));
+  if (llmDegraded.length > 0) {
     approachParts.push(
-      `Heads up — the language model fell back this turn (${degraded.join(", ")}), so this reply is more generic than usual.`,
+      `Heads up — the language model fell back this turn (${llmDegraded.join(", ")}), so this reply is more generic than usual.`,
+    );
+  }
+  const otherModelsDown = modelDegraded.filter((d) => d !== "model:crisis");
+  if (otherModelsDown.length > 0) {
+    approachParts.push(
+      `One of the reads behind this reply didn't come back (${otherModelsDown.join(", ")}) — the rest of the pipeline still ran normally.`,
     );
   }
 
@@ -171,7 +199,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
     id: "approach",
     label: "Approach",
     text: approachParts.join(" "),
-    tone: degraded.length > 0 ? "alert" : "normal",
+    tone: llmDegraded.length > 0 || otherModelsDown.length > 0 ? "alert" : "normal",
   };
 
   return crisis ? [safety] : [safety, readingStep, memory, approach];

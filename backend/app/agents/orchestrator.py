@@ -199,11 +199,21 @@ class Orchestrator:
             rag_chunks = []
 
         # Step 4: Build agent context
+        #
+        # History is anonymized the same way as the current turn — empathy_agent
+        # and checkin_agent both fold the last few turns of `session_history`
+        # into the Groq prompt verbatim (as recent-context, not just the current
+        # message), so an email or phone number typed last turn was previously
+        # sent to Groq unstripped this turn. Only `text` carries user-authored
+        # content; role/timestamp/etc. pass through untouched.
+        anonymized_history = [
+            {**turn, "text": anonymize(turn.get("text", ""))} for turn in (session_history or [])
+        ]
         ctx = AgentContext(
             eos=eos,
             user_text=anonymize(user_text),
             user_name=user_name,
-            session_history=session_history or [],
+            session_history=anonymized_history,
             rag_chunks=rag_chunks or [],
         )
 

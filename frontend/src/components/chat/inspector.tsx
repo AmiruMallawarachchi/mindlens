@@ -56,8 +56,8 @@ export function Inspector({
         style={{ color: "var(--ml-faint)" }}
       >
         <Lock size={12} strokeWidth={1.7} className="mt-[1px] shrink-0" />
-        Everything here stays yours. Anything Mindlens learns about you shows
-        up in Memory, where you can delete it.
+        Everything here stays yours. The people, topics and coping strategies
+        Mindlens picks up show up in Memory, where you can delete them.
       </p>
     </aside>
   );

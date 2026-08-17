@@ -32,13 +32,14 @@ import { Row, SettingsGroup, SettingsHeading } from "../ui";
  *  - "never shared" omitted that generation is a Groq API call carrying the
  *    message text. The marketing page disclosed it; this screen didn't. */
 const PROMISES: string[] = [
-  "Everything is scoped to your account. Every query the server makes is filtered by your user id.",
+  "Everything is scoped to your account. Every query that reads your conversations, memory, journal or moods filters by your user id.",
   "Your conversations are saved so Mindlens can pick up where you left off. Anything it *learns* from them — people, hard topics, what's helped — appears in Memory first, where you can edit or delete it.",
   "Your 7-day sign-in token is an httpOnly cookie that page scripts can't read. The short-lived access token is kept in browser storage so the app can call the API.",
-  "Sign-in records keep the device name only — never your IP address or location.",
+  "Sign-in records keep the device name only. Logins are also audited with a one-way, unreadable hash of your IP — enough to spot a break-in attempt, not enough to locate you — and it's erased when you delete your account.",
   "In a crisis, Mindlens answers from human-written templates. Zero AI calls, every time.",
-  "Your conversations are never sold or used for advertising. To write a reply, your message text goes to Groq, the model provider — with emails, phone numbers and ID numbers stripped first. Nowhere else.",
-  "Mindlens never trains models on what you write.",
+  "Your conversations are never sold or used for advertising.",
+  "To write a reply, this turn's message goes to Groq, the model provider, with emails, phone numbers and ID numbers stripped first. Your first name and anyone you've told Mindlens about travel with it unstripped — that's what lets the reply sound like it knows you. Nowhere else.",
+  "Mindlens never trains its own models on what you write. What Groq does with the text it receives to generate a reply is covered by Groq's terms, not this app's.",
 ];
 
 export function PrivacySection({ client }: { client: MindLensClient }) {
