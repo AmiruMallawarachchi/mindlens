@@ -177,6 +177,7 @@ export function useMindLensClient() {
             eos: frame.eos_snapshot,
             agentsUsed: frame.agents_used,
             degraded: frame.degraded,
+            memoryRecalled: frame.memory_recalled ?? [],
             music: frame.music ?? null,
             pending: false,
           };

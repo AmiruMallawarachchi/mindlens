@@ -7,13 +7,18 @@
  * turn's personalization, so this isn't just a welcome screen: skipping it
  * means the memory system never has anything to read.
  *
- * Three short steps (nickname, up to two people, check-in time) — name and
- * age are already known from registration, so they're not asked again.
+ * Five short steps — nickname, one person, personality, tone, check-in
+ * time. Name and age are already known from registration, so they're not
+ * asked again. Personality and tone are both optional/defaulted rather than
+ * forced picks, and both are already fully wired into empathy_agent's
+ * prompt (Settings > General) — asking here just means the first reply is
+ * personalized instead of only replies after a trip to Settings.
  */
 
 import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { MindlensMark } from "@/components/brand/wordmark";
+import { PERSONALITIES, TONES } from "@/lib/personalities";
 import type { OnboardingInput, UserProfile } from "@/lib/types";
 
 type CheckinTime = OnboardingInput["checkin_preferred_time"];
@@ -41,9 +46,24 @@ export function OnboardingFlow({
   const [personRole, setPersonRole] = useState("");
   const [personContext, setPersonContext] = useState("");
   const [checkin, setCheckin] = useState<CheckinTime>("evening");
+  // Both optional — not everyone sees themselves in a 10-item list, and
+  // forcing a pick would mean guessing rather than telling Mindlens
+  // something true. Skipping personality leaves it unset (Settings > General
+  // later, or PersonalityAgent infers it from conversation); tone still
+  // needs *a* value since empathy_agent branches on it every turn, so it
+  // defaults to "balanced" rather than being skippable.
+  const [personality, setPersonality] = useState<string>("");
+  const [tone, setTone] = useState<NonNullable<OnboardingInput["tone_preference"]>>("balanced");
 
-  const steps = ["What should we call you", "Who's important to you", "When should we check in"];
-  const canAdvance = step === 0 ? nickname.trim().length > 0 : step === 1 ? personName.trim().length > 0 : true;
+  const steps = [
+    "What should we call you",
+    "Who's important to you",
+    "What describes you best",
+    "How direct should Mindlens be",
+    "When should we check in",
+  ];
+  const canAdvance =
+    step === 0 ? nickname.trim().length > 0 : step === 1 ? personName.trim().length > 0 : true;
 
   const next = () => {
     if (step < steps.length - 1) {
@@ -62,6 +82,8 @@ export function OnboardingFlow({
         },
       ],
       checkin_preferred_time: checkin,
+      personality: personality || undefined,
+      tone_preference: tone,
     });
   };
 
@@ -144,6 +166,49 @@ export function OnboardingFlow({
         )}
 
         {step === 2 && (
+          <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto pr-1">
+            <p className="mb-1 text-[12.5px]" style={{ color: "var(--ml-muted)" }}>
+              Changes how replies are written. Optional — skip if nothing fits.
+            </p>
+            {PERSONALITIES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPersonality((cur) => (cur === p.id ? "" : p.id))}
+                className="rounded-[var(--r-13)] p-3.5 text-left transition-colors"
+                style={{
+                  border: personality === p.id ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
+                  background: personality === p.id ? "color-mix(in oklab, var(--e1) 8%, transparent)" : "transparent",
+                }}
+              >
+                <span className="block text-[14px] font-medium" style={{ color: "var(--ml-ink)" }}>{p.label}</span>
+                <span className="mt-0.5 block text-[12px] leading-[1.5]" style={{ color: "var(--ml-muted)" }}>{p.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="flex flex-col gap-2">
+            {TONES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTone(t.id)}
+                className="rounded-[var(--r-13)] p-3.5 text-left transition-colors"
+                style={{
+                  border: tone === t.id ? "1.5px solid var(--e1)" : "1px solid var(--ml-hairline)",
+                  background: tone === t.id ? "color-mix(in oklab, var(--e1) 8%, transparent)" : "transparent",
+                }}
+              >
+                <span className="block text-[14px] font-medium" style={{ color: "var(--ml-ink)" }}>{t.label}</span>
+                <span className="mt-0.5 block text-[12px] leading-[1.5]" style={{ color: "var(--ml-muted)" }}>{t.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 4 && (
           <div className="flex flex-col gap-2">
             {CHECKIN_OPTIONS.map((opt) => (
               <button

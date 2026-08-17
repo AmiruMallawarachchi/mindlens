@@ -15,6 +15,7 @@ import {
   deleteMemoryNote,
   fetchMemory,
   updateMemoryPeople,
+  updateMemoryPreferences,
 } from "@/lib/api";
 import type { MemoryDoc } from "@/lib/types";
 
@@ -120,6 +121,15 @@ export function MemoryPage() {
   const forgetNote = (noteId: string) =>
     confirmThenRun(`notes:${noteId}`, () => deleteMemoryNote(noteId));
 
+  // Inferred from conversation, not typed by the user — unlike everything
+  // else on this page. Still has to appear here: it changes what Mindlens
+  // suggests (RoutineAgent's solo-vs-social branch), so leaving it invisible
+  // would make "anything Mindlens learns lands on this page" false for this
+  // one field. `null` clears it; a plain PATCH omitting the key would not.
+  const introvertScore = memory.preferences?.introvert_score;
+  const forgetSocialRead = () =>
+    confirmThenRun("introvert_score", () => updateMemoryPreferences({ introvert_score: null }));
+
   return (
     <div className="flex flex-col gap-9">
       <div
@@ -135,6 +145,31 @@ export function MemoryPage() {
           diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
         </p>
       </div>
+
+      {typeof introvertScore === "number" && (
+        <div
+          className="flex items-center justify-between gap-3 rounded-[var(--r-16)] p-4"
+          style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
+        >
+          <div>
+            <p className="ml-eyebrow mb-1">Social read</p>
+            <p className="text-[12.5px] leading-[1.55]" style={{ color: "var(--ml-muted)" }}>
+              Picked up from conversation, not something you told it directly —
+              shapes whether Mindlens suggests solo or social activities. Reads{" "}
+              {introvertScore < 0.4 ? "more introverted" : introvertScore > 0.6 ? "more extroverted" : "balanced"} right now.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={forgetSocialRead}
+            onBlur={() => setArmedKey((k) => (k === "introvert_score" ? null : k))}
+            className="shrink-0 text-[11.5px] font-medium"
+            style={{ color: "#e08a8a" }}
+          >
+            {armedKey === "introvert_score" ? "Click to confirm" : "Forget"}
+          </button>
+        </div>
+      )}
 
       {error && (
         <p className="text-[12.5px]" style={{ color: "#e08a8a" }}>

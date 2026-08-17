@@ -123,6 +123,7 @@ class StreamingResponse:
         crisis_flag: bool = False,
         resources: list[dict] | None = None,
         degraded: list[str] | None = None,
+        memory_recalled: list[str] | None = None,
     ) -> None:
         """
         Send final response payload.
@@ -153,6 +154,7 @@ class StreamingResponse:
                 crisis_flag=crisis_flag,
                 resources=resources,
                 degraded=degraded,
+                memory_recalled=memory_recalled,
             )
 
     # -----------------------------------------------------------------------
@@ -254,6 +256,7 @@ async def stream_pipeline_result(
             eos_snapshot=eos,
             music=music_payload,
             degraded=degraded,
+            memory_recalled=memory_recalled,
         )
     else:
         # Short response or streaming disabled: send final directly
@@ -263,6 +266,7 @@ async def stream_pipeline_result(
             eos_snapshot=eos,
             music=music_payload,
             degraded=degraded,
+            memory_recalled=memory_recalled,
         )
 
 

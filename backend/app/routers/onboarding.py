@@ -66,6 +66,15 @@ class OnboardingCompleteRequest(BaseModel):
     age: int = Field(..., ge=13, le=100)
     people: list[dict[str, str]] = Field(..., min_length=1, max_length=2)
     checkin_preferred_time: str = Field(..., pattern="^(morning|evening|whenever)$")
+    # Both optional and both already fully wired (memory.py's PreferencesUpdate,
+    # memory_recall.py, empathy_agent.py) — surfaced here so the very first
+    # reply is personalized, not just replies after a trip to Settings.
+    personality: str | None = Field(
+        None,
+        pattern="^(overthinker|doer|highly_sensitive|analytical|optimist|realist|"
+        "anxious_achiever|quiet_observer|people_person|private)$",
+    )
+    tone_preference: str | None = Field(None, pattern="^(gentle|balanced|direct)$")
 
 class OnboardingStatusResponse(BaseModel):
     """Current onboarding status"""
@@ -237,7 +246,8 @@ async def submit_onboarding_step(
                         "checkin_preferred_time": req.checkin_preferred_time,
                         "music_genres": [],
                         "mindfulness_style": "",
-                        "introvert_score": 0.5,
+                        # No introvert_score here — see the matching comment
+                        # on the /complete path below for why.
                         "preferred_modality": "CBT",
                     },
                     "emotional_patterns": {
@@ -316,8 +326,18 @@ async def complete_onboarding(
                     "checkin_preferred_time": req.checkin_preferred_time,
                     "music_genres": [],
                     "mindfulness_style": "",
-                    "introvert_score": 0.5,
+                    # No introvert_score here — memory_recall.py's own
+                    # invariant is "None means nothing has been inferred yet,
+                    # which is different from a genuine 0.5". PersonalityAgent
+                    # is what's supposed to set this, from what a user
+                    # actually says across sessions; a hardcoded 0.5 at
+                    # onboarding was indistinguishable from a real inference
+                    # and showed up on the Memory page's "Social read" card
+                    # captioned "picked up from conversation" before any
+                    # conversation had happened.
                     "preferred_modality": "CBT",
+                    "personality": req.personality,
+                    "tone_preference": req.tone_preference or "balanced",
                 },
                 "emotional_patterns": {
                     "most_common_emotion": None,

@@ -25,6 +25,10 @@ export interface OnboardingInput {
   nickname?: string;
   people: { name: string; role: string; context?: string }[];
   checkin_preferred_time: "morning" | "evening" | "whenever";
+  /** Both already power empathy_agent's prompt (Settings > General) — asked
+   * here too so the very first reply is personalized. */
+  personality?: string;
+  tone_preference?: "gentle" | "balanced" | "direct";
 }
 
 export interface SessionSummary {
@@ -136,7 +140,10 @@ export interface MemoryPerson {
 export interface MemoryPreferences {
   music_genres?: string[];
   mindfulness_style?: string;
-  introvert_score?: number;
+  /** Inferred by PersonalityAgent from what's been said, not typed by the
+   * user. `null` clears it — distinct from "not sent" (which leaves the
+   * stored value untouched). */
+  introvert_score?: number | null;
   preferred_modality?: string;
   checkin_preferred_time?: string;
   tone_preference?: "gentle" | "balanced" | "direct";
@@ -271,6 +278,7 @@ export type ServerFrame =
       crisis_flag: boolean;
       resources?: CrisisResource[];
       degraded?: string[];
+      memory_recalled?: string[];
     }
   | {
       type: "crisis_response";

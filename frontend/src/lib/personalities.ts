@@ -30,3 +30,17 @@ export const PERSONALITIES: PersonalityDef[] = [
 export function getPersonality(id: string | null | undefined): PersonalityDef | null {
   return PERSONALITIES.find((p) => p.id === id) ?? null;
 }
+
+/** How direct Mindlens should be, set in Settings > General and (optionally)
+ * during onboarding. Single source so the two pickers can't drift. */
+export interface ToneDef {
+  id: "gentle" | "balanced" | "direct";
+  label: string;
+  hint: string;
+}
+
+export const TONES: ToneDef[] = [
+  { id: "gentle", label: "Gentle", hint: "Softer landings. Warmth before the point." },
+  { id: "balanced", label: "Balanced", hint: "Warm, but says the hard thing when it matters." },
+  { id: "direct", label: "Direct", hint: "Straight to it. Kind, not cushioned." },
+];

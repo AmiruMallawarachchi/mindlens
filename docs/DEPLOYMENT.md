@@ -139,10 +139,14 @@ Preview if preview deployments should hit the live backend too):
   environment, every visitor to that deployment skips authentication. There
   is no legitimate reason to set it there.
 
-The client authenticates with a bearer token (`Authorization` header), not
-cookies — see `frontend/src/lib/api.ts`'s header comment for why — so no
-`credentials: "include"` or CSRF token handling is needed on the frontend
-side.
+The client sends the access token as an `Authorization` bearer header for
+normal API calls, so those need no CSRF handling. The one exception is
+`/api/v1/auth/refresh`, which uses `credentials: "include"` to send the
+7-day httpOnly refresh cookie (`frontend/src/lib/api.ts`) — that cookie is
+`SameSite=None; Secure` in production, so the Space must be served over
+HTTPS and the Vercel origin must be in `CORS_ORIGINS` with credentials
+allowed, or every session will silently expire after 15 minutes instead of
+refreshing.
 
 Add the final Vercel domains to `CORS_ORIGINS` on the Space. Preview
 deployments need explicit origins; wildcard origins are rejected in

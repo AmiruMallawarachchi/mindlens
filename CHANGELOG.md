@@ -91,7 +91,7 @@ fakes for the parts that were actually failing.
 - Empathy agent with Groq 8B/70B dual-tier routing
 - Mindfulness agent with LLM-generated exercises
 - Crisis agent with template-only responses (ZERO LLM)
-- Safety gate with 3-layer detection (threshold: 0.45)
+- Safety gate with 2-layer detection — a deterministic keyword screen, then an isolated crisis classifier (threshold: 0.45)
 - Emotional Operating System (EOS) state model
 - Session memory with rolling summarization
 - Longitudinal memory with mood trends and people graph
@@ -109,7 +109,7 @@ fakes for the parts that were actually failing.
 - Updated crisis threshold to 0.45 (maximize recall)
 
 ### Security
-- Added PII stripping before every model call
+- Added PII stripping to each turn's message before model calls
 - Refresh token in an httpOnly cookie; short-lived access token in
   localStorage (see `frontend/src/lib/api.ts`)
 - Rate limiting planned for all endpoints
