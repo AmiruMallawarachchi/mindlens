@@ -109,8 +109,28 @@ class TestGroqClientRealMode:
             model_tier="8B",
         )
         assert result.text == "Hello"
-        assert result.model_used == "llama-3.1-8b-instant"
+        assert result.model_used == "openai/gpt-oss-20b"
         assert result.tokens_used == 10
+
+    @pytest.mark.asyncio
+    async def test_chat_pins_reasoning_effort_low(self, real_client: GroqClient) -> None:
+        """Both current models are reasoning models — without effort pinned
+        low, a chain-of-thought phase can consume the whole max_tokens
+        budget and leave the visible answer empty (confirmed live: default
+        effort ran 80+ reasoning tokens against a 30-token budget and
+        returned ""). Regression guard for that class of silent failure."""
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Hello"), finish_reason="stop")],
+            usage=MagicMock(total_tokens=10),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        await real_client.chat(system_prompt="sys", user_prompt="user")
+
+        assert mock_chat.call_args.kwargs["reasoning_effort"] == "low"
 
     @pytest.mark.asyncio
     async def test_chat_timeout(self, real_client: GroqClient) -> None:
@@ -151,7 +171,7 @@ class TestGroqClientRealMode:
             user_prompt="user",
             model_tier="70B",
         )
-        assert result.model_used == "llama-3.3-70b-versatile"
+        assert result.model_used == "openai/gpt-oss-120b"
 
 
 class TestGroqClientSingleton:

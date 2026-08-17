@@ -38,9 +38,18 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 GROQ_MODELS = {
-    "8B": "llama-3.1-8b-instant",
-    "70B": "llama-3.3-70b-versatile",
+    "8B": "openai/gpt-oss-20b",
+    "70B": "openai/gpt-oss-120b",
 }
+
+# Both current models are reasoning models: unlike llama-3.1/3.3, they spend
+# completion tokens on hidden chain-of-thought before the visible answer.
+# Confirmed live: at "low" effort that overhead is ~7-10 tokens; at default
+# effort it can run 80+ tokens and, combined with an agent's own max_tokens
+# budget, silently produces empty content (all of it spent on reasoning,
+# none left for the answer). This app wants a fast, direct, in-character
+# reply, not deliberation, so every call pins effort low.
+_REASONING_EFFORT = "low"
 
 # Per-agent max tokens (from SYSTEM.md §25.2)
 DEFAULT_MAX_TOKENS = 200
@@ -108,7 +117,7 @@ class GroqClient:
             self._stub_mode = True
             logger.warning(
                 "groq package not installed. Forcing stub mode. "
-                "Install with: pip install groq==0.8.0"
+                "Install with: pip install groq"
             )
             return
 
@@ -158,6 +167,7 @@ class GroqClient:
                     ],
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    reasoning_effort=_REASONING_EFFORT,
                 ),
                 timeout=timeout,
             )

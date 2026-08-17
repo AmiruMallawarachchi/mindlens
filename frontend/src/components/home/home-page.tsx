@@ -543,7 +543,7 @@ export function HomePage() {
           </div>
           <Reveal delay={0.2}>
             <p className="m-0 mt-9 max-w-[640px] text-[13.5px] leading-[1.7]" style={{ color: "rgba(247,243,236,.55)" }}>
-              Generation runs on Groq — Llama 3.1 8B for simple turns, Llama 3.3 70B when the moment is emotional or complex. Crisis turns use <span style={{ color: "var(--e2)" }}>zero</span> LLM calls: vetted templates only.
+              Generation runs on Groq — a smaller open model for simple turns, a larger one when the moment is emotional or complex. Crisis turns use <span style={{ color: "var(--e2)" }}>zero</span> LLM calls: vetted templates only.
             </p>
           </Reveal>
         </div>
