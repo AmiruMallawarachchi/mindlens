@@ -488,13 +488,24 @@ decision, every RAG retrieval, and every Groq call.
 
 ### 8.1 Safety Gate Layers
 
-| Layer | Method | Target latency |
-|---|---|---|
-| L1 | Regex crisis pattern scan | less than 1ms |
-| L2 | `mindlens-crisis` classifier | less than 60ms |
-| L3 | Semantic search against crisis corpus | less than 100ms |
+| Layer | Method | Where | Target latency |
+|---|---|---|---|
+| L1 | Regex crisis pattern scan | `safety_gate.evaluate()` | less than 1ms |
+| L2 | `mindlens-crisis` classifier, fires above 0.45 | orchestrator, after L1 clears | less than 60ms |
 
-Any trigger means crisis mode.
+Either trigger means crisis mode.
+
+L1 is deliberately first and independent of model health: if the
+classifier is down, unloaded or returns nothing, the regex screen still
+runs and still catches. A turn where the classifier was unavailable is
+logged as degraded rather than passing silently.
+
+**There is no semantic-search layer.** An earlier design called for a
+third layer doing embedding search against a crisis corpus; it was never
+built, and this table previously described it as if it were. It is not in
+the code, so it is not claimed here. Adding it would improve recall on
+paraphrased crisis language that neither the patterns nor the classifier
+catch — that is the honest gap, and it is future work.
 
 ### 8.2 Crisis Mode
 
