@@ -33,6 +33,23 @@ AGENT_PRIORITY: dict[str, int] = {
     "personality": 11,  # Tone adaptation (invisible)
 }
 
+# Agents whose text already has its own place in the UI. Including it in
+# the prose too showed the same sentence twice — music's text is what the
+# music card renders as its message.
+CARD_RENDERED_AGENTS = frozenset({"music"})
+
+# Empathy opens the turn; at most this many specialists may add to it.
+#
+# Every speaking agent writes a *complete* conversational turn, so with no
+# cap the assembler stapled three or four whole replies together: empathy
+# greeting, then a distortion challenge, then a music pitch, in one wall of
+# text. It read like a committee rather than one person, and it challenged
+# users who had only said they wanted help. The agents still all run —
+# their metadata drives the thinking panel — but only this many get to
+# speak. Priority order below decides who wins, so grounding beats
+# challenging when both fire.
+MAX_SPECIALIST_VOICES = 1
+
 # Mandatory disclaimer appended to every response
 MANDATORY_DISCLAIMER = (
     "\n\n— MindLens is not a clinical service. "
@@ -97,9 +114,17 @@ class ResponseAssembler:
         )
 
         parts: list[str] = []
+        specialists_spoken = 0
         for output in sorted_outputs:
-            if output.text and output.text.strip():
-                parts.append(output.text.strip())
+            if not (output.text and output.text.strip()):
+                continue
+            if output.agent_name in CARD_RENDERED_AGENTS:
+                continue
+            if output.agent_name != "empathy":
+                if specialists_spoken >= MAX_SPECIALIST_VOICES:
+                    continue
+                specialists_spoken += 1
+            parts.append(output.text.strip())
 
         # Deduplicate exact duplicate sentences
         unique_parts = []

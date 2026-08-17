@@ -259,7 +259,7 @@ class TestOrchestratorAgentRouting:
         assert agents == ["crisis"]
 
     def test_mindfulness_for_high_distress(self) -> None:
-        eos = EmotionalOperatingState(distress_level=0.6)
+        eos = EmotionalOperatingState(distress_level=0.6, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "mindfulness" in agents
 
@@ -269,7 +269,9 @@ class TestOrchestratorAgentRouting:
         assert "music" in agents
 
     def test_challenge_gated_by_trust(self) -> None:
-        eos = EmotionalOperatingState(trust_level=0.7, emotional_stability=0.6, distress_level=0.4)
+        eos = EmotionalOperatingState(
+            trust_level=0.7, emotional_stability=0.6, distress_level=0.4, session_turn_count=3
+        )
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "challenge" in agents
 
@@ -279,9 +281,42 @@ class TestOrchestratorAgentRouting:
         assert "challenge" not in agents
 
     def test_distortion_for_cbt(self) -> None:
-        eos = EmotionalOperatingState(modality=Modality.CBT)
+        eos = EmotionalOperatingState(modality=Modality.CBT, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "distortion" in agents
+
+    def test_opening_turn_lets_empathy_ask_alone(self) -> None:
+        """The wall-of-text complaint. On turn one empathy asks what's
+        going on; a specialist firing alongside it answers a question the
+        user hasn't replied to yet. Someone who said they were putting off
+        their project got a five-step grounding script in the same breath
+        as "what's holding you back?"."""
+        eos = EmotionalOperatingState(
+            session_turn_count=0,
+            distress_level=0.6,
+            core_emotion="nervousness",
+            modality=Modality.CBT,
+            trust_level=0.9,
+            emotional_stability=0.9,
+            mental_fatigue=0.9,
+            session_depth=0.9,
+        )
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "empathy" in agents
+        for prescriptive in (
+            "mindfulness", "reflection", "challenge",
+            "distortion", "routine", "journaling",
+        ):
+            assert prescriptive not in agents, f"{prescriptive} spoke on turn one"
+
+    def test_opening_turn_yields_to_high_distress(self) -> None:
+        """Conversational shape never outranks grounding someone who is
+        genuinely struggling."""
+        eos = EmotionalOperatingState(
+            session_turn_count=0, distress_level=0.8, core_emotion="anxiety"
+        )
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "mindfulness" in agents
 
     def test_distortion_blocked_for_dbt(self) -> None:
         eos = EmotionalOperatingState(modality=Modality.DBT)
@@ -289,7 +324,7 @@ class TestOrchestratorAgentRouting:
         assert "distortion" not in agents
 
     def test_routine_for_fatigue(self) -> None:
-        eos = EmotionalOperatingState(mental_fatigue=0.8)
+        eos = EmotionalOperatingState(mental_fatigue=0.8, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "routine" in agents
 
@@ -299,6 +334,7 @@ class TestOrchestratorAgentRouting:
             emotional_stability=0.5,
             mental_fatigue=0.5,
             receptiveness=Receptiveness(journaling=0.7),
+            session_turn_count=3,
         )
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "journaling" in agents

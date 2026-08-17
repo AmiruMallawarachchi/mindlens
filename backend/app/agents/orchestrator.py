@@ -543,8 +543,24 @@ class Orchestrator:
 
         agents: list[str] = ["empathy"]
 
+        # The opening turn asks a question; it does not prescribe.
+        #
+        # Empathy's job on turn one is to find out what's going on. A
+        # specialist firing alongside it answers a question the user has not
+        # had a chance to reply to yet — someone who said they were putting
+        # off their project got a five-step grounding script in the same
+        # breath as "what's holding you back?". Let empathy open alone and
+        # give them a turn to answer.
+        #
+        # High distress overrides this: grounding someone who is struggling
+        # matters more than conversational shape.
+        opening_turn = eos.session_turn_count == 0 and eos.distress_level < 0.7
+
         # Safety-critical: mindfulness for high distress or anxiety
-        if eos.distress_level > 0.5 or eos.core_emotion in {"anxiety", "fear", "nervousness"}:
+        if not opening_turn and (
+            eos.distress_level > 0.5
+            or eos.core_emotion in {"anxiety", "fear", "nervousness"}
+        ):
             agents.append("mindfulness")
 
         # Music for moderate distress or music-receptive users
@@ -552,23 +568,23 @@ class Orchestrator:
             agents.append("music")
 
         # Reflection for meaningful session depth
-        if eos.session_depth >= 0.3:
+        if not opening_turn and eos.session_depth >= 0.3:
             agents.append("reflection")
 
         # Challenge: only when trust is high and not in crisis
-        if eos.trust_level >= 0.6 and eos.emotional_stability >= 0.5 and not eos.is_in_crisis():
+        if not opening_turn and eos.trust_level >= 0.6 and eos.emotional_stability >= 0.5 and not eos.is_in_crisis():
             agents.append("challenge")
 
         # Distortion: when CBT modality is active
-        if eos.modality == Modality.CBT:
+        if not opening_turn and eos.modality == Modality.CBT:
             agents.append("distortion")
 
         # Routine: when fatigue is high
-        if eos.mental_fatigue >= 0.7:
+        if not opening_turn and eos.mental_fatigue >= 0.7:
             agents.append("routine")
 
         # Journaling: when stable enough and receptive
-        if eos.emotional_stability >= 0.3 and eos.mental_fatigue < 0.8 and eos.is_receptive_to("journaling"):
+        if not opening_turn and eos.emotional_stability >= 0.3 and eos.mental_fatigue < 0.8 and eos.is_receptive_to("journaling"):
             agents.append("journaling")
 
         # Progress: periodic insight (every 5 turns or at end of session)
