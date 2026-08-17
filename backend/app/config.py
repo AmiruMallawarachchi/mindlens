@@ -57,11 +57,6 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] | None = None
 
     use_openai_stubs: bool = True
-    # Read by music_agent.py's MCP client. USE_VOICE and USE_SPOTIFY were
-    # removed from here — declared settings that nothing in app/ ever read,
-    # not even to gate this URL; MusicAgent always attempts the MCP call and
-    # falls back to LLM + static tracks on failure regardless of either flag.
-    spotify_mcp_url: str = "http://localhost:8001"
     admin_email: str = "admin@mindlens.app"
 
     emotion_model_id: str = "SamLowe/roberta-base-go_emotions"

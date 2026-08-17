@@ -4,49 +4,62 @@ Music Agent — MindLens v3 SYSTEM.md §5.11
 Trigger: distress > 0.4 OR user requests music.
 Uses Groq 8B (for message wrapping only).
 
-Spotify MCP Integration:
-  Mode A (User connected): Full OAuth → search/recommendations/create playlists
-  Mode B (Not connected): Client credentials → search/recommendations
-  Fallback chain: Spotify → YouTube links → static curated list
+Track source: Apple's iTunes Search API (https://itunes.apple.com/search).
+No auth, no client registration, no user connection step — a plain
+unauthenticated GET. This replaced a Spotify Web API integration
+(spotify-mcp/, now removed) that could not actually be finished: Spotify's
+Web API has required the *developer's own account* to hold an active
+Premium subscription since February/March 2026, on top of the
+/recommendations endpoint (which the original design targeted) having been
+withdrawn for new apps back in November 2024. iTunes search needs none of
+that, and returns a 30-second preview MP3 the client can play directly —
+something the Spotify path never reached either, since it only ever linked
+out to open Spotify.
 
-EMOTION → AUDIO FEATURES (SYSTEM.md §5.11):
-  anxiety/fear     → tempo: 60-75, energy: 0.2-0.4, valence: 0.3-0.5, genre: ambient/classical
-  sadness/grief    → tempo: 50-70, energy: 0.1-0.3, valence: 0.1-0.3, genre: indie/acoustic
-  anger            → tempo: 80-100, energy: 0.5-0.7, valence: 0.4-0.6, genre: rock/alternative
-  joy/excitement   → tempo: 110-130, energy: 0.7-0.9, valence: 0.8-1.0, genre: pop/dance
-  numbness/flat    → tempo: 70-90, energy: 0.3-0.5, valence: 0.5-0.7, genre: lo-fi/chill
-  burnout          → tempo: 55-70, energy: 0.2-0.4, valence: 0.4-0.6, genre: nature/ambient
+EMOTION → SEARCH MOOD (replaces the old tempo/energy/valence targets):
+  anxiety/fear/panic → ambient, calm, slow, instrumental
+  sadness/grief      → acoustic, gentle, soft
+  anger              → alternative, steady, grounding
+  joy/excitement     → upbeat, bright, pop
+  numbness/flat      → lo-fi, chill
+  burnout            → ambient, nature, slow
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+import httpx
+
 from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 from app.agents.groq_client import get_groq_client
-from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Emotion → audio feature mapping (SYSTEM.md §5.11)
-EMOTION_AUDIO_FEATURES = {
-    "anxiety":     {"tempo": (60, 75),   "energy": (0.2, 0.4), "valence": (0.3, 0.5), "genres": ["ambient", "classical"]},
-    "fear":        {"tempo": (60, 75),   "energy": (0.2, 0.4), "valence": (0.3, 0.5), "genres": ["ambient", "classical"]},
-    "panic":       {"tempo": (60, 75),   "energy": (0.2, 0.4), "valence": (0.3, 0.5), "genres": ["ambient", "classical"]},
-    "sadness":     {"tempo": (50, 70),   "energy": (0.1, 0.3), "valence": (0.1, 0.3), "genres": ["indie", "acoustic"]},
-    "grief":       {"tempo": (50, 70),   "energy": (0.1, 0.3), "valence": (0.1, 0.3), "genres": ["indie", "acoustic"]},
-    "anger":       {"tempo": (80, 100),  "energy": (0.5, 0.7), "valence": (0.4, 0.6), "genres": ["rock", "alternative"]},
-    "joy":         {"tempo": (110, 130), "energy": (0.7, 0.9), "valence": (0.8, 1.0), "genres": ["pop", "dance"]},
-    "excitement":  {"tempo": (110, 130), "energy": (0.7, 0.9), "valence": (0.8, 1.0), "genres": ["pop", "dance"]},
-    "neutral":     {"tempo": (70, 90),   "energy": (0.3, 0.5), "valence": (0.5, 0.7), "genres": ["lo-fi", "chill"]},
-    "numbness":    {"tempo": (70, 90),   "energy": (0.3, 0.5), "valence": (0.5, 0.7), "genres": ["lo-fi", "chill"]},
-    "burnout":     {"tempo": (55, 70),   "energy": (0.2, 0.4), "valence": (0.4, 0.6), "genres": ["nature", "ambient"]},
-    "stress":      {"tempo": (60, 80),   "energy": (0.2, 0.4), "valence": (0.3, 0.5), "genres": ["ambient", "classical"]},
-}
+ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
 
-# Static fallback tracks (used when Spotify is down). No spotify_url/youtube_url
-# here: these were placeholder IDs that resolved to nothing, and the client
-# (music-card.tsx) already renders an honest "Connect Spotify to play" state
-# when a track has no URL rather than a link that 404s.
+# Emotion -> (genre, mood words). Used to build the iTunes search term
+# directly — no numeric audio-feature targets, because a text search has
+# nothing to target them against. Coarse and word-based on purpose.
+EMOTION_SEARCH_TERMS: dict[str, dict[str, Any]] = {
+    "anxiety":    {"genre": "ambient",     "mood": "calm slow instrumental"},
+    "fear":       {"genre": "ambient",     "mood": "calm slow instrumental"},
+    "panic":      {"genre": "ambient",     "mood": "calm slow instrumental"},
+    "sadness":    {"genre": "acoustic",    "mood": "gentle soft"},
+    "grief":      {"genre": "acoustic",    "mood": "gentle soft"},
+    "anger":      {"genre": "alternative", "mood": "steady grounding"},
+    "joy":        {"genre": "pop",         "mood": "upbeat bright"},
+    "excitement": {"genre": "pop",         "mood": "upbeat bright"},
+    "neutral":    {"genre": "chill",       "mood": "lo-fi"},
+    "numbness":   {"genre": "chill",       "mood": "lo-fi"},
+    "burnout":    {"genre": "ambient",     "mood": "nature slow"},
+    "stress":     {"genre": "ambient",     "mood": "calm slow"},
+}
+_DEFAULT_SEARCH_TERM = {"genre": "chill", "mood": "lo-fi"}
+
+# Used only if iTunes itself is unreachable (network/rate-limit) — a track
+# name and artist to name in the fallback message, no fabricated links.
 STATIC_FALLBACK = {
     "anxiety": [
         {"name": "Weightless", "artist": "Marconi Union"},
@@ -59,13 +72,7 @@ STATIC_FALLBACK = {
 
 
 class MusicAgent(BaseAgent):
-    """
-    Recommends music based on emotion, using Spotify MCP server.
-
-    Mode A: User connected (OAuth) → personalized playlists
-    Mode B: App-level (Client credentials) → track recommendations
-    Fallback: YouTube links → static curated list
-    """
+    """Recommends music based on emotion, via the iTunes Search API."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -75,145 +82,118 @@ class MusicAgent(BaseAgent):
             max_tokens=200,
             always_runs=False,
         )
-        # MCP client endpoint (Spotify MCP server)
-        self._mcp_base_url = settings.spotify_mcp_url
 
     async def run(self, ctx: AgentContext) -> AgentOutput:
-        """
-        Generate music recommendation via Spotify MCP or fallback chain.
-        """
         emotion = (ctx.eos.core_emotion or ctx.eos.surface_emotion or "neutral").lower()
-        audio_features = EMOTION_AUDIO_FEATURES.get(
-            emotion,
-            {"tempo": (70, 90), "energy": (0.3, 0.5), "valence": (0.5, 0.7), "genres": ["lo-fi", "chill"]}
+        search_terms = EMOTION_SEARCH_TERMS.get(emotion, _DEFAULT_SEARCH_TERM)
+
+        try:
+            tracks = await self._search_itunes(search_terms, limit=5)
+            if tracks:
+                return await self._build_output(ctx, emotion, search_terms, tracks)
+        except Exception as exc:
+            logger.warning("iTunes search failed: %s. Falling back to static list.", exc)
+
+        return await self._static_fallback(ctx, emotion, search_terms)
+
+    async def _search_itunes(
+        self, search_terms: dict[str, Any], limit: int
+    ) -> list[dict[str, Any]]:
+        """Query iTunes; map its response into this agent's track shape.
+
+        `previewUrl` is a real, directly-playable 30-second clip — present
+        on most but not all tracks. `trackViewUrl` (the Apple Music page)
+        is present whenever previewUrl is, so a track never has neither.
+
+        Overfetches and dedupes by (name, artist): the same song genuinely
+        appears more than once in iTunes' catalog under different trackIds
+        when it's been released on multiple compilation albums — common for
+        the generic mood-library music these searches tend to surface. The
+        card only shows name and artist, so an undeduped result rendered as
+        the same track listed two or three times in a row.
+        """
+        query = f"{search_terms['genre']} {search_terms['mood']}"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                ITUNES_SEARCH_URL,
+                params={
+                    "term": query,
+                    "media": "music",
+                    "entity": "song",
+                    "limit": min(limit * 4, 50),
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        seen: set[tuple[str, str]] = set()
+        tracks: list[dict[str, Any]] = []
+        for t in data.get("results", []):
+            name = t.get("trackName")
+            if not name:
+                continue
+            artist = t.get("artistName", "Unknown artist")
+            key = (name.strip().lower(), artist.strip().lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            tracks.append({
+                "name": name,
+                "artist": artist,
+                "preview_url": t.get("previewUrl"),
+                "track_url": t.get("trackViewUrl"),
+            })
+            if len(tracks) >= limit:
+                break
+
+        return tracks
+
+    async def _build_output(
+        self,
+        ctx: AgentContext,
+        emotion: str,
+        search_terms: dict[str, Any],
+        tracks: list[dict[str, Any]],
+    ) -> AgentOutput:
+        groq_client = get_groq_client()
+        tracks_info = "\n".join(f"- {t['name']} by {t['artist']}" for t in tracks[:3])
+
+        wrap_result = await groq_client.chat(
+            system_prompt=self._build_music_wrapper_prompt(ctx, emotion, search_terms),
+            user_prompt=f"Here are the tracks:\n{tracks_info}",
+            model_tier=self.llm_tier,
+            max_tokens=self.max_tokens,
+            temperature=0.7,
         )
 
-        # Try Spotify MCP first
-        try:
-            spotify_result = await self._call_spotify_mcp(ctx, emotion, audio_features)
-            if spotify_result:
-                return spotify_result
-        except Exception as exc:
-            logger.warning("Spotify MCP failed: %s. Falling back to LLM + static.", exc)
+        return AgentOutput(
+            agent_name=self.name,
+            text=wrap_result.text.strip(),
+            metadata={
+                "llm_tier": self.llm_tier,
+                "tokens_used": wrap_result.tokens_used,
+                "latency_ms": wrap_result.latency_ms,
+                "tracks": tracks,
+                "emotion": emotion,
+            },
+        )
 
-        # Fallback: LLM-generated message with static track list
-        return await self._llm_fallback(ctx, emotion, audio_features)
-
-    async def _call_spotify_mcp(
-        self, ctx: AgentContext, emotion: str, audio_features: dict
-    ) -> AgentOutput | None:
-        """
-        Call Spotify MCP server.
-        Returns AgentOutput with music metadata, or None on failure.
-        """
-        import httpx
-
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # Check Spotify connection status
-            try:
-                status_resp = await client.get(f"{self._mcp_base_url}/status")
-                status = status_resp.json()
-            except Exception:
-                return None
-
-            mode = status.get("mode", "B")
-            connected = status.get("connected", False)
-
-            # Get recommendations based on audio features
-            rec_payload = {
-                "audio_features": {
-                    "target_tempo": (audio_features["tempo"][0] + audio_features["tempo"][1]) // 2,
-                    "target_energy": (audio_features["energy"][0] + audio_features["energy"][1]) / 2,
-                    "target_valence": (audio_features["valence"][0] + audio_features["valence"][1]) / 2,
-                },
-                "genre_seeds": audio_features["genres"],
-                "limit": 5,
-            }
-
-            rec_resp = await client.post(
-                f"{self._mcp_base_url}/recommendations",
-                json=rec_payload,
-            )
-            # The MCP route returns a bare JSON array (list[TrackResponse]),
-            # not {"tracks": [...]} — calling .get() on that raised
-            # AttributeError, which the caller swallowed as "Spotify failed".
-            # Accept both shapes so neither side has to move.
-            rec_body = rec_resp.json()
-            tracks = rec_body.get("tracks", []) if isinstance(rec_body, dict) else rec_body
-
-            if not tracks:
-                return None
-
-            # Mode A: Create playlist if connected
-            playlist_data = None
-            if mode == "A" and connected:
-                try:
-                    playlist_payload = {
-                        "name": f"MindLens — {emotion.title()} ({ctx.user_name or 'friend'})",
-                        "track_uris": [t.get("uri", "") for t in tracks if t.get("uri")],
-                        "user_id": "current_user",  # Will be resolved by MCP server
-                    }
-                    pl_resp = await client.post(
-                        f"{self._mcp_base_url}/create_playlist",
-                        json=playlist_payload,
-                    )
-                    playlist_data = pl_resp.json()
-                except Exception as exc:
-                    logger.warning("Playlist creation failed: %s", exc)
-
-            # Build LLM-wrapped message
-            tracks_info = "\n".join(
-                f"- {t['name']} by {t['artist']}"
-                for t in tracks[:3]
-            )
-
-            # Groq LLM wrapping
-            groq_client = get_groq_client()
-            wrap_result = await groq_client.chat(
-                system_prompt=self._build_music_wrapper_prompt(ctx, emotion, audio_features),
-                user_prompt=f"Here are the tracks:\n{tracks_info}",
-                model_tier=self.llm_tier,
-                max_tokens=self.max_tokens,
-                temperature=0.7,
-            )
-
-            return AgentOutput(
-                agent_name=self.name,
-                text=wrap_result.text.strip(),
-                metadata={
-                    "llm_tier": self.llm_tier,
-                    "tokens_used": wrap_result.tokens_used,
-                    "latency_ms": wrap_result.latency_ms,
-                    "spotify_mode": mode,
-                    "tracks": tracks,
-                    "playlist": playlist_data,
-                    "emotion": emotion,
-                },
-            )
-
-    async def _llm_fallback(
-        self, ctx: AgentContext, emotion: str, audio_features: dict
+    async def _static_fallback(
+        self, ctx: AgentContext, emotion: str, search_terms: dict[str, Any]
     ) -> AgentOutput:
-        """LLM fallback when Spotify is unavailable."""
+        """LLM fallback when iTunes itself is unreachable."""
         groq_client = get_groq_client()
 
-        # Get static fallback tracks for this emotion
         fallback_tracks = STATIC_FALLBACK.get(emotion, STATIC_FALLBACK.get("anxiety", []))
-        # Name and artist only. The previous version interpolated
-        # t.get('spotify_url', 'N/A') for tracks that deliberately carry no
-        # URLs, so the model was handed "YouTube: N/A" and simultaneously
-        # instructed to supply YouTube links — an invitation to invent one.
-        # A fabricated link is exactly the kind of small false promise
-        # CLAUDE.md rule 2 exists to prevent.
-        tracks_str = "\n".join(
-            f"- {t['name']} by {t['artist']}" for t in fallback_tracks
-        )
+        # Name and artist only — these carry no URLs, and the prompt below
+        # is explicit that none should be invented.
+        tracks_str = "\n".join(f"- {t['name']} by {t['artist']}" for t in fallback_tracks)
 
-        system = self._build_music_wrapper_prompt(ctx, emotion, audio_features)
+        system = self._build_music_wrapper_prompt(ctx, emotion, search_terms)
         user = (
-            f"Spotify is not available. Use these fallback tracks and suggest the user connect Spotify for personalized playlists.\n"
-            f"Tracks:\n{tracks_str}\n"
-            f"Suggest genres: {', '.join(audio_features['genres'])}."
+            f"Track search is temporarily unavailable. Mention these instead, "
+            f"without claiming they're currently playable:\n{tracks_str}\n"
+            f"Style to reach for: {search_terms['genre']}, {search_terms['mood']}."
         )
 
         result = await groq_client.chat(
@@ -231,35 +211,32 @@ class MusicAgent(BaseAgent):
                 "llm_tier": self.llm_tier,
                 "tokens_used": result.tokens_used,
                 "latency_ms": result.latency_ms,
-                "spotify_mode": "unavailable",
                 "tracks": fallback_tracks,
-                "connect_prompt": True,
                 "emotion": emotion,
             },
         )
 
-    def _build_music_wrapper_prompt(self, ctx: AgentContext, emotion: str, audio_features: dict) -> str:
+    def _build_music_wrapper_prompt(
+        self, ctx: AgentContext, emotion: str, search_terms: dict[str, Any]
+    ) -> str:
         """Build the LLM system prompt for wrapping music recommendations."""
         name = ctx.user_name or "friend"
-        genres = ", ".join(audio_features["genres"])
-        tempo = (audio_features["tempo"][0] + audio_features["tempo"][1]) // 2
-        energy = (audio_features["energy"][0] + audio_features["energy"][1]) / 2
 
         return (
             f"You are MindLens — a warm, thoughtful wellbeing coach.\n"
             f"\nUSER CONTEXT:\n"
             f"- Name: {name}\n"
             f"- Current emotion: {emotion}\n"
-            f"- Recommended music style: {genres} (tempo ~{tempo} BPM, energy {energy:.1f})\n"
+            f"- Recommended style: {search_terms['genre']}, {search_terms['mood']}\n"
             f"\nINSTRUCTIONS (follow ALL of them):\n"
             f"1. Write a warm, brief message introducing the music recommendation.\n"
-            f"2. Explain WHY this music style fits their current emotion ({emotion}).\n"
-            f"3. Mention 1-3 specific tracks or genres.\n"
-            f"4. If Spotify is connected, suggest creating a playlist.\n"
-            f"5. If Spotify is NOT connected, suggest connecting it for the full picks.\n"
-            f"   Never write a URL, link, or 'search for it on...' instruction: you are\n"
-            f"   not given any, and an invented link is worse than none. Name the track\n"
-            f"   and artist and stop there — the interface handles playback.\n"
+            f"2. Explain WHY this style fits their current emotion ({emotion}).\n"
+            f"3. Mention 1-3 specific tracks or the style by name.\n"
+            f"4. The track plays right here in the app — never mention Spotify,\n"
+            f"   connecting an account, or any other platform.\n"
+            f"5. Never write a URL or link of any kind: you are not given any,\n"
+            f"   and an invented one is worse than none. The interface handles\n"
+            f"   playback on its own.\n"
             f"6. Keep it to 3-4 sentences.\n"
             f"7. Use their name once.\n"
             f"8. NEVER diagnose.\n"

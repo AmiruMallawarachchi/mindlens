@@ -303,7 +303,7 @@ Timing is authoritative: **inhale 4s, hold 7s, exhale 8s**, driven by a 1s inter
 
 ### 7.2 Music
 
-`--panel-strong` card, hairline. 70px album tile with the emotion gradient and a soft bloom · Spotify glyph + mono `BECAUSE YOU'RE {STATE}` · title in Newsreader 21px/300 · metadata line (`Warm lo-fi · 41 min · low BPM`) · 42-bar waveform progress, played bars `--e1`, remaining `color-mix(in oklab, var(--ink) 16%, transparent)` · timestamps in mono 9.5px · transport: 32px prev, 44px gradient play with emotion glow, 32px next.
+`--panel-strong` card, hairline. 70px album tile with the emotion gradient and a soft bloom · plain music-note glyph in `--e1` (no third-party branding — tracks come from iTunes search, not a connected account) + mono `BECAUSE YOU'RE {STATE}` · title in Newsreader 21px/300 · 42-bar waveform (decorative), played bars `--e1`, remaining `color-mix(in oklab, var(--ink) 16%, transparent)` · transport: 44px gradient play/pause, real playback of the track's 30s preview when one exists, "Open on Apple Music" when it doesn't, an honest "No preview available" when neither does.
 
 Playlists are chosen by emotion state, and the reason is stated. Never "Recommended for you".
 
@@ -359,7 +359,7 @@ Sections in order:
 2. **Portrait band** — 30px-radius full-width image with an emotion-shadow, mono caption `THE ROOM IS LISTENING`. Needs a real warm portrait (currently a drop-zone).
 3. **Philosophy** — centred Newsreader italic `clamp(30px, 4.4vw, 52px)`/300 pull quote (the "therapy gave me the tools" line), with the emotive phrase in `--e1`.
 4. **How it works** — 5 cards, `auto-fit minmax(210px, 1fr)`: the gate, the read, the recall, the response, the record. Mono step numbers in `--e1`, Newsreader 22px titles, 13px `--muted` bodies. This is the SYSTEM.md pipeline in plain language.
-5. **Models** — `--deep` band, `44px 44px 0 0` radius. Five cards for `mindlens-emotion`, `mindlens-mh`, `mindlens-crisis`, `mindlens-reranker`, `mindlens-distortion`: gradient dot, mono model id in `--e2`, 16.5px title, 12.5px body. Footnote on Groq routing (Llama 3.1 8B simple / 3.3 70B emotional) and **zero LLM calls in crisis**.
+5. **Models** — `--deep` band, `44px 44px 0 0` radius. Five cards for `mindlens-emotion`, `mindlens-mh`, `mindlens-crisis`, `mindlens-reranker`, `mindlens-distortion`: gradient dot, mono model id in `--e2`, 16.5px title, 12.5px body. Footnote on Groq routing (a fast model for simple turns, a larger one for emotional turns — see SYSTEM.md §9 for the current pair) and **zero LLM calls in crisis**.
 6. **Emotion lab** — continues the `--deep` band, closes `0 0 44px 44px`. Left: 4×3 grid of 74px state tiles with visible names. Right: a large gradient preview card showing the active state name in Newsreader 46px, its sub-labels as outline chips, and its temperament in mono. Tapping a tile recolours **the entire page** over 1.6s. This section is the product thesis, demonstrated.
 7. **Docs** — 3 cards linking `SYSTEM.md`, `API.md`, `DEPLOYMENT.md`, mono filename in `--e1`, hover border tints to the field colour.
 8. **Safety & privacy** — two columns: a headline + framing paragraph + an amber-bordered emergency callout; and 5 numbered non-negotiables (template-only crisis answers, gate-first ordering, scoped queries + httpOnly JWT, visible memory, never a diagnosis).

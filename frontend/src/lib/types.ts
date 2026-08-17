@@ -224,14 +224,15 @@ export interface CrisisResource {
 }
 
 /** backend/app/agents/streaming.py::_extract_music_payload. Null when the
- * music agent didn't run this turn — distinct from running with no tracks. */
+ * music agent didn't run this turn — distinct from running with no tracks.
+ * Tracks come from Apple's iTunes Search API (music_agent.py) — no user
+ * connection step. preview_url is a real, directly-playable 30s clip,
+ * present on most but not all tracks; track_url (the Apple Music page) is
+ * present whenever preview_url is. */
 export interface MusicPayload {
   message: string;
-  tracks: Array<{ name?: string; artist?: string; spotify_url?: string; youtube_url?: string; uri?: string }>;
+  tracks: Array<{ name?: string; artist?: string; preview_url?: string | null; track_url?: string | null }>;
   emotion: string | null;
-  spotify_connected: boolean;
-  playlist: Record<string, unknown> | null;
-  connect_prompt: boolean;
 }
 
 export type ChatRole = "user" | "assistant";

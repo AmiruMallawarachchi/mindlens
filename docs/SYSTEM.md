@@ -26,13 +26,13 @@
 | Backend | FastAPI, async-first, MongoDB, WebSocket chat |
 | Realtime transport | WebSocket for chat and streaming agent activity |
 | LLM provider | Groq only for therapy generation |
-| LLM routing | Llama 3.1 8B for simple turns, Llama 3.3 70B for emotional or complex turns |
+| LLM routing | A smaller/faster Groq model for simple turns, a larger one for emotional or complex turns — see §9 for the current pair; Groq's lineup has changed underneath this once already |
 | ML models | Five MindLens Hugging Face models: emotion, mental health, crisis, RAG reranker, distortion |
 | Safety | Hardwired safety gate runs before every agent and cannot be bypassed |
 | Crisis response | Template-only crisis agent. Zero LLM calls during crisis |
 | RAG | ChromaDB vector retrieval plus MindLens RAG reranker |
 | Memory | MongoDB user profile, session memory, people graph, progress records |
-| Music | Spotify OAuth when connected, app-level search/fallback when not connected |
+| Music | iTunes Search API — no login or connection step, static fallback if unreachable |
 | Scheduler | APScheduler inside FastAPI for check-ins. No Redis required |
 | Admin | Separate admin surface for users, health, model status, reports, and sessions |
 | Security | JWT in httpOnly cookies, ownership-scoped MongoDB queries, rate limits everywhere |
@@ -232,9 +232,10 @@ MongoDB Memory + Sessions + Audit Logs
 |---|---|
 | Groq | Therapy response generation |
 | Hugging Face | Hosted model repositories |
-| Spotify | Music therapy search and playback control |
+| Apple iTunes Search API | Music track search, no auth required |
 | MongoDB Atlas | Production persistence |
-| Railway | Backend deployment target |
+| Vercel | Frontend deployment target |
+| Cloudflare Tunnel | Exposes the backend (models loaded in-process, so it runs on developer hardware, not a hosted platform) — see docs/DEPLOYMENT.md for why |
 
 ---
 
@@ -439,7 +440,7 @@ decided before they run.
 | `challenge_agent` | Gentle Socratic challenge when safe |
 | `routine_agent` | Builds small practical routines |
 | `journaling_agent` | Offers reflective prompts |
-| `music_agent` | Recommends music or Spotify actions |
+| `music_agent` | Recommends real, playable tracks via iTunes search |
 | `checkin_agent` | Generates proactive follow-up message |
 | `checkin_scheduler` | Schedules future check-ins |
 | `progress_agent` | Weekly progress and insight summaries |
@@ -528,8 +529,17 @@ Groq is the only therapy generation provider.
 
 | Tier | Model | Use |
 |---|---|---|
-| Fast | `llama-3.1-8b-instant` | Simple safe turns, short responses |
-| Deep | `llama-3.3-70b-versatile` | Emotional, complex, high-distress safe turns |
+| Fast | `openai/gpt-oss-20b` | Simple safe turns, short responses |
+| Deep | `openai/gpt-oss-120b` | Emotional, complex, high-distress safe turns |
+
+Both are reasoning models — Groq's `llama-3.1-8b-instant`/`llama-3.3-70b-versatile`
+pair (the original choice here) was removed from Groq's catalog entirely, not
+just renamed, discovered when every reply started silently falling back to
+the canned stub. Reasoning models spend completion tokens on hidden
+chain-of-thought before the visible answer; every call pins
+`reasoning_effort: "low"` (`groq_client.py`) so that overhead stays small
+instead of occasionally consuming the whole token budget and returning
+nothing.
 
 Use deep tier when:
 
@@ -627,17 +637,24 @@ Process:
 
 ---
 
-## 12. Spotify And Music System
+## 12. Music System
 
 Music is an intervention, not decoration.
 
-### 12.1 Modes
+Originally designed around Spotify OAuth (user-connected playback and
+personalization). Not shipped: Spotify's Web API has required the
+*developer's own account* to hold an active Premium subscription since
+February/March 2026, on top of the `/recommendations` endpoint this design
+depended on being withdrawn for new apps in November 2024. Rebuilt on
+Apple's iTunes Search API instead — no auth, no account connection, no
+personal subscription required by anyone.
 
-| Mode | Description |
+### 12.1 How it works
+
+| Path | Description |
 |---|---|
-| Spotify OAuth | User connects account; MindLens can personalize and control playback |
-| App-level search | No login required; MindLens recommends tracks/playlists |
-| Static fallback | Used when Spotify is down or unavailable |
+| iTunes search | Emotion maps to a genre + mood search term (no login, no connection step); returns real tracks with a 30-second preview clip the client plays directly |
+| Static fallback | Used only if iTunes itself is unreachable — names a track and artist, never a fabricated link |
 
 ### 12.2 Music Agent Rules
 
@@ -839,7 +856,7 @@ On FastAPI startup:
 |---|---|
 | Groq down | Template fallback, session continues |
 | MongoDB down | Retry, then safe 503 |
-| Spotify down | YouTube/static fallback |
+| iTunes unreachable | Static fallback, no fabricated links |
 | RAG empty | Agents continue without RAG |
 | Model unavailable | Mark unhealthy, use approved fallback only |
 | Scheduler down | Restart or resume on next startup |
@@ -936,9 +953,6 @@ JWT_REFRESH_SECRET_KEY
 ADMIN_JWT_SECRET
 ENCRYPTION_KEY
 GROQ_API_KEY
-SPOTIFY_CLIENT_ID
-SPOTIFY_CLIENT_SECRET
-SPOTIFY_REDIRECT_URI
 HF_TOKEN
 CORS_ORIGINS
 ```
@@ -983,7 +997,7 @@ MindLens must handle:
 - Deleted account with old token.
 - MongoDB timeout.
 - Groq timeout.
-- Spotify unavailable.
+- iTunes unreachable.
 - RAG empty.
 - Model unavailable.
 
@@ -1018,7 +1032,7 @@ Deliverables:
 - Dashboard.
 - RAG wired.
 - Check-ins.
-- Spotify basic mode.
+- Music recommendations (iTunes search).
 
 ### Phase 3 - Polish And Admin
 
@@ -1088,7 +1102,7 @@ MindLens v1.0 is complete when:
 - All five models are registered, loadable, monitored, and tested.
 - Crisis response never calls Groq.
 - RAG retrieval and reranking are wired into safe turns.
-- Groq 8B/70B routing works.
+- Groq fast/deep tier routing works.
 - WebSocket chat streams responses and thinking updates.
 - Admin can inspect model health and system health.
 - Security checklist passes.

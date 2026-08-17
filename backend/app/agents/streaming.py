@@ -291,9 +291,6 @@ def _extract_music_payload(agent_outputs: list[dict[str, Any]]) -> dict[str, Any
         "message": music_output.get("text", ""),
         "tracks": metadata.get("tracks", []),
         "emotion": metadata.get("emotion"),
-        "spotify_connected": metadata.get("spotify_mode") == "A",
-        "playlist": metadata.get("playlist"),
-        "connect_prompt": metadata.get("connect_prompt", False),
     }
 
 
