@@ -330,7 +330,6 @@ export function ChatScreen({
           connectionStatus={connectionStatus}
           disabled={previewMode}
           preview={previewMode}
-          showSuggestions={messages.length === 0 && !thinking}
         />
       </main>
 

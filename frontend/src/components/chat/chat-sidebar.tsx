@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Brain,
@@ -208,7 +209,17 @@ export function ChatSidebar({
       aria-label="Conversations and navigation"
     >
       <div className="flex items-center gap-2 px-5 pb-4 pt-5">
-        <Wordmark mood={mood} size={21} className="min-w-0 flex-1" />
+        {/* Was a bare <span> — it looked like a home affordance and did
+          * nothing when clicked. It goes to the marketing home, which is
+          * what "/" actually is; the product's own landing view is the
+          * Chat nav row below. */}
+        <Link
+          href="/"
+          aria-label="Mindlens home"
+          className="min-w-0 flex-1 rounded-[var(--r-10)] transition-opacity hover:opacity-80"
+        >
+          <Wordmark mood={mood} size={21} className="min-w-0" />
+        </Link>
         {onToggleCollapsed && (
           <button
             type="button"
@@ -416,6 +427,27 @@ export function ChatSidebar({
           </span>
           <Settings2 size={15} strokeWidth={1.7} className="shrink-0" style={{ color: "var(--ml-faint)" }} />
         </button>
+
+        {/* §4.1's disclaimer. It used to sit under the composer on every
+          * turn; it lives here now so the chat column stays quiet. This is
+          * the desktop home for it only — below 780px this whole sidebar is
+          * a drawer behind a hamburger, and a safety disclaimer that has to
+          * be opened is not "always present", so the composer keeps a
+          * compact copy at those widths. */}
+        <p
+          className="mt-2.5 px-1 text-[10.5px] leading-[1.55]"
+          style={{ color: "var(--ml-faint)" }}
+        >
+          Mindlens is a wellbeing companion — not emergency or medical care.{" "}
+          <a
+            href="https://findahelpline.com"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 transition-colors hover:text-[var(--ml-muted)]"
+          >
+            Reach a human
+          </a>
+        </p>
       </div>
     </aside>
   );
