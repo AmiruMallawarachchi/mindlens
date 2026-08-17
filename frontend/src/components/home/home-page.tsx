@@ -18,6 +18,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "motion/react";
 import { MindlensMark } from "@/components/brand/wordmark";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
+import { COMPANIONS } from "@/lib/companions";
 import { useGrade } from "@/lib/use-grade";
 import {
   EMOTION_ORDER,
@@ -143,6 +145,25 @@ export function HomePage() {
     return () => window.removeEventListener("mousemove", onMove);
   }, [reduceMotion, mx, my]);
 
+  // The hero blobs, the portrait band and the whole page's --e1/--e2/--e3
+  // palette all derive from `activeId` (rootStyle below), so cycling it here
+  // is what makes the entire page's colour genuinely alive on a page nobody
+  // has touched yet — the same "emotion drives colour" mechanic the app
+  // itself uses, just running on a timer instead of waiting for a message.
+  // Skipped under reduced motion, same as every other ambient loop on this
+  // page; a manual swatch click still shows immediately, the cycle just
+  // continues from there on the next tick rather than stopping.
+  useEffect(() => {
+    if (reduceMotion) return;
+    const id = window.setInterval(() => {
+      setActiveId((current) => {
+        const idx = current ? EMOTION_ORDER.indexOf(current) : -1;
+        return EMOTION_ORDER[(idx + 1) % EMOTION_ORDER.length];
+      });
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [reduceMotion]);
+
   const active = activeId ? EMOTION_STATES[activeId] : null;
   const activeName = active?.name ?? WARM.name;
   const activeSubs = active?.subs ?? WARM.subs;
@@ -248,7 +269,7 @@ export function HomePage() {
       {/* --- Hero ---------------------------------------------------------- */}
       <header
         id="top"
-        className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pb-[60px] pt-[120px]"
+        className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-6 pb-[60px] pt-[120px]"
       >
         <div
           className="mb-auto flex w-full max-w-[1200px] justify-between font-[family-name:var(--font-geist-mono)] text-[10.5px] uppercase tracking-[.14em]"
@@ -342,8 +363,10 @@ export function HomePage() {
        * — so instead of a flat gradient standing in for a photo that isn't
        * there, this is genuine motion: the same token-driven blob technique
        * (mlBlobA/mlBlobB, tokens.css) already driving the hero background
-       * above, just bounded to this frame. Real generative art, not a fake
-       * screenshot. Swap for `next/image` the day real photography exists. */}
+       * above, plus one of the real companions from the app itself, cycling
+       * with the palette above it. Real generative art and a real character,
+       * not a fake screenshot. Swap for `next/image` the day real
+       * photography exists. */}
       <section className="px-6">
         <Reveal
           className="ml-grain relative mx-auto h-[min(72vh,560px)] max-w-[1200px] overflow-hidden rounded-[30px]"
@@ -384,6 +407,14 @@ export function HomePage() {
               background: "radial-gradient(120% 90% at 50% 100%, transparent 40%, color-mix(in oklab, var(--ml-deep) 55%, transparent) 100%)",
             }}
           />
+          <div className="absolute inset-0 grid place-items-center">
+            <CompanionAvatar
+              companionId={COMPANIONS[activeId ? EMOTION_ORDER.indexOf(activeId) % COMPANIONS.length : 0].id}
+              activity="idle"
+              size={200}
+              withShadow
+            />
+          </div>
           <div
             className="absolute left-7 bottom-6 font-[family-name:var(--font-geist-mono)] text-[10.5px] uppercase tracking-[.14em]"
             style={{ color: "#fffdf8", textShadow: "0 1px 12px rgba(0,0,0,.35)" }}
@@ -684,10 +715,23 @@ export function HomePage() {
       </section>
 
       {/* --- Footer -------------------------------------------------------- */}
-      <footer className="px-6 pb-10 pt-[70px]" style={{ borderTop: "1px solid var(--ml-hairline)" }}>
+      {/* A hairline alone made the page's last section the one place that
+        * never arrived with the rest — every other section reveals on
+        * scroll; this didn't. The gradient border ties the close of the
+        * page back into the same living palette driving everything above
+        * it, rather than reading as a flat, separate zone underneath. */}
+      <footer
+        className="px-6 pb-10 pt-[70px]"
+        style={{
+          borderTop: "1px solid transparent",
+          borderImage: "linear-gradient(90deg, var(--ml-hairline), color-mix(in oklab, var(--e1) 30%, var(--ml-hairline)), var(--ml-hairline)) 1",
+        }}
+      >
         <div className="mx-auto max-w-[1200px]">
-          <div className="flex flex-wrap items-start justify-between gap-[30px]">
-            <div className="max-w-[420px]">
+          {/* Single column under sm: — the fixed 420px left track would
+            * force a horizontal squeeze on narrow screens otherwise. */}
+          <div className="grid grid-cols-1 gap-x-[60px] gap-y-[34px] sm:grid-cols-[minmax(0,420px)_1fr]">
+            <Reveal className="max-w-[420px]">
               <div className="mb-3.5 flex items-center gap-2">
                 <MindlensMark size={20} />
                 <span className="text-[15px] font-semibold tracking-[-.02em]">Mindlens</span>
@@ -695,31 +739,81 @@ export function HomePage() {
               <p className="m-0 text-[12.5px] leading-[1.7]" style={{ color: "var(--ml-muted)", textWrap: "pretty" }}>
                 Mindlens is support software — not a clinical service, diagnostic tool, or replacement for professional care. If you are in crisis, please reach a human: local emergency services or a crisis line near you.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-11 text-[13px]">
-              <div className="flex flex-col gap-2.5">
+            </Reveal>
+            <div className="flex flex-wrap gap-11 text-[13px] sm:justify-end">
+              <Reveal delay={0.08} className="flex flex-col gap-2.5">
                 <span className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.14em]" style={{ color: "var(--ml-faint)" }}>
                   Product
                 </span>
-                <Link href="/app" style={{ color: "var(--ml-muted)" }}>Open the app</Link>
-                <a href="#emotions" style={{ color: "var(--ml-muted)" }}>Emotion system</a>
-              </div>
-              <div className="flex flex-col gap-2.5">
+                <FooterLink href="/app">Open the app</FooterLink>
+                <FooterLink href="#emotions">Emotion system</FooterLink>
+              </Reveal>
+              <Reveal delay={0.14} className="flex flex-col gap-2.5">
                 <span className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.14em]" style={{ color: "var(--ml-faint)" }}>
                   Open source
                 </span>
-                <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ml-muted)" }}>GitHub</a>
-                <a href={HF_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ml-muted)" }}>Hugging Face</a>
-                <a href="#docs" style={{ color: "var(--ml-muted)" }}>Documentation</a>
-              </div>
+                <FooterLink href={GITHUB_URL} external>GitHub</FooterLink>
+                <FooterLink href={HF_URL} external>Hugging Face</FooterLink>
+                <FooterLink href="#docs">Documentation</FooterLink>
+              </Reveal>
             </div>
           </div>
-          <p className="m-0 mt-[54px] font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.13em]" style={{ color: "var(--ml-faint)" }}>
-            A final-year project by Amiru Mallawa Arachchi · Cardiff Metropolitan University · 2026
-          </p>
+          <div
+            className="mt-[54px] pt-5"
+            style={{ borderTop: "1px solid var(--ml-hairline)" }}
+          >
+            <p className="m-0 font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.13em]" style={{ color: "var(--ml-faint)" }}>
+              A final-year project by Amiru Mallawa Arachchi · Cardiff Metropolitan University · 2026
+            </p>
+          </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+/** Every footer link previously had zero hover treatment — a link that
+ * doesn't visibly respond to hover reads as inert. The colour shift + small
+ * shift toward the cursor is feedback, the smallest of the four motion
+ * categories Section 5 asks every animation to be motivated by. */
+function FooterLink({
+  href,
+  external,
+  children,
+}: {
+  href: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) {
+  const className = "inline-flex w-fit items-center transition-[color,transform] duration-200 hover:translate-x-[3px]";
+  const style = { color: "var(--ml-muted)" } as React.CSSProperties;
+  const hoverProps = {
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.color = "var(--ml-ink)"),
+    onMouseLeave: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.color = "var(--ml-muted)"),
+  };
+  // Only the real route change (/app) goes through next/link — the original
+  // markup used plain anchors for the two same-page hashes and the two
+  // external links, and that distinction stays: a hash href through next/link
+  // is same-page navigation Next has to reconcile, where a plain anchor is
+  // just the browser doing what anchors already do.
+  if (external || href.startsWith("#")) {
+    return (
+      <a
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+        className={className}
+        style={style}
+        {...hoverProps}
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={className} style={style} {...hoverProps}>
+      {children}
+    </Link>
   );
 }
 
