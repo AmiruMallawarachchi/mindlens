@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from spotify_mcp.auth import SpotifyAuthManager
+from auth import SpotifyAuthManager
 
 
 class SpotifyClient:
@@ -81,6 +81,29 @@ class SpotifyClient:
     # Recommendations
     # -----------------------------------------------------------------------
 
+    @staticmethod
+    def _mood_terms(energy: float, valence: float) -> str:
+        """Turn the numeric targets into words a text search can actually use.
+
+        Coarse on purpose: search matches editorial metadata (titles,
+        playlist and album language), not measured signal, so fine-grained
+        thresholds would imply a precision this path does not have.
+        """
+        if energy <= 0.35:
+            level = "calm slow"
+        elif energy >= 0.7:
+            level = "energetic upbeat"
+        else:
+            level = "mellow"
+
+        if valence <= 0.35:
+            colour = "melancholy"
+        elif valence >= 0.7:
+            colour = "happy"
+        else:
+            colour = "warm"
+        return f"{level} {colour}"
+
     async def recommendations(
         self,
         audio_features: dict[str, Any],
@@ -88,45 +111,31 @@ class SpotifyClient:
         limit: int = 5,
         user_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get track recommendations based on audio features."""
-        headers = await self._get_headers(user_id)
+        """Mood-matched tracks, served from /v1/search.
 
-        params: dict[str, Any] = {"limit": limit}
+        This used to call GET /v1/recommendations with seed_genres and
+        target_tempo/energy/valence. Spotify deprecated that endpoint (along
+        with /audio-features and /recommendations/available-genre-seeds) on
+        2024-11-27: applications created after that date receive 403, so for
+        any newly registered app the original implementation could not return
+        a single track.
 
-        # Add audio feature targets
-        for key, value in audio_features.items():
-            if key.startswith("target_"):
-                params[key] = value
-            else:
-                params[f"target_{key}"] = value
-
-        # Add genre seeds (max 5)
-        if genre_seeds:
-            params["seed_genres"] = ",".join(genre_seeds[:5])
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{self.BASE_URL}/recommendations",
-                headers=headers,
-                params=params,
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        tracks = data.get("tracks", [])
-        return [
-            {
-                "name": t["name"],
-                "artist": ", ".join(a["name"] for a in t["artists"]),
-                "spotify_url": t["external_urls"]["spotify"],
-                "embed_url": f"https://open.spotify.com/embed/track/{t['id']}",
-                "preview_url": t.get("preview_url"),
-                "uri": t["uri"],
-                "id": t["id"],
-            }
-            for t in tracks
-        ]
+        Search is the supported endpoint that remains, so the emotion mapping
+        now drives a text query instead of numeric targets. The honest limit
+        of that trade: this matches on words, not on measured tempo or
+        valence, so it is a looser fit than the old targeting was. Genre and
+        broad mood still come through; exact BPM does not.
+        """
+        mood = self._mood_terms(
+            float(audio_features.get("target_energy", 0.5) or 0.5),
+            float(audio_features.get("target_valence", 0.5) or 0.5),
+        )
+        genre = (genre_seeds or ["chill"])[0].replace("-", " ")
+        return await self.search(
+            query=f"{genre} {mood}",
+            limit=limit,
+            user_id=user_id,
+        )
 
     # -----------------------------------------------------------------------
     # Playlist creation (Mode A only)

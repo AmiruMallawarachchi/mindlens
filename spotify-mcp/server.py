@@ -27,9 +27,14 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from spotify_mcp.auth import SpotifyAuthManager
-from spotify_mcp.spotify_client import SpotifyClient
-from spotify_mcp.emotion_mapper import map_emotion_to_features
+# Plain module imports, not `spotify_mcp.*`: this directory is named
+# `spotify-mcp`, and a hyphen is not legal in a Python package name, so the
+# original imports raised ModuleNotFoundError and the server could never
+# start. Run it from inside this directory:
+#   cd spotify-mcp && uvicorn server:app --port 8001
+from auth import SpotifyAuthManager
+from spotify_client import SpotifyClient
+from emotion_mapper import map_emotion_to_features
 
 app = FastAPI(
     title="MindLens Spotify MCP Server",

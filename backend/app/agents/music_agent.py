@@ -134,7 +134,12 @@ class MusicAgent(BaseAgent):
                 f"{self._mcp_base_url}/recommendations",
                 json=rec_payload,
             )
-            tracks = rec_resp.json().get("tracks", [])
+            # The MCP route returns a bare JSON array (list[TrackResponse]),
+            # not {"tracks": [...]} — calling .get() on that raised
+            # AttributeError, which the caller swallowed as "Spotify failed".
+            # Accept both shapes so neither side has to move.
+            rec_body = rec_resp.json()
+            tracks = rec_body.get("tracks", []) if isinstance(rec_body, dict) else rec_body
 
             if not tracks:
                 return None
@@ -194,9 +199,14 @@ class MusicAgent(BaseAgent):
 
         # Get static fallback tracks for this emotion
         fallback_tracks = STATIC_FALLBACK.get(emotion, STATIC_FALLBACK.get("anxiety", []))
+        # Name and artist only. The previous version interpolated
+        # t.get('spotify_url', 'N/A') for tracks that deliberately carry no
+        # URLs, so the model was handed "YouTube: N/A" and simultaneously
+        # instructed to supply YouTube links — an invitation to invent one.
+        # A fabricated link is exactly the kind of small false promise
+        # CLAUDE.md rule 2 exists to prevent.
         tracks_str = "\n".join(
-            f"- {t['name']} by {t['artist']} (Spotify: {t.get('spotify_url', 'N/A')}, YouTube: {t.get('youtube_url', 'N/A')})"
-            for t in fallback_tracks
+            f"- {t['name']} by {t['artist']}" for t in fallback_tracks
         )
 
         system = self._build_music_wrapper_prompt(ctx, emotion, audio_features)
@@ -246,7 +256,10 @@ class MusicAgent(BaseAgent):
             f"2. Explain WHY this music style fits their current emotion ({emotion}).\n"
             f"3. Mention 1-3 specific tracks or genres.\n"
             f"4. If Spotify is connected, suggest creating a playlist.\n"
-            f"5. If Spotify is NOT connected, suggest connecting it for full experience, and provide YouTube links as fallback.\n"
+            f"5. If Spotify is NOT connected, suggest connecting it for the full picks.\n"
+            f"   Never write a URL, link, or 'search for it on...' instruction: you are\n"
+            f"   not given any, and an invented link is worse than none. Name the track\n"
+            f"   and artist and stop there — the interface handles playback.\n"
             f"6. Keep it to 3-4 sentences.\n"
             f"7. Use their name once.\n"
             f"8. NEVER diagnose.\n"
