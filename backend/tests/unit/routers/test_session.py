@@ -278,6 +278,39 @@ class TestEndSession:
         assert data["status"] == "ended"
         assert "ended_at" in data
 
+    async def test_end_session_with_naive_started_at(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
+        """Motor returns datetimes timezone-NAIVE, which is what this endpoint
+        actually receives in production.
+
+        sample_session_doc uses an aware datetime, so test_end_session_success
+        above passed while every real call 500'd on
+        "can't subtract offset-naive and offset-aware datetimes". This pins the
+        realistic shape so the regression can't come back silently.
+        """
+        naive_doc = dict(sample_session_doc)
+        naive_doc["started_at"] = datetime.datetime.utcnow()  # noqa: DTZ003 - mirrors Motor
+
+        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.sessions.find_one = AsyncMock(return_value=naive_doc)
+        mock_db.sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+        mock_db.safety_events = MagicMock()
+
+        tokens = create_token_pair("user_123", "test@example.com", role="user")
+
+        response = await session_client.delete(
+            "/api/v1/sessions/sess_abc",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["status"] == "ended"
+        # The duration is what the arithmetic produces; a non-negative int
+        # proves the subtraction actually ran rather than raising.
+        assert isinstance(data["duration_seconds"], int)
+        assert data["duration_seconds"] >= 0
+
     async def test_end_session_already_ended(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
         ended_doc = dict(sample_session_doc)
         ended_doc["status"] = "ended"

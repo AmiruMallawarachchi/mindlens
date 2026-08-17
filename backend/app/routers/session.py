@@ -343,10 +343,20 @@ async def end_session(
             detail="Session already ended",
         )
 
-    # Calculate duration
+    # Calculate duration.
+    #
+    # `started_at` comes back from Motor timezone-NAIVE (the driver is not
+    # tz_aware, and Mongo stores UTC without an offset), while `now` is
+    # aware — subtracting the two raised TypeError and made every call to
+    # this endpoint a 500. It went unnoticed because nothing in the UI
+    # called DELETE until the sidebar's conversation menu did. Normalising
+    # to UTC follows the same convention chat.py:493 already uses for
+    # datetimes crossing this boundary.
     started_at = session["started_at"]
     duration = None
     if isinstance(started_at, datetime.datetime):
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=datetime.UTC)
         duration = int((now - started_at).total_seconds())
 
     # Update session
