@@ -507,6 +507,53 @@ the code, so it is not claimed here. Adding it would improve recall on
 paraphrased crisis language that neither the patterns nor the classifier
 catch — that is the honest gap, and it is future work.
 
+### 8.1.1 Known limitation: L2 over-triggers on ordinary distress
+
+Measured against the deployed `mindlens-crisis` classifier:
+
+| Message | Score | Verdict |
+|---|---|---|
+| "I want to kill myself" | 0.88 | crisis, correct |
+| "It is mostly that I am scared it will not be good enough." | 0.82 | **false positive** |
+| "so i need a help okay" | 0.72 | **false positive** |
+| "There is no point in living" | 0.59 | crisis, correct |
+| "I have been really anxious about my final year project." | 0.03 | safe, correct |
+
+On a 15-benign / 6-crisis probe set at the shipped 0.45 threshold: 6/6
+crisis caught, 2/15 benign flagged. Raising the threshold does not fix
+this. At 0.85 the false positives vanish but only 4/6 real crisis
+messages are caught — the two lost include "There is no point in
+living". Six hundredths separate a student worrying about coursework
+from a genuine suicide statement, so the classes are not linearly
+separable by score at any cutoff.
+
+The cause is train/serve mismatch, in three parts:
+
+1. **Composition.** The training set's `safe` class is Reddit meme
+   chatter; its `crisis` class is long, sincere, distressed posts. The
+   model never saw text that was emotionally serious and *not* a crisis,
+   so it learned "heartfelt equals crisis".
+2. **Preprocessing.** The upstream corpus is lemmatized and
+   stopword-stripped ("not see point anymore"). Nothing in the serving
+   path preprocesses anything — `predict_all` passes raw user text
+   directly to the model.
+3. **Length.** Training posts have a median of 30 words; real chat
+   messages are four to fifteen.
+
+Aggregate F1 concealed all of this, because the test split was drawn
+from the same distribution as the training data.
+
+The threshold is deliberately left at 0.45. It errs toward interrupting
+a conversation that did not need interrupting, rather than missing one
+that did — the right direction for this failure to point, but a real
+cost to the experience, and stated here rather than smoothed over.
+
+`scripts/build_crisis_dataset.py` rebuilds the corpus against all three
+mismatches and `scripts/train_crisis_model.py` retrains from it,
+publishing to a separate repo so the live classifier is not overwritten
+before the numbers are checked. Until that lands, the limitation above
+is current.
+
 ### 8.2 Crisis Mode
 
 When crisis is detected:
