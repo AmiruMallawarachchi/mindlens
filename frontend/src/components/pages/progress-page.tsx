@@ -170,13 +170,24 @@ export function ProgressPage() {
               {moodsError}
             </p>
           )}
-          <div className="flex h-[120px] items-end gap-3">
+          {/* items-stretch (not items-end) on the row is load-bearing: each
+            * column below has no explicit height of its own, so it only
+            * gets the row's 120px by being stretched to it. items-end here
+            * meant every column shrank to its own content height instead —
+            * h-full on the bar-wrapper below then resolved against that
+            * collapsed 0px, so every bar's computed height was 0 regardless
+            * of a correctly-computed heightPct. */}
+          <div className="flex h-[120px] items-stretch gap-3">
             {dayScores.map((entry, i) => {
               const state = entry ? resolveEmotion({ surface_emotion: entry.emotion ?? undefined }).state : null;
               const heightPct = entry ? Math.max(8, entry.score * 100) : 0;
               return (
                 <div key={i} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex h-full w-full items-end">
+                  {/* flex-1 (not h-full): fills whatever the column has left
+                    * after the weekday label below, and — unlike h-full —
+                    * that's a real, definite size the inner bar's height:%
+                    * can resolve against. */}
+                  <div className="flex min-h-0 flex-1 w-full items-end">
                     {entry ? (
                       <div
                         className="w-full rounded-[6px]"

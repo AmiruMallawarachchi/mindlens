@@ -174,6 +174,7 @@ class ConnectionManager:
         crisis_flag: bool = False,
         resources: list[dict] | None = None,
         degraded: list[str] | None = None,
+        memory_recalled: list[str] | None = None,
     ) -> bool:
         """Send the final assembled response to the client."""
         return await self.send_to_user(
@@ -189,6 +190,14 @@ class ConnectionManager:
                 # Reasons this turn fell back to canned text ("stub",
                 # "timeout", "api_error"). Empty on a healthy turn.
                 "degraded": degraded or [],
+                # Previously sent only on thinking_update, which the client
+                # attaches to the *user's* bubble (the read of what they just
+                # sent). The persisted reasoning trail lives on the assistant
+                # turn (message-flow.tsx reads message.memoryRecalled there),
+                # so without it here "Memory" silently showed "Nothing from
+                # before applies" on every finalized reply even when
+                # memory_recall.py had genuinely recalled something.
+                "memory_recalled": memory_recalled or [],
             },
         )
 
