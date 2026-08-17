@@ -48,6 +48,7 @@ export interface SessionListItem {
   status: string;
   turn_count: number;
   primary_modality: string | null;
+  pinned: boolean;
 }
 
 /** One turn as stored by chat.py::_save_turn — role is "user" or "assistant";

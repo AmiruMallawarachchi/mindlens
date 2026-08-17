@@ -5,6 +5,7 @@ import {
   ApiError,
   completeOnboarding as apiCompleteOnboarding,
   createSession,
+  deleteSession as apiDeleteSession,
   fetchMe,
   fetchMemory,
   getAccessToken,
@@ -12,6 +13,7 @@ import {
   listSessions,
   login as apiLogin,
   logoutLocal,
+  pinSession as apiPinSession,
   register as apiRegister,
   updateMe,
   type RegisterInput,
@@ -108,6 +110,10 @@ export function useMindLensClient() {
   const messagesRef = useRef<ChatMessage[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  // Set by the sidebar's "Save to Journal" action, read by JournalPage to
+  // open its composer pre-filled — a reflection prompt referencing the
+  // conversation, not the raw transcript (the user writes their own words).
+  const [pendingJournalPrompt, setPendingJournalPrompt] = useState<string | null>(null);
   // null = create a fresh session; a string = open that existing one.
   // Re-requesting the session already open (same id, or null while already on
   // a fresh one) wouldn't change this value, so sessionEpoch exists purely to
@@ -434,6 +440,53 @@ export function useMindLensClient() {
     [activeSessionId],
   );
 
+  const pinSession = useCallback(async (sessionId: string, pinned: boolean) => {
+    // Optimistic: reorder immediately rather than waiting on the round trip,
+    // matching session.py's own pinned-first sort so the UI doesn't jump
+    // again once refreshSessions() eventually runs.
+    setSessions((current) =>
+      [...current]
+        .map((s) => (s.session_id === sessionId ? { ...s, pinned } : s))
+        .sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) ||
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+        ),
+    );
+    try {
+      await apiPinSession(sessionId, pinned);
+    } catch (err) {
+      console.error("Failed to pin session", err);
+      refreshSessions();
+    }
+  }, [refreshSessions]);
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      setSessions((current) => current.filter((s) => s.session_id !== sessionId));
+      try {
+        await apiDeleteSession(sessionId);
+      } catch (err) {
+        console.error("Failed to delete session", err);
+        refreshSessions();
+        return;
+      }
+      // The transcript of a session the user just deleted shouldn't stay on
+      // screen — start fresh rather than leave it displayed but unreachable
+      // from the sidebar.
+      if (sessionId === activeSessionId) {
+        startNewConversation();
+      }
+    },
+    [activeSessionId, refreshSessions, startNewConversation],
+  );
+
+  const prepareJournalReflection = useCallback((sessionLabel: string) => {
+    setPendingJournalPrompt(`Reflecting on "${sessionLabel}" — what's stayed with you since?`);
+  }, []);
+
+  const clearJournalPrompt = useCallback(() => setPendingJournalPrompt(null), []);
+
   const login = useCallback(async (email: string, password: string) => {
     setAuthBusy(true);
     setAuthError(null);
@@ -569,6 +622,11 @@ export function useMindLensClient() {
     activeSessionId,
     startNewConversation,
     openSession,
+    pinSession,
+    deleteSession,
+    pendingJournalPrompt,
+    prepareJournalReflection,
+    clearJournalPrompt,
     previewMode: PREVIEW_MODE,
     companionId,
     companionName,

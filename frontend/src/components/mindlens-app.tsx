@@ -101,7 +101,7 @@ export function MindLensApp() {
     <>
       <PageShell client={client} activeView={view} onNavigate={navigate} eyebrow={eyebrow} title={title}>
         {view === "progress" && <ProgressPage />}
-        {view === "journal" && <JournalPage />}
+        {view === "journal" && <JournalPage client={client} />}
         {view === "memory" && <MemoryPage />}
       </PageShell>
       {settings}

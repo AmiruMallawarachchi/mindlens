@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
+from pymongo import ReturnDocument
 
 from app.db import get_db
 from app.middleware.auth import require_user
@@ -59,6 +60,7 @@ class SessionListItem(BaseModel):
     status: str
     turn_count: int
     primary_modality: str | None
+    pinned: bool = False
 
 
 class SessionDetailResponse(BaseModel):
@@ -74,6 +76,13 @@ class SessionDetailResponse(BaseModel):
     eos_timeline: list[dict[str, Any]]
     agents_used: list[str]
     primary_modality: str | None
+    pinned: bool = False
+
+
+class SessionPinRequest(BaseModel):
+    """Body for PATCH /{session_id}/pin."""
+
+    pinned: bool
 
 
 class SessionEndResponse(BaseModel):
@@ -155,6 +164,7 @@ async def create_session(
         "primary_modality": None,
         "music_played": [],
         "check_in_scheduled": False,
+        "pinned": False,
         "updated_at": now,
     }
 
@@ -197,7 +207,9 @@ async def list_sessions(
 
     cursor = (
         db.sessions.find(query)
-        .sort("started_at", -1)
+        # Pinned first (True sorts before False descending), most recent
+        # within each group.
+        .sort([("pinned", -1), ("started_at", -1)])
         .skip(skip)
         .limit(limit)
     )
@@ -213,6 +225,7 @@ async def list_sessions(
                 status=doc.get("status", "unknown"),
                 turn_count=len(doc.get("turns", [])),
                 primary_modality=doc.get("primary_modality"),
+                pinned=doc.get("pinned", False),
             )
         )
     return sessions
@@ -256,6 +269,42 @@ async def get_session(
         eos_timeline=session.get("eos_timeline", []),
         agents_used=session.get("agents_used", []),
         primary_modality=session.get("primary_modality"),
+        pinned=session.get("pinned", False),
+    )
+
+
+@router.patch(
+    "/{session_id}/pin",
+    response_model=SessionListItem,
+    summary="Pin or unpin a session",
+)
+async def pin_session(
+    session_id: str,
+    req: SessionPinRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(require_user),
+):
+    """Toggle whether a session is pinned to the top of the sidebar."""
+    user_id = str(current_user["_id"])
+    now = datetime.datetime.now(datetime.UTC)
+
+    result = await db.sessions.find_one_and_update(
+        {"session_id": session_id, "user_id": user_id},
+        {"$set": {"pinned": req.pinned, "updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    return SessionListItem(
+        session_id=result["session_id"],
+        title=result.get("title"),
+        started_at=result["started_at"],
+        ended_at=result.get("ended_at"),
+        status=result.get("status", "unknown"),
+        turn_count=len(result.get("turns", [])),
+        primary_modality=result.get("primary_modality"),
+        pinned=result.get("pinned", False),
     )
 
 

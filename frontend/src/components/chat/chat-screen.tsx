@@ -20,7 +20,7 @@ import {
 } from "@/components/ai-elements/conversation";
 import { EmotionField } from "@/components/field/emotion-field";
 import { CompanionAvatar } from "@/components/companion/companion-avatar";
-import { ChatSidebar, type ChatNavView } from "./chat-sidebar";
+import { ChatSidebar, sessionLabel, type ChatNavView } from "./chat-sidebar";
 import { Composer } from "./composer";
 import { CrisisPanel } from "./crisis-banner";
 import { Inspector } from "./inspector";
@@ -61,12 +61,23 @@ export function ChatScreen({
     activeSessionId,
     startNewConversation,
     openSession,
+    pinSession,
+    deleteSession,
+    prepareJournalReflection,
     user,
     previewMode,
     companionId,
     companionName,
     intensityCap,
   } = client;
+
+  const saveToJournal = useCallback(
+    (session: (typeof sessions)[number]) => {
+      prepareJournalReflection(sessionLabel(session));
+      onNavigate("journal");
+    },
+    [prepareJournalReflection, onNavigate],
+  );
 
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [typing, setTyping] = useState(false);
@@ -148,6 +159,9 @@ export function ChatScreen({
           onNavigate={onNavigate}
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
+          onPinSession={pinSession}
+          onDeleteSession={deleteSession}
+          onSaveToJournal={saveToJournal}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
         />
@@ -180,6 +194,12 @@ export function ChatScreen({
               }}
               onOpenSession={(id) => {
                 openSession(id);
+                setMobileNavOpen(false);
+              }}
+              onPinSession={pinSession}
+              onDeleteSession={deleteSession}
+              onSaveToJournal={(session) => {
+                saveToJournal(session);
                 setMobileNavOpen(false);
               }}
             />

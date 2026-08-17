@@ -7,10 +7,10 @@
  * feels like a different app.
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Menu } from "lucide-react";
 import { EmotionField } from "@/components/field/emotion-field";
-import { ChatSidebar, type ChatNavView } from "@/components/chat/chat-sidebar";
+import { ChatSidebar, sessionLabel, type ChatNavView } from "@/components/chat/chat-sidebar";
 import { capIntensity, emotionCssVars, type EmotionReading } from "@/lib/emotion";
 import { useGrade } from "@/lib/use-grade";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
@@ -31,12 +31,31 @@ export function PageShell({
   title: string;
   children: React.ReactNode;
 }) {
-  const { reading, paletteReading, sessions, activeSessionId, startNewConversation, openSession, user, intensityCap } =
-    client;
+  const {
+    reading,
+    paletteReading,
+    sessions,
+    activeSessionId,
+    startNewConversation,
+    openSession,
+    pinSession,
+    deleteSession,
+    prepareJournalReflection,
+    user,
+    intensityCap,
+  } = client;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
   const cappedPalette = capIntensity(paletteReading as EmotionReading, intensityCap);
+
+  const saveToJournal = useCallback(
+    (session: (typeof sessions)[number]) => {
+      prepareJournalReflection(sessionLabel(session));
+      onNavigate("journal");
+    },
+    [prepareJournalReflection, onNavigate],
+  );
 
   return (
     <div
@@ -55,6 +74,9 @@ export function PageShell({
           onNavigate={onNavigate}
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
+          onPinSession={pinSession}
+          onDeleteSession={deleteSession}
+          onSaveToJournal={saveToJournal}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
         />
@@ -85,6 +107,12 @@ export function PageShell({
               }}
               onOpenSession={(id) => {
                 openSession(id);
+                setMobileNavOpen(false);
+              }}
+              onPinSession={pinSession}
+              onDeleteSession={deleteSession}
+              onSaveToJournal={(session) => {
+                saveToJournal(session);
                 setMobileNavOpen(false);
               }}
             />

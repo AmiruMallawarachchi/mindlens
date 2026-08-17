@@ -7,19 +7,29 @@
  * Today / Previous 7 days / Earlier, and the privacy card pinned at the base.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   Brain,
   LineChart,
   MessageCircle,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
+  PinOff,
   Plus,
   Settings2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { MindlensMark, Wordmark } from "@/components/brand/wordmark";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { EmotionId } from "@/lib/emotion";
 import type { SessionListItem, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,12 +48,20 @@ const DAY = 86_400_000;
 
 function groupSessions(sessions: SessionListItem[]) {
   const now = Date.now();
+  // Pinned sessions get their own group regardless of age — that's the
+  // point of pinning them — and are excluded from the date buckets below so
+  // they don't appear twice.
   const groups: Record<string, SessionListItem[]> = {
+    Pinned: [],
     Today: [],
     "Previous 7 days": [],
     Earlier: [],
   };
   for (const session of sessions) {
+    if (session.pinned) {
+      groups.Pinned.push(session);
+      continue;
+    }
     const age = now - new Date(session.started_at).getTime();
     if (age < DAY) groups.Today.push(session);
     else if (age < 7 * DAY) groups["Previous 7 days"].push(session);
@@ -52,7 +70,7 @@ function groupSessions(sessions: SessionListItem[]) {
   return groups;
 }
 
-function sessionLabel(session: SessionListItem): string {
+export function sessionLabel(session: SessionListItem): string {
   if (session.title) return session.title;
   const date = new Date(session.started_at);
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -67,6 +85,9 @@ export function ChatSidebar({
   onNavigate,
   onNewConversation,
   onOpenSession,
+  onPinSession,
+  onDeleteSession,
+  onSaveToJournal,
   collapsed = false,
   onToggleCollapsed,
 }: {
@@ -78,11 +99,19 @@ export function ChatSidebar({
   onNavigate: (view: ChatNavView) => void;
   onNewConversation: () => void;
   onOpenSession: (sessionId: string) => void;
+  onPinSession: (sessionId: string, pinned: boolean) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onSaveToJournal: (session: SessionListItem) => void;
   /** Icon-only rail instead of the full 262px panel. Optional — callers
    * that don't offer the collapse feature (the mobile drawer) just omit it. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
 }) {
+  // A "Delete" click arms that one session rather than deleting immediately
+  // — same proportionate two-click pattern as Memory's Forget and Journal's
+  // delete. Radix's dropdown normally closes on item select, so the Delete
+  // item's onSelect below prevents that default until the second click.
+  const [armedSessionId, setArmedSessionId] = useState<string | null>(null);
   // §8 — full keyboard nav, ⌘K starts a new conversation.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -265,13 +294,14 @@ export function ChatSidebar({
                 <ul className="flex flex-col gap-0.5">
                   {items.map((session) => {
                     const active = session.session_id === activeSessionId;
+                    const armed = armedSessionId === session.session_id;
                     return (
-                      <li key={session.session_id}>
+                      <li key={session.session_id} className="group/session relative flex items-center">
                         <button
                           type="button"
                           onClick={() => onOpenSession(session.session_id)}
                           className={cn(
-                            "w-full truncate rounded-[var(--r-11)] px-3 py-2 text-left text-[12.5px] transition-colors",
+                            "w-full truncate rounded-[var(--r-11)] py-2 pl-3 pr-8 text-left text-[12.5px] transition-colors",
                             !active && "hover:bg-white/[0.04]",
                           )}
                           style={{
@@ -281,8 +311,70 @@ export function ChatSidebar({
                             color: active ? "var(--ml-ink)" : "var(--ml-muted)",
                           }}
                         >
+                          {session.pinned && (
+                            <Pin size={10} strokeWidth={2} className="mr-1 inline-block shrink-0 align-middle" aria-hidden="true" />
+                          )}
                           {sessionLabel(session)}
                         </button>
+
+                        <DropdownMenu
+                          onOpenChange={(open) => {
+                            if (!open) setArmedSessionId((k) => (k === session.session_id ? null : k));
+                          }}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`More options for ${sessionLabel(session)}`}
+                              className="absolute right-1 grid size-6 shrink-0 place-items-center rounded-[8px] opacity-0 transition-opacity group-hover/session:opacity-100 focus-visible:opacity-100 hover:bg-white/[0.08]"
+                              style={{ color: "var(--ml-faint)" }}
+                            >
+                              <MoreHorizontal size={14} strokeWidth={1.8} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            style={{
+                              background: "var(--ml-panel-legible)",
+                              border: "1px solid var(--ml-hairline-strong)",
+                              color: "var(--ml-ink)",
+                            }}
+                          >
+                            <DropdownMenuItem
+                              onSelect={() => onPinSession(session.session_id, !session.pinned)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              {session.pinned ? (
+                                <PinOff size={14} strokeWidth={1.8} />
+                              ) : (
+                                <Pin size={14} strokeWidth={1.8} />
+                              )}
+                              {session.pinned ? "Unpin" : "Pin"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => onSaveToJournal(session)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              <BookOpen size={14} strokeWidth={1.8} />
+                              Save to Journal
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={(event) => {
+                                if (!armed) {
+                                  event.preventDefault();
+                                  setArmedSessionId(session.session_id);
+                                  return;
+                                }
+                                setArmedSessionId(null);
+                                onDeleteSession(session.session_id);
+                              }}
+                            >
+                              <Trash2 size={14} strokeWidth={1.8} />
+                              {armed ? "Click to confirm" : "Delete"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </li>
                     );
                   })}

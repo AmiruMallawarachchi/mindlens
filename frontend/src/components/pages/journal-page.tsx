@@ -10,6 +10,11 @@
  * calling them, which meant a user's own writing could go in but never come
  * back out. The composer now serves both "new" and "edit" through the same
  * form, keyed on `editingId`.
+ *
+ * `client.pendingJournalPrompt` arrives from the chat sidebar's "Save to
+ * Journal" action — a reflection prompt referencing that conversation, not
+ * the transcript itself. The user still writes their own words; this just
+ * opens the composer already pointed at what to reflect on.
  */
 
 import { useEffect, useState } from "react";
@@ -23,14 +28,16 @@ import {
   updateJournalEntry,
 } from "@/lib/api";
 import type { JournalEntrySummary, JournalPrompt } from "@/lib/types";
+import type { MindLensClient } from "@/lib/use-mindlens-client";
 
-export function JournalPage() {
+export function JournalPage({ client }: { client?: MindLensClient }) {
   const [prompt, setPrompt] = useState<JournalPrompt | null>(null);
   const [entries, setEntries] = useState<JournalEntrySummary[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
+  const [reflectionPrompt, setReflectionPrompt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -48,19 +55,31 @@ export function JournalPage() {
 
   useEffect(load, []);
 
-  const openNewEntry = () => {
+  const openNewEntry = (overridePrompt?: string) => {
     setEditingId(null);
     setDraftText("");
     setDraftTitle("");
+    setReflectionPrompt(overridePrompt ?? null);
     setDeleteArmed(false);
     setComposerError(null);
     setComposerOpen(true);
   };
 
+  // Opens the composer the moment the sidebar sets a pending prompt, then
+  // clears it — a one-shot trigger, not something that reopens on its own
+  // if the user navigates back to Journal later.
+  useEffect(() => {
+    if (!client?.pendingJournalPrompt) return;
+    openNewEntry(client.pendingJournalPrompt);
+    client.clearJournalPrompt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client?.pendingJournalPrompt]);
+
   const openExistingEntry = async (entryId: string) => {
     setEditingId(entryId);
     setDraftText("");
     setDraftTitle("");
+    setReflectionPrompt(null);
     setDeleteArmed(false);
     setComposerError(null);
     setComposerOpen(true);
@@ -90,7 +109,7 @@ export function JournalPage() {
         await createJournalEntry({
           title: draftTitle.trim() || undefined,
           text,
-          prompt_used: prompt?.prompt,
+          prompt_used: reflectionPrompt ?? prompt?.prompt,
         });
       }
       closeComposer();
@@ -145,7 +164,7 @@ export function JournalPage() {
         </p>
         <button
           type="button"
-          onClick={openNewEntry}
+          onClick={() => openNewEntry()}
           className="inline-flex items-center gap-2 rounded-[99px] px-5 py-2.5 text-[13px] font-medium"
           style={{
             background: "linear-gradient(135deg, var(--e1), var(--e2))",
@@ -163,7 +182,7 @@ export function JournalPage() {
           <p className="ml-eyebrow">Recent entries</p>
           <button
             type="button"
-            onClick={openNewEntry}
+            onClick={() => openNewEntry()}
             className="text-[12px] font-medium"
             style={{ color: "var(--e1)" }}
           >
@@ -221,6 +240,14 @@ export function JournalPage() {
                 <X size={16} strokeWidth={1.8} />
               </button>
             </div>
+            {reflectionPrompt && (
+              <p
+                className="mb-3 rounded-[var(--r-11)] px-3 py-2 text-[12.5px] leading-[1.5]"
+                style={{ background: "color-mix(in oklab, var(--e1) 10%, transparent)", color: "var(--ml-muted)" }}
+              >
+                {reflectionPrompt}
+              </p>
+            )}
             <input
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
@@ -231,7 +258,7 @@ export function JournalPage() {
             <textarea
               value={draftText}
               onChange={(e) => setDraftText(e.target.value)}
-              placeholder={prompt?.prompt ?? "Write whatever comes out…"}
+              placeholder={reflectionPrompt ?? prompt?.prompt ?? "Write whatever comes out…"}
               rows={8}
               autoFocus
               className="w-full resize-none bg-transparent text-[14.5px] leading-[1.6] outline-none"
