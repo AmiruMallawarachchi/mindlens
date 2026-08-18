@@ -18,7 +18,7 @@ import { ReasoningTrail } from "./reasoning-trail";
 import { BreatheCard } from "./breathe-card";
 import { createJournalEntry } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
-import { buildReasoningTrail } from "@/lib/reasoning";
+import { buildReasoningTrail, summariseTrail } from "@/lib/reasoning";
 import type { ChatMessage } from "@/lib/types";
 
 export function UserTurn({ message }: { message: ChatMessage }) {
@@ -68,6 +68,24 @@ export function AssistantTurn({
       crisis: Boolean(message.crisis),
       memoryRecalled: message.memoryRecalled ?? [],
       degraded: message.degraded ?? [],
+      telemetry: message.telemetry,
+      safety: message.safety,
+    });
+  }, [message, reading]);
+
+  // Same inputs as the steps, so the collapsed line can never claim
+  // something the expanded trail contradicts.
+  const summary = useMemo(() => {
+    if (!message.eos || !message.agentsUsed) return undefined;
+    return summariseTrail({
+      eos: message.eos,
+      reading,
+      agents: message.agentsUsed,
+      crisis: Boolean(message.crisis),
+      memoryRecalled: message.memoryRecalled ?? [],
+      degraded: message.degraded ?? [],
+      telemetry: message.telemetry,
+      safety: message.safety,
     });
   }, [message, reading]);
 
@@ -115,7 +133,9 @@ export function AssistantTurn({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3.5 pb-2">
-        {steps.length > 0 && <ReasoningTrail steps={steps} isStreaming={isStreaming} />}
+        {steps.length > 0 && (
+          <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} />
+        )}
 
         <p className="ml-display m-0 text-[19.5px] leading-[1.6]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
           {message.text}

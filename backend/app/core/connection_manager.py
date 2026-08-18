@@ -154,6 +154,7 @@ class ConnectionManager:
         memory_recalled: list[str] | None = None,
         telemetry: dict[str, Any] | None = None,
         safety: dict[str, Any] | None = None,
+        degraded: list[str] | None = None,
     ) -> bool:
         """Send a thinking panel update to the client.
 
@@ -172,6 +173,11 @@ class ConnectionManager:
                 "memory_recalled": memory_recalled or [],
                 "telemetry": telemetry or {},
                 "safety": safety or {},
+                # The whole pipeline finishes before streaming begins, so
+                # degradation is already known here. Without it the live trail
+                # had to assume a healthy turn and could not report a fallback
+                # while one was happening.
+                "degraded": degraded or [],
             },
         )
 

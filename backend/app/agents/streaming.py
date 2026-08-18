@@ -67,6 +67,7 @@ class StreamingResponse:
         memory_recalled: list[str] | None = None,
         telemetry: dict[str, Any] | None = None,
         safety: dict[str, Any] | None = None,
+        degraded: list[str] | None = None,
     ) -> None:
         """Send thinking panel update to client."""
         # mode="json" — see EmotionalOperatingState.to_dict()'s docstring;
@@ -82,6 +83,7 @@ class StreamingResponse:
             memory_recalled=memory_recalled,
             telemetry=telemetry,
             safety=safety,
+            degraded=degraded,
         )
 
     # -----------------------------------------------------------------------
@@ -241,6 +243,7 @@ async def stream_pipeline_result(
         memory_recalled=memory_recalled,
         telemetry=telemetry,
         safety=safety,
+        degraded=degraded,
     )
 
     # Small delay so thinking panel renders before text starts

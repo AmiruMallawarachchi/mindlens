@@ -41,9 +41,11 @@ import type {
   CrisisResource,
   EosSnapshot,
   OnboardingInput,
+  SafetyVerdict,
   ServerFrame,
   SessionListItem,
   SessionTurn,
+  TurnTelemetry,
   UserProfile,
 } from "./types";
 
@@ -99,6 +101,11 @@ export function useMindLensClient() {
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [liveEos, setLiveEos] = useState<EosSnapshot | null>(null);
   const [liveMemory, setLiveMemory] = useState<string[]>([]);
+  // The live trail used to hardcode crisis:false and degraded:[], so it
+  // structurally could not report a problem while one was happening.
+  const [liveTelemetry, setLiveTelemetry] = useState<TurnTelemetry | null>(null);
+  const [liveSafety, setLiveSafety] = useState<SafetyVerdict | null>(null);
+  const [liveDegraded, setLiveDegraded] = useState<string[]>([]);
   const [crisis, setCrisis] = useState<{
     text: string;
     resources: CrisisResource[];
@@ -135,6 +142,9 @@ export function useMindLensClient() {
         setActiveAgents(frame.agents_active ?? []);
         setLiveEos(frame.eos ?? null);
         setLiveMemory(frame.memory_recalled ?? []);
+        setLiveTelemetry(frame.telemetry ?? null);
+        setLiveSafety(frame.safety ?? null);
+        setLiveDegraded(frame.degraded ?? []);
         // The read in a thinking_update is the read *of the message the user
         // just sent*, so it belongs to that bubble — that's what the emotion
         // read strip underneath it renders.
@@ -186,6 +196,8 @@ export function useMindLensClient() {
             degraded: frame.degraded,
             memoryRecalled: frame.memory_recalled ?? [],
             music: frame.music ?? null,
+          telemetry: frame.telemetry,
+          safety: frame.safety,
             pending: false,
           };
           const exists = current.some((m) => m.id === id);
@@ -621,11 +633,21 @@ export function useMindLensClient() {
       eos: liveEos,
       reading: resolveEmotion(liveEos),
       agents: activeAgents,
-      crisis: false,
+      crisis: liveSafety?.is_crisis ?? false,
       memoryRecalled: liveMemory,
-      degraded: [],
+      degraded: liveDegraded,
+      telemetry: liveTelemetry,
+      safety: liveSafety,
     });
-  }, [thinking, liveEos, activeAgents, liveMemory]);
+  }, [
+    thinking,
+    liveEos,
+    activeAgents,
+    liveMemory,
+    liveDegraded,
+    liveTelemetry,
+    liveSafety,
+  ]);
 
   return {
     authStatus,

@@ -237,6 +237,31 @@ export interface MusicPayload {
 
 export type ChatRole = "user" | "assistant";
 
+/** What the pipeline actually did this turn, so the reasoning trail can
+ * describe it rather than assert a script. backend: orchestrator's
+ * `telemetry` key. */
+export interface TurnTelemetry {
+  rag?: {
+    /** "ran" | "skipped_trivial" | "skipped_crisis" | "failed" | "provided" */
+    status: string;
+    chunks: number;
+  };
+  /** Null when no agent that consults a modality ran. A modality is set on
+   * every turn regardless, so a non-null value here is the only honest
+   * signal that one actually shaped the reply. */
+  modality?: string | null;
+  substantive?: boolean;
+}
+
+/** The safety gate's real verdict — computed on every turn and, until now,
+ * dropped before it reached the client. backend: SafetyGateResult. */
+export interface SafetyVerdict {
+  is_crisis?: boolean;
+  layer_triggered?: string | null;
+  confidence?: number;
+  reason?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -256,6 +281,8 @@ export interface ChatMessage {
   pending?: boolean;
   /** A client- or server-side error rendered inline, not a real turn. */
   kind?: "error";
+  telemetry?: TurnTelemetry;
+  safety?: SafetyVerdict;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +295,9 @@ export type ServerFrame =
       agents_active: string[];
       eos: EosSnapshot;
       memory_recalled?: string[];
+      telemetry?: TurnTelemetry;
+      safety?: SafetyVerdict;
+      degraded?: string[];
     }
   | { type: "stream_chunk"; chunk: string; index: number }
   | { type: "stream_end" }
@@ -281,6 +311,8 @@ export type ServerFrame =
       resources?: CrisisResource[];
       degraded?: string[];
       memory_recalled?: string[];
+      telemetry?: TurnTelemetry;
+      safety?: SafetyVerdict;
     }
   | {
       type: "crisis_response";
