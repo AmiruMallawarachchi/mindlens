@@ -8,6 +8,7 @@ All model inference runs in parallel via asyncio.gather.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from app.agents.base_agent import AgentContext, AgentOutput, get_registry
@@ -68,6 +69,15 @@ DISTORTION_LABEL_MAP = {
 # for. "hi", "ok", "thanks", "yeah sure" are openers and acknowledgements;
 # running a RAG query and a CBT agent over them produced a reply that
 # challenged the thinking of someone who had only said hello.
+# Awaited at each pipeline stage boundary: (stage_id, human summary).
+StageCallback = Callable[[str, str], Awaitable[None]]
+
+# Bookkeeping agents. They run every turn and naming them in a progress
+# line would be noise, not insight.
+_SILENT_AGENTS = frozenset(
+    {"personality", "checkin_scheduler", "session_memory_save"}
+)
+
 _SUBSTANTIVE_WORD_COUNT = 4
 
 # Agents whose behaviour actually depends on eos.modality. If none of
@@ -138,6 +148,7 @@ class Orchestrator:
         rag_chunks: list[str] | None = None,
         user_id: str | None = None,
         memory: dict[str, Any] | None = None,
+        on_stage: StageCallback | None = None,
     ) -> dict:
         """
         Complete turn pipeline:
@@ -148,6 +159,15 @@ class Orchestrator:
         5. Run all agents in parallel
         6. Assemble response
         7. Return full result with assembled text
+
+        `on_stage`, when supplied, is awaited at each stage boundary with
+        the stage's id and a short factual summary of what that stage just
+        produced. It exists because this whole method runs to completion
+        before the router streams anything, so the client previously received
+        all four trail sections at once, already finished — there was no
+        "one by one" to see. These callbacks fire as each stage genuinely
+        completes, so the progression a user watches is the real one rather
+        than a staggered animation over work that already ended.
 
         `memory` is the caller's already-fetched `user_memory` document (or
         None) — the orchestrator stays DB-free by design, so the router reads
@@ -168,6 +188,25 @@ class Orchestrator:
         eos = EmotionalOperatingState(**turn_result["eos"])
         agent_names = turn_result["agents"]
         crisis_flag = turn_result["crisis_flag"]
+
+        if on_stage:
+            safety = turn_result.get("safety") or {}
+            await on_stage(
+                "safety",
+                "Crisis signals found — everything else pauses."
+                if crisis_flag
+                else "Both layers clear.",
+            )
+            await on_stage(
+                "reading",
+                f"Reading {eos.surface_emotion}"
+                + (
+                    f" at {eos.surface_confidence:.2f} confidence."
+                    if eos.surface_confidence is not None
+                    else "."
+                ),
+            )
+            del safety
 
         # Step 2: Recall relevant memory (SYSTEM.md §13.3: "Memory recalled").
         # Skipped in crisis mode — only the crisis agent runs, and the crisis
@@ -212,6 +251,16 @@ class Orchestrator:
                 except ValueError:
                     pass
 
+        if on_stage:
+            await on_stage(
+                "memory",
+                f"Recalled {len(recall.memory_recalled)} thing"
+                + ("" if len(recall.memory_recalled) == 1 else "s")
+                + " from before."
+                if recall.memory_recalled
+                else "Nothing on file matched this turn.",
+            )
+
         # Step 3: Retrieve RAG context if not provided.
         #
         # rag_status is reported to the client, so "skipped" is a fact the UI
@@ -238,6 +287,22 @@ class Orchestrator:
                 rag_chunks = []
                 rag_status = "failed"
 
+        if on_stage:
+            await on_stage(
+                "retrieval",
+                f"Pulled {len(rag_chunks or [])} passage"
+                + ("" if len(rag_chunks or []) == 1 else "s")
+                + " from the therapy notes."
+                if rag_status == "ran" and rag_chunks
+                else "Searched and found nothing close enough."
+                if rag_status == "ran"
+                else "No lookup needed for this one."
+                if rag_status == "skipped_trivial"
+                else "Skipped — safety comes first."
+                if rag_status == "skipped_crisis"
+                else "Couldn't reach the therapy notes.",
+            )
+
         # Step 4: Build agent context
         #
         # History is anonymized the same way as the current turn — empathy_agent
@@ -260,6 +325,15 @@ class Orchestrator:
             # session_memory_save specifically needs it.
             raw_user_text=user_text,
         )
+
+        if on_stage:
+            speaking = [a for a in agent_names if a not in _SILENT_AGENTS]
+            await on_stage(
+                "approach",
+                "Working through it with " + ", ".join(speaking) + "."
+                if speaking
+                else "Staying with what you said.",
+            )
 
         # Step 5: Run agents in parallel
         outputs: list[AgentOutput] = []

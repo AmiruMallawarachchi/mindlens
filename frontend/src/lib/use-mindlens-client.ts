@@ -106,6 +106,12 @@ export function useMindLensClient() {
   const [liveTelemetry, setLiveTelemetry] = useState<TurnTelemetry | null>(null);
   const [liveSafety, setLiveSafety] = useState<SafetyVerdict | null>(null);
   const [liveDegraded, setLiveDegraded] = useState<string[]>([]);
+  // Filled in one entry at a time as `stage_update` frames arrive *during*
+  // the pipeline, before thinking_update. thinking_update itself is sent
+  // only once the whole pipeline has already finished, so before this the
+  // client had nothing real to show while a turn was actually running —
+  // the trail simply appeared complete the moment it existed at all.
+  const [liveStages, setLiveStages] = useState<{ stage: string; detail: string }[]>([]);
   const [crisis, setCrisis] = useState<{
     text: string;
     resources: CrisisResource[];
@@ -137,6 +143,11 @@ export function useMindLensClient() {
 
   const handleFrame = useCallback((frame: ServerFrame) => {
     switch (frame.type) {
+      case "stage_update": {
+        setThinking(true);
+        setLiveStages((current) => [...current, { stage: frame.stage, detail: frame.detail }]);
+        break;
+      }
       case "thinking_update": {
         setThinking(true);
         setActiveAgents(frame.agents_active ?? []);
@@ -418,6 +429,7 @@ export function useMindLensClient() {
     ]);
     if (!socketRef.current) return;
     setThinking(true);
+    setLiveStages([]);
     socketRef.current.sendMessage(trimmed);
   }, []);
 
@@ -428,6 +440,7 @@ export function useMindLensClient() {
     const lastUser = [...messagesRef.current].reverse().find((m) => m.role === "user");
     if (!lastUser || !socketRef.current) return;
     setThinking(true);
+    setLiveStages([]);
     socketRef.current.sendMessage(lastUser.text);
   }, []);
 
@@ -663,6 +676,7 @@ export function useMindLensClient() {
     messages,
     thinking,
     thinkingSteps,
+    liveStages,
     activeAgents,
     liveEos,
     reading,

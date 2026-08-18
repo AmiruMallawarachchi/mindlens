@@ -193,6 +193,11 @@ async def websocket_chat(
 
             # Run full pipeline
             try:
+                # Emitted as each stage genuinely finishes, so the trail
+                # fills in a step at a time rather than appearing complete.
+                async def _on_stage(stage: str, detail: str) -> None:
+                    await conn_manager.send_stage_update(user_id, stage, detail)
+
                 result = await orchestrator.run_full_pipeline(
                     user_text=user_text,
                     user_name=user_name,
@@ -200,6 +205,7 @@ async def websocket_chat(
                     rag_chunks=None,
                     user_id=user_id,
                     memory=user_memory,
+                    on_stage=_on_stage,
                 )
             except Exception as exc:
                 logger.exception("Pipeline error for user %s: %s", user_id, exc)
