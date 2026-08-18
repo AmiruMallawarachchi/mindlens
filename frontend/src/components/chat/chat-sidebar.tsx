@@ -111,14 +111,13 @@ export function ChatSidebar({
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
 }) {
-  // A "Delete" click arms that one session rather than deleting immediately
-  // — same proportionate two-click pattern as Memory's Forget and Journal's
-  // delete. Radix's dropdown normally closes on item select, so the Delete
-  // item's onSelect below prevents that default until the second click.
-  const [armedSessionId, setArmedSessionId] = useState<string | null>(null);
   // Renaming swaps the row for an input in place, rather than opening a
   // dialog for one short string.
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  // Delete is a real, irreversible delete now — the transcript, the
+  // emotion reads and the crisis records all go. UI rule 4 asks for a
+  // typed confirmation for irreversible actions, not just a second click.
+  const [pendingDelete, setPendingDelete] = useState<SessionListItem | null>(null);
   // §8 — full keyboard nav, ⌘K starts a new conversation.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -311,7 +310,6 @@ export function ChatSidebar({
                 <ul className="flex flex-col gap-0.5">
                   {items.map((session) => {
                     const active = session.session_id === activeSessionId;
-                    const armed = armedSessionId === session.session_id;
                     return (
                       <li key={session.session_id} className="group/session relative flex items-center">
                         {renamingSessionId === session.session_id ? (
@@ -347,11 +345,7 @@ export function ChatSidebar({
                           {sessionLabel(session)}
                         </button>
 
-                        <DropdownMenu
-                          onOpenChange={(open) => {
-                            if (!open) setArmedSessionId((k) => (k === session.session_id ? null : k));
-                          }}
-                        >
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
@@ -397,18 +391,10 @@ export function ChatSidebar({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
-                              onSelect={(event) => {
-                                if (!armed) {
-                                  event.preventDefault();
-                                  setArmedSessionId(session.session_id);
-                                  return;
-                                }
-                                setArmedSessionId(null);
-                                onDeleteSession(session.session_id);
-                              }}
+                              onSelect={() => setPendingDelete(session)}
                             >
                               <Trash2 size={14} strokeWidth={1.8} />
-                              {armed ? "Click to confirm" : "Delete"}
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -477,6 +463,18 @@ export function ChatSidebar({
           </a>
         </p>
       </div>
+
+      {pendingDelete && (
+        <DeleteSessionDialog
+          session={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const id = pendingDelete.session_id;
+            setPendingDelete(null);
+            onDeleteSession(id);
+          }}
+        />
+      )}
     </aside>
   );
 }
@@ -529,5 +527,110 @@ function SessionTitleInput({
         color: "var(--ml-ink)",
       }}
     />
+  );
+}
+
+/**
+ * Typed confirmation for deleting a conversation.
+ *
+ * Delete used to set a status flag and keep everything, so a second click
+ * was proportionate friction. It is a real hard delete now — the transcript,
+ * the emotion reads and the crisis records are all removed and cannot be
+ * recovered — and UI rule 4 asks for a typed confirmation at that point.
+ *
+ * The escape is as easy to reach as the confirm: Cancel is focused first,
+ * Escape closes, and the confirm stays disabled until the word matches.
+ */
+function DeleteSessionDialog({
+  session,
+  onCancel,
+  onConfirm,
+}: {
+  session: SessionListItem;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const armed = typed.trim().toLowerCase() === "delete";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] grid place-items-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-session-title"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onCancel();
+      }}
+    >
+      <button
+        type="button"
+        aria-label="Cancel deleting this conversation"
+        onClick={onCancel}
+        className="absolute inset-0 cursor-default border-none bg-black/45"
+      />
+      <div
+        className="relative w-full max-w-[380px] rounded-[var(--r-18)] border p-5"
+        style={{
+          background: "var(--ml-panel-legible)",
+          borderColor: "var(--ml-hairline-strong)",
+        }}
+      >
+        <p
+          id="delete-session-title"
+          className="ml-display m-0 text-[17px] leading-[1.45]"
+          style={{ color: "var(--ml-ink)" }}
+        >
+          Delete &ldquo;{sessionLabel(session)}&rdquo;?
+        </p>
+        <p className="mt-2 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
+          This removes the whole conversation, the emotion reads taken during
+          it, and any safety records from it. It cannot be undone and there is
+          no copy kept.
+        </p>
+        <label
+          className="mt-3.5 block text-[11.5px]"
+          style={{ color: "var(--ml-faint)" }}
+          htmlFor="delete-confirm-input"
+        >
+          Type <strong style={{ color: "var(--ml-ink)" }}>delete</strong> to confirm
+        </label>
+        <input
+          id="delete-confirm-input"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && armed) onConfirm();
+          }}
+          autoComplete="off"
+          className="mt-1.5 w-full rounded-[var(--r-11)] border px-3 py-2 text-[13px] outline-none"
+          style={{
+            background: "var(--ml-panel)",
+            borderColor: "var(--ml-hairline-strong)",
+            color: "var(--ml-ink)",
+          }}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            autoFocus
+            onClick={onCancel}
+            className="rounded-[10px] border px-3.5 py-2 text-[12.5px] transition-colors hover:border-[var(--ml-ink)]"
+            style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
+          >
+            Keep it
+          </button>
+          <button
+            type="button"
+            disabled={!armed}
+            onClick={onConfirm}
+            className="rounded-[10px] px-3.5 py-2 text-[12.5px] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: "#c2453c" }}
+          >
+            Delete for good
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

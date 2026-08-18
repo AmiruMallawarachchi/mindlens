@@ -7,7 +7,7 @@ Create, list, and end therapy sessions.
 - GET  /api/v1/sessions          → list user's sessions
 - GET  /api/v1/sessions/{id}     → get session transcript
 - PATCH  /api/v1/sessions/{id}/title → rename session
-- DELETE /api/v1/sessions/{id}   → end / soft-delete session
+- DELETE /api/v1/sessions/{id}   → permanently delete session + its data
 
 All endpoints enforce user_id isolation — users can only see their own sessions.
 """
@@ -102,13 +102,13 @@ class SessionRenameRequest(BaseModel):
         return cleaned
 
 
-class SessionEndResponse(BaseModel):
-    """Response after ending a session."""
+class SessionDeleteResponse(BaseModel):
+    """Response after permanently deleting a session."""
 
     session_id: str
-    status: str
-    ended_at: datetime.datetime
-    duration_seconds: int | None
+    # Per-collection counts, so the caller can see what was actually removed
+    # rather than trust that something was.
+    deleted: dict[str, int]
 
 
 # --- Helper ---
@@ -368,73 +368,55 @@ async def rename_session(
 
 @router.delete(
     "/{session_id}",
-    response_model=SessionEndResponse,
-    summary="End (soft-delete) a session",
+    response_model=SessionDeleteResponse,
+    summary="Permanently delete a session and everything scoped to it",
 )
-async def end_session(
+async def delete_session(
     session_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: dict = Depends(require_user),
 ):
-    """
-    End a session by setting status='ended' and ended_at timestamp.
+    """Hard-delete a session across every collection that references it.
 
-    Does not delete data — preserves transcript for longitudinal memory.
+    This used to set status="ended" and keep everything. The row vanished
+    from the sidebar only because listSessions filters ?status=active, so
+    the transcript, the emotion reads and the crisis records all survived a
+    "Delete" the user had every reason to read as permanent. CLAUDE.md rule
+    4 is explicit: delete means delete, a hard delete across every
+    collection, not a flag.
+
+    Three collections carry session_id: the session document itself with its
+    transcript, mood_logs (the per-turn emotion reads), and safety_events
+    (turns where the crisis gate fired). All three go.
+
+    safety_events is the uncomfortable one, and it goes deliberately. It is
+    an audit trail, and there is a real duty-of-care argument for keeping
+    it — but you cannot promise "delete means delete" while quietly
+    retaining crisis records. Retaining them would have to be disclosed, and
+    a disclosed exception is a weaker promise than an unqualified one that
+    is actually true.
     """
     user_id = str(current_user["_id"])
-    now = datetime.datetime.now(datetime.UTC)
 
-    # Find existing session
-    session = await db.sessions.find_one({
-        "session_id": session_id,
-        "user_id": user_id,
-    })
+    session = await db.sessions.find_one({"session_id": session_id, "user_id": user_id})
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
 
-    if session.get("status") == "ended":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session already ended",
-        )
+    # user_id is in every filter, not just session_id — a guessed id must not
+    # delete somebody else's conversation (rule 6).
+    scope = {"session_id": session_id, "user_id": user_id}
+    session_result = await db.sessions.delete_one(scope)
+    moods_result = await db.mood_logs.delete_many(scope)
+    safety_result = await db.safety_events.delete_many(scope)
 
-    # Calculate duration.
-    #
-    # `started_at` comes back from Motor timezone-NAIVE (the driver is not
-    # tz_aware, and Mongo stores UTC without an offset), while `now` is
-    # aware — subtracting the two raised TypeError and made every call to
-    # this endpoint a 500. It went unnoticed because nothing in the UI
-    # called DELETE until the sidebar's conversation menu did. Normalising
-    # to UTC follows the same convention chat.py:493 already uses for
-    # datetimes crossing this boundary.
-    started_at = session["started_at"]
-    duration = None
-    if isinstance(started_at, datetime.datetime):
-        if started_at.tzinfo is None:
-            started_at = started_at.replace(tzinfo=datetime.UTC)
-        duration = int((now - started_at).total_seconds())
+    deleted = {
+        "sessions": session_result.deleted_count,
+        "mood_logs": moods_result.deleted_count,
+        "safety_events": safety_result.deleted_count,
+    }
+    logger.info("Session hard-deleted: %s for user %s (%s)", session_id, user_id, deleted)
 
-    # Update session
-    await db.sessions.update_one(
-        {"session_id": session_id, "user_id": user_id},
-        {
-            "$set": {
-                "status": "ended",
-                "ended_at": now,
-                "duration_seconds": duration,
-                "updated_at": now,
-            }
-        },
-    )
-
-    logger.info("Session ended: %s for user %s", session_id, user_id)
-
-    return SessionEndResponse(
-        session_id=session_id,
-        status="ended",
-        ended_at=now,
-        duration_seconds=duration,
-    )
+    return SessionDeleteResponse(session_id=session_id, deleted=deleted)

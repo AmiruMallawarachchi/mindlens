@@ -256,97 +256,84 @@ class TestGetSession:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-class TestEndSession:
-    async def test_end_session_success(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
-        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
-        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
-        mock_db.sessions.find_one = AsyncMock(return_value=sample_session_doc)
-        mock_db.sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db.safety_events = MagicMock()
+class TestDeleteSession:
+    """DELETE is a real delete now.
 
+    It used to set status="ended" and keep everything; the row disappeared
+    from the sidebar only because listSessions filters ?status=active. The
+    transcript, the emotion reads and the crisis records all survived a
+    button labelled Delete.
+    """
+
+    @staticmethod
+    def _auth() -> dict[str, str]:
         tokens = create_token_pair("user_123", "test@example.com", role="user")
-        access_token = tokens["access_token"]
+        return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    @staticmethod
+    def _mocks(mock_db: MagicMock, user_doc: dict, session_doc: dict | None) -> None:
+        mock_db.users.find_one = AsyncMock(return_value=user_doc)
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.sessions.find_one = AsyncMock(return_value=session_doc)
+        mock_db.sessions.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
+        mock_db.mood_logs.delete_many = AsyncMock(return_value=MagicMock(deleted_count=4))
+        mock_db.safety_events.delete_many = AsyncMock(return_value=MagicMock(deleted_count=2))
+
+    async def test_delete_removes_every_session_scoped_collection(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        self._mocks(mock_db, sample_user_doc, sample_session_doc)
 
         response = await session_client.delete(
-            "/api/v1/sessions/sess_abc",
-            headers={"Authorization": f"Bearer {access_token}"},
+            "/api/v1/sessions/sess_abc", headers=self._auth()
         )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["session_id"] == "sess_abc"
-        assert data["status"] == "ended"
-        assert "ended_at" in data
+        assert response.json()["deleted"] == {
+            "sessions": 1,
+            "mood_logs": 4,
+            "safety_events": 2,
+        }
+        mock_db.sessions.delete_one.assert_awaited_once()
+        mock_db.mood_logs.delete_many.assert_awaited_once()
+        mock_db.safety_events.delete_many.assert_awaited_once()
 
-    async def test_end_session_with_naive_started_at(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
-        """Motor returns datetimes timezone-NAIVE, which is what this endpoint
-        actually receives in production.
+    async def test_delete_does_not_merely_flag_the_session(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        """The regression that mattered: no update_one anywhere near this."""
+        self._mocks(mock_db, sample_user_doc, sample_session_doc)
+        mock_db.sessions.update_one = AsyncMock()
 
-        sample_session_doc uses an aware datetime, so test_end_session_success
-        above passed while every real call 500'd on
-        "can't subtract offset-naive and offset-aware datetimes". This pins the
-        realistic shape so the regression can't come back silently.
-        """
-        naive_doc = dict(sample_session_doc)
-        naive_doc["started_at"] = datetime.datetime.utcnow()  # noqa: DTZ003 - mirrors Motor
+        await session_client.delete("/api/v1/sessions/sess_abc", headers=self._auth())
 
-        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
-        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
-        mock_db.sessions.find_one = AsyncMock(return_value=naive_doc)
-        mock_db.sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db.safety_events = MagicMock()
+        mock_db.sessions.update_one.assert_not_awaited()
 
-        tokens = create_token_pair("user_123", "test@example.com", role="user")
+    async def test_every_delete_filters_by_user_id(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        """Rule 6 — a guessed session id must not delete another user's data,
+        so user_id is in every filter, not just the lookup."""
+        self._mocks(mock_db, sample_user_doc, sample_session_doc)
 
-        response = await session_client.delete(
-            "/api/v1/sessions/sess_abc",
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
+        await session_client.delete("/api/v1/sessions/sess_abc", headers=self._auth())
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["status"] == "ended"
-        # The duration is what the arithmetic produces; a non-negative int
-        # proves the subtraction actually ran rather than raising.
-        assert isinstance(data["duration_seconds"], int)
-        assert data["duration_seconds"] >= 0
+        expected = {"session_id": "sess_abc", "user_id": "user_123"}
+        assert mock_db.sessions.delete_one.call_args[0][0] == expected
+        assert mock_db.mood_logs.delete_many.call_args[0][0] == expected
+        assert mock_db.safety_events.delete_many.call_args[0][0] == expected
 
-    async def test_end_session_already_ended(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict) -> None:
-        ended_doc = dict(sample_session_doc)
-        ended_doc["status"] = "ended"
-        ended_doc["ended_at"] = datetime.datetime.now(datetime.UTC)
-
-        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
-        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
-        mock_db.sessions.find_one = AsyncMock(return_value=ended_doc)
-        mock_db.safety_events = MagicMock()
-
-        tokens = create_token_pair("user_123", "test@example.com", role="user")
-        access_token = tokens["access_token"]
+    async def test_delete_session_not_found(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict
+    ) -> None:
+        self._mocks(mock_db, sample_user_doc, None)
 
         response = await session_client.delete(
-            "/api/v1/sessions/sess_abc",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    async def test_end_session_not_found(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict) -> None:
-        mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
-        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
-        mock_db.sessions.find_one = AsyncMock(return_value=None)
-        mock_db.safety_events = MagicMock()
-
-        tokens = create_token_pair("user_123", "test@example.com", role="user")
-        access_token = tokens["access_token"]
-
-        response = await session_client.delete(
-            "/api/v1/sessions/nonexistent",
-            headers={"Authorization": f"Bearer {access_token}"},
+            "/api/v1/sessions/nonexistent", headers=self._auth()
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
+        mock_db.sessions.delete_one.assert_not_awaited()
 
 class TestRenameSession:
     """PATCH /{session_id}/title.
