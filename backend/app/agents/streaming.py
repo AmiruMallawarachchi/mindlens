@@ -132,6 +132,7 @@ class StreamingResponse:
         memory_recalled: list[str] | None = None,
         telemetry: dict[str, Any] | None = None,
         safety: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> None:
         """
         Send final response payload.
@@ -165,6 +166,7 @@ class StreamingResponse:
                 memory_recalled=memory_recalled,
                 telemetry=telemetry,
                 safety=safety,
+                options=options,
             )
 
     # -----------------------------------------------------------------------
@@ -235,6 +237,7 @@ async def stream_pipeline_result(
     telemetry = pipeline_result.get("telemetry", {})
     safety = pipeline_result.get("safety", {})
     music_payload = _extract_music_payload(agent_outputs)
+    options_payload = pipeline_result.get("options")
 
     # Step 1: Thinking update
     await streamer.begin_thinking(
@@ -278,6 +281,7 @@ async def stream_pipeline_result(
             memory_recalled=memory_recalled,
             telemetry=telemetry,
             safety=safety,
+            options=options_payload,
         )
     else:
         # Short response or streaming disabled: send final directly
@@ -290,6 +294,7 @@ async def stream_pipeline_result(
             memory_recalled=memory_recalled,
             telemetry=telemetry,
             safety=safety,
+            options=options_payload,
         )
 
 

@@ -194,6 +194,7 @@ class ConnectionManager:
         memory_recalled: list[str] | None = None,
         telemetry: dict[str, Any] | None = None,
         safety: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> bool:
         """Send the final assembled response to the client."""
         return await self.send_to_user(
@@ -221,6 +222,9 @@ class ConnectionManager:
                 # assistant turn needs them too, not just the live one.
                 "telemetry": telemetry or {},
                 "safety": safety or {},
+                # Structured follow-up answers, when the reply asked
+                # something. None on most turns; never present in crisis.
+                "options": options,
             },
         )
 

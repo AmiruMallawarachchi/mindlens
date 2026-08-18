@@ -23,6 +23,7 @@ from app.agents.mindfulness_agent import MindfulnessAgent
 from app.agents.music_agent import MusicAgent
 from app.agents.personality_agent import PersonalityAgent
 from app.agents.progress_agent import ProgressAgent
+from app.agents.question_options import build_options
 from app.agents.reflection_agent import ReflectionAgent
 from app.agents.response_assembler import ResponseAssembler
 from app.agents.routine_agent import RoutineAgent
@@ -286,6 +287,13 @@ class Orchestrator:
             user_name=user_name,
         )
 
+        # Offered only when the reply actually asks something, and only
+        # outside crisis — a crisis turn is templated and must not sprout
+        # buttons (rule 3).
+        options_payload = None
+        if not crisis_flag:
+            options_payload = await build_options(assembled_text, user_text)
+
         return {
             # mode="json": eos carries PeopleGraph.mentioned_at and other
             # datetime fields that don't survive a plain model_dump() into
@@ -307,6 +315,7 @@ class Orchestrator:
             # SYSTEM.md §13.3: "Memory recalled" in the thinking panel. Empty
             # unless something on file was genuinely relevant to this turn.
             "memory_recalled": recall.memory_recalled,
+            "options": options_payload,
             # Everything the reasoning trail needs to describe this turn
             # truthfully, rather than inferring it or reciting a fixed
             # sentence. See connection_manager.send_thinking_update.

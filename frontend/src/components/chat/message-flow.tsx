@@ -48,11 +48,18 @@ export function AssistantTurn({
   isStreaming = false,
   onRegenerate,
   companionId,
+  onChooseOption,
+  showOptions = false,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   onRegenerate?: (() => void) | null;
   companionId?: string;
+  /** Sends the chosen answer as an ordinary message. */
+  onChooseOption?: (text: string) => void;
+  /** Only the newest turn offers its options — buttons on a turn three
+   * messages back answer a question that has already moved on. */
+  showOptions?: boolean;
 }) {
   const reading = useMemo(() => resolveEmotion(message.eos), [message.eos]);
 
@@ -149,6 +156,10 @@ export function AssistantTurn({
 
         {!isStreaming && (
           <TurnActions text={message.text} onRegenerate={onRegenerate ?? null} />
+        )}
+
+        {showOptions && !isStreaming && message.options && onChooseOption && (
+          <OptionChoices payload={message.options} onChoose={onChooseOption} />
         )}
 
         {hasCards && !isStreaming && (
@@ -250,5 +261,53 @@ function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Tappable answers under a reply that asked something.
+ *
+ * They are a shortcut for typing, never a constraint on what may be said —
+ * so the free-text escape is always present and the composer stays fully
+ * usable while they are on screen. Choosing one sends it as an ordinary
+ * message, which is also the only inbound frame the backend accepts.
+ */
+function OptionChoices({
+  payload,
+  onChoose,
+}: {
+  payload: NonNullable<ChatMessage["options"]>;
+  onChoose: (text: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5" role="group" aria-label="Suggested answers">
+      {payload.options.map((option, index) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChoose(option)}
+          className="flex w-full items-center gap-2.5 rounded-[var(--r-11)] border px-3 py-2 text-left text-[13px] transition-colors hover:border-[var(--ml-ink)]"
+          style={{
+            borderColor: "var(--ml-hairline-strong)",
+            background: "var(--ml-panel)",
+            color: "var(--ml-ink)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="ml-eyebrow shrink-0 tabular-nums"
+            style={{ opacity: 0.5 }}
+          >
+            {index + 1}
+          </span>
+          {option}
+        </button>
+      ))}
+      {payload.allow_other && (
+        <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--ml-faint)" }}>
+          Or say it your own way below — these are just shortcuts.
+        </p>
+      )}
+    </div>
   );
 }

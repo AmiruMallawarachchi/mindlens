@@ -198,6 +198,7 @@ export function useMindLensClient() {
             music: frame.music ?? null,
           telemetry: frame.telemetry,
           safety: frame.safety,
+          options: frame.options ?? null,
             pending: false,
           };
           const exists = current.some((m) => m.id === id);

@@ -293,6 +293,8 @@ export function ChatScreen({
                     message={message}
                     isStreaming={message.id === streamingId}
                     companionId={companionId}
+                    onChooseOption={handleSend}
+                    showOptions={message.id === lastMessage?.id}
                     // Regenerate only makes sense on the latest reply.
                     onRegenerate={
                       index === messages.length - 1 && !previewMode

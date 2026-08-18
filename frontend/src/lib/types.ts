@@ -235,6 +235,17 @@ export interface MusicPayload {
   emotion: string | null;
 }
 
+/** Structured follow-up answers offered as buttons under a reply.
+ *
+ * Deliberately not the canned menu empathy_agent forbids: generated per
+ * turn from what was actually said, schema-validated rather than parsed out
+ * of prose, and never a closed set — `allow_other` is always true because
+ * the point is to save typing, not to limit what someone may say. */
+export interface OptionsPayload {
+  options: string[];
+  allow_other: boolean;
+}
+
 export type ChatRole = "user" | "assistant";
 
 /** What the pipeline actually did this turn, so the reasoning trail can
@@ -283,6 +294,7 @@ export interface ChatMessage {
   kind?: "error";
   telemetry?: TurnTelemetry;
   safety?: SafetyVerdict;
+  options?: OptionsPayload | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +325,7 @@ export type ServerFrame =
       memory_recalled?: string[];
       telemetry?: TurnTelemetry;
       safety?: SafetyVerdict;
+      options?: OptionsPayload | null;
     }
   | {
       type: "crisis_response";
