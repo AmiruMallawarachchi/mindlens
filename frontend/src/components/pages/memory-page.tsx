@@ -76,7 +76,6 @@ export function MemoryPage() {
   const triggerTopics = memory.emotional_patterns?.trigger_topics ?? [];
   const effectiveCoping = memory.emotional_patterns?.effective_coping ?? [];
   const notes = memory.raw_notes ?? [];
-  const threadCount = people.length + triggerTopics.length + effectiveCoping.length + notes.length;
 
   const forgetPerson = (name: string) =>
     confirmThenRun(`people:${name}`, () => deleteMemoryEntry("people", name));
@@ -244,7 +243,6 @@ export function MemoryPage() {
           </div>
         </MemoryCategory>
 
-        <TheLoom threadCount={threadCount} />
       </div>
 
       <MemoryCategory title="What's been hard" icon={<MessageSquareWarning size={14} strokeWidth={1.8} />} empty={triggerTopics.length === 0} emptyText="Nothing flagged as a hard topic.">
@@ -331,59 +329,6 @@ function MemoryCategory({
         <div className="flex flex-col gap-2">{children}</div>
       )}
     </section>
-  );
-}
-
-/** A purely decorative, real-count-driven visualization — every person,
- * topic, coping strategy and note is a "thread". No fabricated data: the
- * count is threadCount from the actual memory doc. */
-function TheLoom({ threadCount }: { threadCount: number }) {
-  const strands = [
-    { left: "14%", rotate: -6, delay: 0 },
-    { left: "38%", rotate: 4, delay: 0.15 },
-    { left: "62%", rotate: -4, delay: 0.3 },
-    { left: "86%", rotate: 6, delay: 0.45 },
-  ];
-  return (
-    <div
-      className="flex flex-col items-center gap-3.5 rounded-[var(--r-18)] p-5 text-center"
-      style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
-    >
-      <p className="ml-eyebrow self-start">The Loom</p>
-      <div className="relative h-[120px] w-full max-w-[180px]">
-        {strands.map((s, i) => (
-          <span
-            key={i}
-            aria-hidden="true"
-            className="absolute top-0 w-px"
-            style={{
-              left: s.left,
-              height: "88px",
-              background: `linear-gradient(180deg, ${i % 2 === 0 ? "var(--e1)" : "var(--e2)"}, transparent)`,
-              transform: `rotate(${s.rotate}deg)`,
-            }}
-          />
-        ))}
-        {strands.map((s, i) => (
-          <span
-            key={`dot-${i}`}
-            aria-hidden="true"
-            className="absolute size-[8px] rounded-full"
-            style={{
-              left: s.left,
-              top: `${34 + (i % 3) * 18}px`,
-              background: i % 2 === 0 ? "var(--e1)" : "var(--e2)",
-              boxShadow: `0 0 8px ${i % 2 === 0 ? "var(--e1)" : "var(--e2)"}`,
-            }}
-          />
-        ))}
-      </div>
-      <p className="text-[11.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-        {threadCount > 0
-          ? `${threadCount} thread${threadCount === 1 ? "" : "s"} so far. A person, a hard topic, or something that helped can turn into one as you talk — or add one yourself below.`
-          : "Nothing on file yet. Mention someone or something that helped as you talk, or add one yourself below."}
-      </p>
-    </div>
   );
 }
 

@@ -272,39 +272,46 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
 }
 
 /**
- * One line for the collapsed trail — what happened, at a glance.
+ * One short human clause for the collapsed trigger — the ai-elements
+ * <Reasoning> primitive already renders this as "Thought for Ns · {clause}",
+ * matching how Claude's own UI shows a tool-call summary: what happened,
+ * not a stats readout.
  *
- * Built from the same facts as the steps, so it can never claim something
- * the expanded view contradicts.
+ * This used to return a pipe-joined line — "safety clear · 2 agents · 5
+ * passages · CBT" — styled in small-caps mono. Correct facts, wrong shape:
+ * it read as a system status bar sitting permanently above every reply,
+ * not as part of a conversation. This picks the single most notable real
+ * thing that happened and says it in one clause, the way a person would
+ * mention it in passing. Full detail is still one click away in the
+ * expanded steps — this line is a hint, not the whole report.
+ *
+ * Returns null when nothing is worth a clause (a plain, undegraded, opening
+ * turn) — "Thought for 2 seconds" on its own is honest and enough.
  */
-export function summariseTrail(input: ReasoningInput): string {
+export function summariseTrail(input: ReasoningInput): string | null {
   const { agents, crisis, degraded, telemetry, memoryRecalled } = input;
-  if (crisis) return "Safety first — everything else paused";
+  if (crisis) return "stayed with your safety first";
 
-  const parts: string[] = [];
+  if (degraded.includes("model:crisis")) return "screened with the keyword gate alone";
+
+  const llmDegraded = degraded.some(
+    (d) => !d.startsWith("model:") && !d.startsWith("rag:"),
+  );
+  if (llmDegraded) return "hit a snag and kept the reply simple";
+
+  if (degraded.some((d) => d.startsWith("rag:"))) {
+    return "looked things up, but the ranking step was down";
+  }
+
+  const rag = telemetry?.rag;
+  if (rag?.status === "ran" && rag.chunks > 0) return "checked the therapy notes";
 
   const speaking = agents
     .map((a) => a.replace(/_agent$/, ""))
-    .filter((a) => AGENT_PHRASES[a] !== null);
-  // Named when there are few enough to read at a glance — the whole point
-  // of the compact line is knowing *what* ran, the way Claude's own
-  // "used web_search" reads, not just a count. Falls back to a count once
-  // naming them all would make the summary longer than the reply.
-  parts.push(
-    speaking.length === 0
-      ? "no agents"
-      : speaking.length <= 3
-        ? speaking.join(" + ")
-        : `${speaking.length} agents`,
-  );
+    .filter((a) => AGENT_PHRASES[a] !== null && a !== "empathy");
+  if (speaking.length > 0) return "took a little extra time with this one";
 
-  const rag = telemetry?.rag;
-  if (rag?.status === "ran" && rag.chunks > 0) parts.push(`${rag.chunks} passages`);
-  else if (rag) parts.push("no retrieval");
+  if (memoryRecalled.length > 0) return "remembered something you'd mentioned before";
 
-  if (telemetry?.modality) parts.push(telemetry.modality);
-  if (memoryRecalled.length > 0) parts.push("memory recalled");
-  if (degraded.length > 0) parts.push("degraded");
-
-  return `safety clear · ${parts.join(" · ")}`;
+  return null;
 }
