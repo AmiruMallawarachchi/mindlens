@@ -46,6 +46,19 @@ class AgentContext:
     # last 3 turns for context window
     rag_chunks: list[str] = field(default_factory=list)
     # Retrieved clinical knowledge from ChromaDB
+    # The real, un-anonymised message. Only for agents that never send text
+    # anywhere (session_memory_save's person-name extraction) — anonymize()
+    # replaces titled/capitalised names with "[NAME]" before user_text is
+    # built, which is correct for anything Groq-bound but meant person
+    # extraction could never see a real name to store. Defaults to
+    # user_text so any caller that doesn't set it explicitly (existing
+    # tests, other entry points) degrades to the previous behaviour rather
+    # than extracting from an empty string.
+    raw_user_text: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.raw_user_text:
+            self.raw_user_text = self.user_text
 
 
 # ---------------------------------------------------------------------------

@@ -192,6 +192,37 @@ class GroqClient:
         content = response.choices[0].message.content or ""
         usage = response.usage
 
+        if not content.strip():
+            # A 200 with empty content is not a success — it just doesn't
+            # look like a failure to the caller, which is exactly how this
+            # went unnoticed. It reached response_assembler as a real
+            # AgentOutput with text="", and when that agent was the only
+            # one speaking, the whole turn silently degraded to the generic
+            # "I'm here with you. Tell me more." with nothing recorded to
+            # say why.
+            #
+            # The known cause: on a reasoning model, the completion budget
+            # can be spent entirely on hidden chain-of-thought
+            # (usage.completion_tokens_details.reasoning_tokens) before any
+            # visible text is written, leaving content empty even though the
+            # call itself succeeded. reasoning_effort="low" above cuts this
+            # sharply but doesn't guarantee zero — a tight max_tokens on a
+            # long prompt can still exhaust it.
+            reasoning_tokens = getattr(
+                getattr(usage, "completion_tokens_details", None), "reasoning_tokens", None
+            )
+            logger.warning(
+                "Groq call returned empty content (model=%s, finish_reason=%s, "
+                "reasoning_tokens=%s) — falling back to a stub reply",
+                model_id,
+                response.choices[0].finish_reason,
+                reasoning_tokens,
+            )
+            _record_degradation("empty_completion")
+            return self._stub_response(
+                system_prompt, user_prompt, model_tier, max_tokens
+            )
+
         return GroqResponse(
             text=content.strip(),
             model_used=model_id,

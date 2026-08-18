@@ -219,7 +219,9 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   if (rag) {
     if (rag.status === "ran" && rag.chunks > 0) {
       approachParts.push(
-        `Pulled ${rag.chunks} passage${rag.chunks === 1 ? "" : "s"} from the therapy notes to check myself against.`,
+        rag.model
+          ? `Pulled ${rag.chunks} passage${rag.chunks === 1 ? "" : "s"} from the therapy notes, ranked by ${rag.model}, to check myself against.`
+          : `Pulled ${rag.chunks} passage${rag.chunks === 1 ? "" : "s"} from the therapy notes to check myself against.`,
       );
     } else if (rag.status === "ran") {
       approachParts.push("Searched the therapy notes and nothing matched closely enough to use.");
@@ -284,10 +286,16 @@ export function summariseTrail(input: ReasoningInput): string {
   const speaking = agents
     .map((a) => a.replace(/_agent$/, ""))
     .filter((a) => AGENT_PHRASES[a] !== null);
+  // Named when there are few enough to read at a glance — the whole point
+  // of the compact line is knowing *what* ran, the way Claude's own
+  // "used web_search" reads, not just a count. Falls back to a count once
+  // naming them all would make the summary longer than the reply.
   parts.push(
     speaking.length === 0
       ? "no agents"
-      : `${speaking.length} agent${speaking.length === 1 ? "" : "s"}`,
+      : speaking.length <= 3
+        ? speaking.join(" + ")
+        : `${speaking.length} agents`,
   );
 
   const rag = telemetry?.rag;

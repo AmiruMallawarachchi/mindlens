@@ -151,6 +151,26 @@ class ResponseAssembler:
         # The crisis path is deliberately untouched: there the resources are
         # the message, not decoration around it.
 
+        if not text.strip():
+            # Every agent that ran either had nothing to say (a card-only
+            # agent like music, or one held back by the specialist cap) or
+            # came back with genuinely empty text — a Groq call whose content
+            # was "" (a real API hiccup, or every token spent on hidden
+            # reasoning; see groq_client's reasoning_effort pin for the class
+            # of bug this is). Feeding "" to the validator produced the
+            # unhelpful "empty_input" block-and-fallback combination, which
+            # then rendered the same fixed line regardless of who was
+            # supposed to speak. Naming which agent failed here at least
+            # makes the cause diagnosable instead of an unexplained stub.
+            empty_speakers = sorted(
+                {o.agent_name for o in outputs if o.agent_name not in CARD_RENDERED_AGENTS}
+            )
+            logger.warning(
+                "No agent produced usable text this turn (ran: %s) — using fallback",
+                empty_speakers,
+            )
+            return self._fallback_response(user_name)
+
         return self._validated_or_fallback(text, crisis=False, user_name=user_name)
 
     def _validated_or_fallback(

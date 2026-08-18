@@ -133,6 +133,52 @@ class TestGroqClientRealMode:
         assert mock_chat.call_args.kwargs["reasoning_effort"] == "low"
 
     @pytest.mark.asyncio
+    async def test_empty_completion_falls_back_to_stub_text(
+        self, real_client: GroqClient
+    ) -> None:
+        """A 200 response with content="" used to be returned as-is — a
+        successful-looking GroqResponse with no text and nothing recorded
+        to explain why. When that agent was the only one speaking, the
+        whole turn silently degraded to the generic "I'm here with you.
+        Tell me more." with no trace of the actual cause. It must instead
+        produce real, non-empty stub text, same as any other Groq failure."""
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=""), finish_reason="stop")],
+            usage=MagicMock(total_tokens=5, completion_tokens_details=None),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        result = await real_client.chat(
+            system_prompt="You are the empathy agent.",
+            user_prompt="user",
+        )
+
+        assert result.text.strip() != ""
+
+    @pytest.mark.asyncio
+    async def test_empty_completion_is_recorded_as_degraded(
+        self, real_client: GroqClient
+    ) -> None:
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="   "), finish_reason="stop")],
+            usage=MagicMock(total_tokens=5, completion_tokens_details=None),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        with patch("app.agents.groq_client._record_degradation") as record:
+            await real_client.chat(system_prompt="sys", user_prompt="user")
+            # _stub_response also records its own "stub" reason once it
+            # takes over — both are real, distinct degradations for this
+            # call, so "empty_completion" only needs to be among them.
+            record.assert_any_call("empty_completion")
+
+    @pytest.mark.asyncio
     async def test_chat_timeout(self, real_client: GroqClient) -> None:
         with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
             result = await real_client.chat(

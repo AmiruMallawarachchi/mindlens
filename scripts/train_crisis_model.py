@@ -30,16 +30,19 @@ from transformers import (  # noqa: E402
 BASE_MODEL = "distilbert-base-uncased"
 YOUR_HF_USERNAME = "AmiruMallawarachchi"
 
-# v2 dataset: raw text (not lemmatized), hard negatives, short turns.
-# The v1 model scored 0.82 on "I'm scared it will not be good enough" against
-# 0.88 for "I want to kill myself" — see scripts/build_crisis_dataset.py for
-# the three train/serve mismatches that caused it.
-DATASET_NAME = f"{YOUR_HF_USERNAME}/mindlens-crisis-cleaned-v2"
+# v3 dataset: raw text (not lemmatized), hard negatives, short turns in BOTH
+# classes. v1 scored 0.82 on "I'm scared it will not be good enough" against
+# 0.88 for "I want to kill myself". v2 fixed that but only for the safe
+# class — its crisis class was still 100% long-form Reddit posts (median 69
+# words), so it learned "short == not crisis" and scored "I want to kill
+# myself" at 0.367, missing 5/5 blunt crisis probes. v3 adds the mirror
+# synthetic set on the crisis side. See scripts/build_crisis_dataset.py.
+DATASET_NAME = f"{YOUR_HF_USERNAME}/mindlens-crisis-cleaned-v3"
 
 # Publishes alongside the live model rather than over it. Swap
 # config.py's crisis_model_id only after the probes below look right —
 # never overwrite a shipped crisis classifier in place.
-TARGET_REPO = f"{YOUR_HF_USERNAME}/mindlens-crisis-v2"
+TARGET_REPO = f"{YOUR_HF_USERNAME}/mindlens-crisis-v3"
 
 OUTPUT_DIR = "/kaggle/working/mindlens-crisis-v2"
 os.makedirs(OUTPUT_DIR, exist_ok=True)

@@ -2,11 +2,41 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.agents.orchestrator import Orchestrator
 from app.core.emotional_os import EmotionalOperatingState, Modality
+
+
+@pytest.fixture(autouse=True)
+def _stub_groq():
+    """Pin the Groq singleton to a stub for every test in this module.
+
+    Every class here that calls run_full_pipeline or process_turn was
+    otherwise making a real Groq API call per test — one took 104s and then
+    failed on a 429 rate limit. Routing, EOS construction and telemetry are
+    what this file tests; none of it needs the network, and a flaky external
+    dependency in a unit suite is a bug in the suite.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents import groq_client as groq_module
+
+    stub = MagicMock()
+    stub.chat = AsyncMock(
+        return_value=MagicMock(
+            text="A steady reply.",
+            model_used="stub",
+            tokens_used=8,
+            latency_ms=1.0,
+            finish_reason="stop",
+        )
+    )
+    previous = groq_module._groq_client
+    groq_module._groq_client = stub
+    yield stub
+    groq_module._groq_client = previous
 
 
 @pytest.fixture
@@ -603,35 +633,10 @@ class TestTurnTelemetry:
     transmission, RAG's status was never sent at all, and the UI printed
     "Working from CBT" on every turn including "hi" — because modality is set
     unconditionally even when nothing modality-driven ran.
+
+    Groq is stubbed module-wide (see _stub_groq above) — no class-local
+    override needed here any more.
     """
-
-    @pytest.fixture(autouse=True)
-    def _stub_groq(self):
-        """Pin the Groq singleton to a stub.
-
-        These pipeline tests otherwise make real Groq calls — one of them
-        took 104s and then failed on a 429 rate limit. Telemetry is about
-        routing decisions, not generated text, so the network has no business
-        in it.
-        """
-        from unittest.mock import AsyncMock, MagicMock
-
-        from app.agents import groq_client as groq_module
-
-        stub = MagicMock()
-        stub.chat = AsyncMock(
-            return_value=MagicMock(
-                text="A steady reply.",
-                model_used="stub",
-                tokens_used=8,
-                latency_ms=1.0,
-                finish_reason="stop",
-            )
-        )
-        previous = groq_module._groq_client
-        groq_module._groq_client = stub
-        yield stub
-        groq_module._groq_client = previous
 
     @pytest.mark.asyncio
     async def test_trivial_turn_reports_rag_skipped_and_no_modality(
@@ -679,3 +684,46 @@ class TestTurnTelemetry:
         result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
         assert "safety" in result
         assert "is_crisis" in result["safety"]
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_the_reranker_model_when_it_ran(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """The trail used to say "Pulled 5 passages" with no way to know
+        which model did the ranking — the equivalent of Claude naming a tool
+        it used without saying which one. When retrieval genuinely ran with
+        reranking enabled, the model actually configured for it is named."""
+        orchestrator.models = mock_model_manager
+        with patch("app.agents.orchestrator.settings.rag_reranker_enabled", True):
+            result = await orchestrator.run_full_pipeline(
+                "I have been feeling really stressed about my final year project",
+                user_name="TestUser",
+            )
+        rag = result["telemetry"]["rag"]
+        if rag["status"] == "ran":
+            assert rag["model"] == "mindlens-rag-reranker"
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_no_model_when_reranking_disabled(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """Naming a model that was configured off would claim work that
+        didn't happen — rag_reranker_enabled=False must mean model=None
+        even on a turn where retrieval itself ran fine."""
+        orchestrator.models = mock_model_manager
+        with patch("app.agents.orchestrator.settings.rag_reranker_enabled", False):
+            result = await orchestrator.run_full_pipeline(
+                "I have been feeling really stressed about my final year project",
+                user_name="TestUser",
+            )
+        assert result["telemetry"]["rag"]["model"] is None
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_no_model_when_skipped_or_failed(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+        rag = result["telemetry"]["rag"]
+        if rag["status"] != "ran":
+            assert rag["model"] is None

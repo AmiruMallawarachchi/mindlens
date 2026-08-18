@@ -82,6 +82,23 @@ class TestResponseAssembler:
         text = assembler.assemble(outputs, user_name="Ravi")
         assert "What's underneath?" in text
 
+    def test_falls_back_gracefully_when_every_speaker_came_back_empty(
+        self, assembler: ResponseAssembler
+    ) -> None:
+        """groq_client now falls back to stub text on an empty completion, so
+        this path should be rare — but agents can still legitimately return
+        empty text (a card-only agent, or one held back by the specialist
+        cap), and the assembler must not crash or produce a blank reply if
+        every one of them did. This is the backstop, not the primary
+        defence; groq_client.chat is."""
+        outputs = [
+            AgentOutput(agent_name="empathy", text=""),
+            AgentOutput(agent_name="music", text="Try slow ambient."),
+        ]
+        text = assembler.assemble(outputs, user_name="Ravi")
+        assert text.strip() != ""
+        assert "Ravi" in text
+
     def test_deduplicates_duplicates(self, assembler: ResponseAssembler) -> None:
         outputs = [
             AgentOutput(agent_name="empathy", text="I hear you."),

@@ -24,16 +24,27 @@ distinct mismatches between how the model was trained and how it is served:
 3. Length. Training posts ran to a median of 30 words; real chat messages
    are four to fifteen.
 
-This script fixes all three: raw text throughout, hard negatives that are
-serious without being a crisis, and short-form examples in both classes.
+v2 fixed all three for the SAFE class only (adding SYNTHETIC_SAFE, upsampled
+40x) and left CRISIS untouched: median 69 words, and even the "short" rows
+were Reddit title+selftext glued together with no space ("Im outFuck this
+shit im done, good bye"), not a clean sentence. Trained on that, the v2
+checkpoint learned "short and clean == not crisis" regardless of content —
+it scored "I want to kill myself" at 0.367 and missed 5/5 blunt crisis
+probes outright, because nothing in its crisis class looked like a blunt
+short sentence. SYNTHETIC_CRISIS below is the mirror image of
+SYNTHETIC_SAFE, upsampled the same way, so both classes now span the same
+register.
 
-Every candidate negative is passed through the production safety-gate regex
-first, and anything it flags is dropped rather than labelled safe. Mislabeling
-a real crisis as safe is the one error this system must not learn to make, so
-when a negative is doubtful it is discarded, not kept.
+Every candidate SAFE negative is passed through the production safety-gate
+regex first, and anything it flags is dropped rather than labelled safe.
+Mislabeling a real crisis as safe is the one error this system must not
+learn to make, so when a negative is doubtful it is discarded, not kept.
+SYNTHETIC_CRISIS rows skip that filter — being flagged by the regex is
+expected and fine for a row already labelled crisis.
 
 Run:  ../.venv/Scripts/python scripts/build_crisis_dataset.py
-Out:  notebooks/data/cleaned/crisis_dataset_v2/   (raw text, balanced)
+Out:  notebooks/data/cleaned/crisis_dataset_v3/   (raw text, balanced)
+      pushed to AmiruMallawarachchi/mindlens-crisis-cleaned-v3
 """
 
 from __future__ import annotations
@@ -49,7 +60,8 @@ from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 
 ROOT = Path(__file__).resolve().parents[1]
 CLEANED = ROOT / "notebooks" / "data" / "cleaned"
-OUT_DIR = CLEANED / "crisis_dataset_v2"
+OUT_DIR = CLEANED / "crisis_dataset_v3"
+HUB_REPO = "AmiruMallawarachchi/mindlens-crisis-cleaned-v3"
 
 # Import the production regex so the filter here and the L1 gate at runtime
 # can never drift apart.
@@ -147,6 +159,56 @@ SYNTHETIC_SAFE = [
     "I'm just really sad today.",
 ]
 
+# Short, direct, first-person crisis statements — the register that was
+# entirely missing from the crisis class (median 69 words, Reddit-shaped).
+# The three production probes are here by name, same reasoning as
+# SYNTHETIC_SAFE: they are the bug this rebuild answers, so they belong in
+# the data. The rest cover the phrasings around them (blunt, planning,
+# indirect "no point left") so the model learns the register, not three
+# memorized strings.
+SYNTHETIC_CRISIS = [
+    "I want to kill myself",
+    "I am going to end it all tonight",
+    "I do not want to be alive anymore",
+    "There is no point in living",
+    "I have been thinking about suicide",
+    "I don't want to live anymore",
+    "I want to die",
+    "I'm going to kill myself tonight",
+    "I can't do this anymore, I want to end it",
+    "I don't want to be here anymore",
+    "I've been thinking about ending my life",
+    "I want to end my life",
+    "I'm planning to kill myself",
+    "There's no reason for me to keep going",
+    "I don't see the point of carrying on",
+    "I just want it all to stop, permanently",
+    "I've been thinking about not being alive",
+    "I want to disappear for good",
+    "I'm done, I don't want to exist anymore",
+    "I keep thinking about ending everything",
+    "I have a plan to kill myself",
+    "Nobody would notice if I wasn't alive",
+    "I wish I could just not wake up",
+    "I don't want to keep living like this",
+    "I'm ready to end my life",
+    "I've written a note, I'm going to do it",
+    "I want to hurt myself badly",
+    "I'm thinking about taking all my pills",
+    "I feel like ending it is the only way out",
+    "I don't have a reason to stay alive",
+    "I want to jump",
+    "I'm going to end my life tonight",
+    "I can't take this anymore, I want to die",
+    "life isn't worth living anymore",
+    "I keep thinking the world would be better without me",
+    "I want to kill myself so it can stop",
+    "I'm not going to be here much longer",
+    "I've decided to end it",
+    "I just want to die already",
+    "I don't want to survive this",
+]
+
 
 def load_raw_base() -> tuple[list[str], list[str]]:
     """Original Kaggle SuicideWatch data with the raw `text` column intact.
@@ -231,6 +293,13 @@ def main() -> None:
     crisis, base_safe = load_raw_base()
     pools = collect_hard_negatives(is_crisis_regex)
 
+    # Mirror of the safe-side synthetic upsampling — same factor, same
+    # reasoning: few examples, but they are the exact register the deployed
+    # product receives, and until now the crisis class had none of it.
+    synthetic_crisis = [t for raw in SYNTHETIC_CRISIS if (t := normalise(raw))] * 40
+    crisis = crisis + synthetic_crisis
+    print(f"\nSynthetic crisis (short, direct) added: {len(synthetic_crisis)}")
+
     print("\nHard-negative pools (post regex filter):")
     for name, rows in pools.items():
         print(f"  {name:<18} {len(rows):>7}")
@@ -281,9 +350,20 @@ def main() -> None:
     print(f"\nSaved to {OUT_DIR}")
     for name, split in splits.items():
         counts = Counter(split["label"])
-        lens = [len(t.split()) for t in split["text"][:5000]]
-        median = sorted(lens)[len(lens) // 2] if lens else 0
-        print(f"  {name:<11} {len(split):>7}  labels={dict(counts)}  median_words={median}")
+        crisis_lens = [len(t.split()) for t, lab in zip(split["text"], split["label"]) if lab == 1]
+        safe_lens = [len(t.split()) for t, lab in zip(split["text"], split["label"]) if lab == 0]
+
+        def median(xs: list[int]) -> int:
+            return sorted(xs)[len(xs) // 2] if xs else 0
+
+        print(
+            f"  {name:<11} {len(split):>7}  labels={dict(counts)}  "
+            f"median_words crisis={median(crisis_lens)} safe={median(safe_lens)}"
+        )
+
+    print(f"\nPushing to {HUB_REPO} (needs a cached HF login with write access)...")
+    splits.push_to_hub(HUB_REPO)
+    print(f"Pushed: https://huggingface.co/datasets/{HUB_REPO}")
 
 
 if __name__ == "__main__":

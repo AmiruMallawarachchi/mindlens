@@ -29,6 +29,7 @@ from app.agents.response_assembler import ResponseAssembler
 from app.agents.routine_agent import RoutineAgent
 from app.agents.safety_gate import SafetyGateResult, safety_gate
 from app.agents.session_memory_save import SessionMemorySave
+from app.config import settings
 from app.core.anonymizer import anonymize
 from app.core.emotion_labels import (
     EMOTION_LABELS,
@@ -254,6 +255,10 @@ class Orchestrator:
             user_name=user_name,
             session_history=anonymized_history,
             rag_chunks=rag_chunks or [],
+            # Local-only, never forwarded to Groq or RAG -- see
+            # AgentContext.raw_user_text's docstring for why
+            # session_memory_save specifically needs it.
+            raw_user_text=user_text,
         )
 
         # Step 5: Run agents in parallel
@@ -320,7 +325,20 @@ class Orchestrator:
             # truthfully, rather than inferring it or reciting a fixed
             # sentence. See connection_manager.send_thinking_update.
             "telemetry": {
-                "rag": {"status": rag_status, "chunks": len(rag_chunks or [])},
+                "rag": {
+                    "status": rag_status,
+                    "chunks": len(rag_chunks or []),
+                    # Named only when the reranker was actually configured to
+                    # run for this turn -- a degraded reranker call is already
+                    # reported separately (the "rag:reranker" degradation),
+                    # so this is a statement of what was asked to run, not a
+                    # guarantee every chunk got its score from it.
+                    "model": (
+                        settings.rag_reranker_model_id.split("/")[-1]
+                        if rag_status == "ran" and settings.rag_reranker_enabled
+                        else None
+                    ),
+                },
                 # Only claim a modality when one actually shaped a running
                 # agent. Every turn carries a modality field, but on a turn
                 # where no modality-driven agent ran, naming one describes a

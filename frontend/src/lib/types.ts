@@ -256,6 +256,9 @@ export interface TurnTelemetry {
     /** "ran" | "skipped_trivial" | "skipped_crisis" | "failed" | "provided" */
     status: string;
     chunks: number;
+    /** The reranker model that ordered these chunks, named only when it was
+     * actually configured to run this turn. */
+    model?: string | null;
   };
   /** Null when no agent that consults a modality ran. A modality is set on
    * every turn regardless, so a non-null value here is the only honest
