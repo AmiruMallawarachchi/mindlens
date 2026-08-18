@@ -62,6 +62,7 @@ export function ChatScreen({
     startNewConversation,
     openSession,
     pinSession,
+    renameSession,
     deleteSession,
     prepareJournalReflection,
     user,
@@ -160,6 +161,7 @@ export function ChatScreen({
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
           onPinSession={pinSession}
+          onRenameSession={renameSession}
           onDeleteSession={deleteSession}
           onSaveToJournal={saveToJournal}
           collapsed={sidebarCollapsed}
@@ -197,6 +199,7 @@ export function ChatScreen({
                 setMobileNavOpen(false);
               }}
               onPinSession={pinSession}
+              onRenameSession={renameSession}
               onDeleteSession={deleteSession}
               onSaveToJournal={(session) => {
                 saveToJournal(session);

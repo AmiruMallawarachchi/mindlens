@@ -346,3 +346,130 @@ class TestEndSession:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestRenameSession:
+    """PATCH /{session_id}/title.
+
+    `title` was writable only at creation before this route existed, and the
+    chat flow never passed one — so every session a user started showed as a
+    bare date and there was no way to change it.
+    """
+
+    @staticmethod
+    def _auth() -> dict[str, str]:
+        tokens = create_token_pair("user_123", "test@example.com", role="user")
+        return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    @staticmethod
+    def _base_mocks(mock_db: MagicMock, user_doc: dict) -> None:
+        mock_db.users.find_one = AsyncMock(return_value=user_doc)
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.safety_events = MagicMock()
+
+    async def test_rename_session_success(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        self._base_mocks(mock_db, sample_user_doc)
+        renamed = {**sample_session_doc, "title": "Two weeks to the viva"}
+        mock_db.sessions.find_one_and_update = AsyncMock(return_value=renamed)
+
+        response = await session_client.patch(
+            "/api/v1/sessions/sess_abc/title",
+            json={"title": "Two weeks to the viva"},
+            headers=self._auth(),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["title"] == "Two weeks to the viva"
+
+    async def test_rename_filters_by_user_id(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        """Rule 6 — a user must not be able to rename someone else's session
+        by guessing its id, so user_id is part of the query, not just the
+        session_id."""
+        self._base_mocks(mock_db, sample_user_doc)
+        mock_db.sessions.find_one_and_update = AsyncMock(return_value=sample_session_doc)
+
+        await session_client.patch(
+            "/api/v1/sessions/sess_abc/title",
+            json={"title": "Renamed"},
+            headers=self._auth(),
+        )
+
+        query = mock_db.sessions.find_one_and_update.call_args[0][0]
+        assert query == {"session_id": "sess_abc", "user_id": "user_123"}
+
+    async def test_rename_sets_only_title_and_timestamp(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        """Rule 6 — a partial update, never a whole-subdocument $set that
+        would take the transcript with it."""
+        self._base_mocks(mock_db, sample_user_doc)
+        mock_db.sessions.find_one_and_update = AsyncMock(return_value=sample_session_doc)
+
+        await session_client.patch(
+            "/api/v1/sessions/sess_abc/title",
+            json={"title": "Renamed"},
+            headers=self._auth(),
+        )
+
+        update = mock_db.sessions.find_one_and_update.call_args[0][1]
+        assert set(update["$set"]) == {"title", "updated_at"}
+
+    async def test_rename_strips_surrounding_whitespace(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
+    ) -> None:
+        self._base_mocks(mock_db, sample_user_doc)
+        mock_db.sessions.find_one_and_update = AsyncMock(return_value=sample_session_doc)
+
+        await session_client.patch(
+            "/api/v1/sessions/sess_abc/title",
+            json={"title": "   Padded title   "},
+            headers=self._auth(),
+        )
+
+        update = mock_db.sessions.find_one_and_update.call_args[0][1]
+        assert update["$set"]["title"] == "Padded title"
+
+    @pytest.mark.parametrize("bad_title", ["", "   ", "\t\n", "x" * 201])
+    async def test_rename_rejects_blank_or_overlong(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, bad_title: str
+    ) -> None:
+        """A whitespace-only title would render as an empty sidebar row that
+        still suppresses the date fallback — an invisible conversation."""
+        self._base_mocks(mock_db, sample_user_doc)
+        mock_db.sessions.find_one_and_update = AsyncMock()
+
+        response = await session_client.patch(
+            "/api/v1/sessions/sess_abc/title",
+            json={"title": bad_title},
+            headers=self._auth(),
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        mock_db.sessions.find_one_and_update.assert_not_called()
+
+    async def test_rename_session_not_found(
+        self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict
+    ) -> None:
+        self._base_mocks(mock_db, sample_user_doc)
+        mock_db.sessions.find_one_and_update = AsyncMock(return_value=None)
+
+        response = await session_client.patch(
+            "/api/v1/sessions/nonexistent/title",
+            json={"title": "Renamed"},
+            headers=self._auth(),
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_rename_requires_auth(self, session_client: Any, mock_db: MagicMock) -> None:
+        response = await session_client.patch(
+            "/api/v1/sessions/sess_abc/title", json={"title": "Renamed"}
+        )
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )

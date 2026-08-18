@@ -14,6 +14,7 @@ import {
   login as apiLogin,
   logoutLocal,
   pinSession as apiPinSession,
+  renameSession as apiRenameSession,
   register as apiRegister,
   updateMe,
   type RegisterInput,
@@ -461,6 +462,35 @@ export function useMindLensClient() {
     }
   }, [refreshSessions]);
 
+  const renameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const clean = title.trim();
+      if (!clean) return;
+      // Optimistic, same as pin — but keep the previous title so a failed
+      // rename can put the old one back rather than leaving the sidebar
+      // showing a name the server never accepted.
+      let previous: string | null = null;
+      setSessions((current) =>
+        current.map((s) => {
+          if (s.session_id !== sessionId) return s;
+          previous = s.title;
+          return { ...s, title: clean };
+        }),
+      );
+      try {
+        await apiRenameSession(sessionId, clean);
+      } catch (err) {
+        console.error("Failed to rename session", err);
+        setSessions((current) =>
+          current.map((s) =>
+            s.session_id === sessionId ? { ...s, title: previous } : s,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
   const deleteSession = useCallback(
     async (sessionId: string) => {
       setSessions((current) => current.filter((s) => s.session_id !== sessionId));
@@ -623,6 +653,7 @@ export function useMindLensClient() {
     startNewConversation,
     openSession,
     pinSession,
+    renameSession,
     deleteSession,
     pendingJournalPrompt,
     prepareJournalReflection,

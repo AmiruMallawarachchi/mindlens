@@ -6,6 +6,7 @@ Create, list, and end therapy sessions.
 - POST /api/v1/sessions          → create new session
 - GET  /api/v1/sessions          → list user's sessions
 - GET  /api/v1/sessions/{id}     → get session transcript
+- PATCH  /api/v1/sessions/{id}/title → rename session
 - DELETE /api/v1/sessions/{id}   → end / soft-delete session
 
 All endpoints enforce user_id isolation — users can only see their own sessions.
@@ -18,7 +19,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pymongo import ReturnDocument
 
 from app.db import get_db
@@ -83,6 +84,22 @@ class SessionPinRequest(BaseModel):
     """Body for PATCH /{session_id}/pin."""
 
     pinned: bool
+
+
+class SessionRenameRequest(BaseModel):
+    """Body for PATCH /{session_id}/title."""
+
+    title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        """A title of spaces would render as an empty sidebar row that still
+        suppresses the date fallback, so it is rejected rather than stored."""
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Title cannot be blank")
+        return cleaned
 
 
 class SessionEndResponse(BaseModel):
@@ -291,6 +308,47 @@ async def pin_session(
     result = await db.sessions.find_one_and_update(
         {"session_id": session_id, "user_id": user_id},
         {"$set": {"pinned": req.pinned, "updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    return SessionListItem(
+        session_id=result["session_id"],
+        title=result.get("title"),
+        started_at=result["started_at"],
+        ended_at=result.get("ended_at"),
+        status=result.get("status", "unknown"),
+        turn_count=len(result.get("turns", [])),
+        primary_modality=result.get("primary_modality"),
+        pinned=result.get("pinned", False),
+    )
+
+
+@router.patch(
+    "/{session_id}/title",
+    response_model=SessionListItem,
+    summary="Rename a session",
+)
+async def rename_session(
+    session_id: str,
+    req: SessionRenameRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(require_user),
+):
+    """Rename a session.
+
+    `title` was writable only at creation before this, and nothing in the
+    chat flow ever passed one — so every session a user started read as a
+    bare date in the sidebar, and the only non-null title in the system was
+    the "First Session" written during onboarding.
+    """
+    user_id = str(current_user["_id"])
+    now = datetime.datetime.now(datetime.UTC)
+
+    result = await db.sessions.find_one_and_update(
+        {"session_id": session_id, "user_id": user_id},
+        {"$set": {"title": req.title, "updated_at": now}},
         return_document=ReturnDocument.AFTER,
     )
     if not result:

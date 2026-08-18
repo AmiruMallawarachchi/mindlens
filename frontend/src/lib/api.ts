@@ -304,6 +304,13 @@ export async function pinSession(sessionId: string, pinned: boolean): Promise<vo
   });
 }
 
+export async function renameSession(sessionId: string, title: string): Promise<void> {
+  await request(`/api/v1/sessions/${sessionId}/title`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   await request(`/api/v1/sessions/${sessionId}`, { method: "DELETE" });
 }

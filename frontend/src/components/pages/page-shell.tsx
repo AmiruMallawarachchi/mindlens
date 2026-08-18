@@ -39,6 +39,7 @@ export function PageShell({
     startNewConversation,
     openSession,
     pinSession,
+    renameSession,
     deleteSession,
     prepareJournalReflection,
     user,
@@ -75,6 +76,7 @@ export function PageShell({
           onNewConversation={startNewConversation}
           onOpenSession={openSession}
           onPinSession={pinSession}
+          onRenameSession={renameSession}
           onDeleteSession={deleteSession}
           onSaveToJournal={saveToJournal}
           collapsed={sidebarCollapsed}
@@ -110,6 +112,7 @@ export function PageShell({
                 setMobileNavOpen(false);
               }}
               onPinSession={pinSession}
+              onRenameSession={renameSession}
               onDeleteSession={deleteSession}
               onSaveToJournal={(session) => {
                 saveToJournal(session);

@@ -7,7 +7,7 @@
  * Today / Previous 7 days / Earlier, and the privacy card pinned at the base.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Pin,
   PinOff,
   Plus,
@@ -87,6 +88,7 @@ export function ChatSidebar({
   onNewConversation,
   onOpenSession,
   onPinSession,
+  onRenameSession,
   onDeleteSession,
   onSaveToJournal,
   collapsed = false,
@@ -101,6 +103,7 @@ export function ChatSidebar({
   onNewConversation: () => void;
   onOpenSession: (sessionId: string) => void;
   onPinSession: (sessionId: string, pinned: boolean) => void;
+  onRenameSession: (sessionId: string, title: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onSaveToJournal: (session: SessionListItem) => void;
   /** Icon-only rail instead of the full 262px panel. Optional — callers
@@ -113,6 +116,9 @@ export function ChatSidebar({
   // delete. Radix's dropdown normally closes on item select, so the Delete
   // item's onSelect below prevents that default until the second click.
   const [armedSessionId, setArmedSessionId] = useState<string | null>(null);
+  // Renaming swaps the row for an input in place, rather than opening a
+  // dialog for one short string.
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   // §8 — full keyboard nav, ⌘K starts a new conversation.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -308,6 +314,19 @@ export function ChatSidebar({
                     const armed = armedSessionId === session.session_id;
                     return (
                       <li key={session.session_id} className="group/session relative flex items-center">
+                        {renamingSessionId === session.session_id ? (
+                          <SessionTitleInput
+                            initial={sessionLabel(session)}
+                            onCommit={(next) => {
+                              setRenamingSessionId(null);
+                              if (next && next !== sessionLabel(session)) {
+                                onRenameSession(session.session_id, next);
+                              }
+                            }}
+                            onCancel={() => setRenamingSessionId(null)}
+                          />
+                        ) : (
+                        <>
                         <button
                           type="button"
                           onClick={() => onOpenSession(session.session_id)}
@@ -363,6 +382,13 @@ export function ChatSidebar({
                               {session.pinned ? "Unpin" : "Pin"}
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              onSelect={() => setRenamingSessionId(session.session_id)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              <Pencil size={14} strokeWidth={1.8} />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onSelect={() => onSaveToJournal(session)}
                               style={{ color: "var(--ml-ink)" }}
                             >
@@ -386,6 +412,8 @@ export function ChatSidebar({
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        </>
+                        )}
                       </li>
                     );
                   })}
@@ -450,5 +478,56 @@ export function ChatSidebar({
         </p>
       </div>
     </aside>
+  );
+}
+
+/**
+ * In-place rename field for one session row.
+ *
+ * Uncontrolled on purpose: the value only matters at commit, and letting the
+ * parent own it would re-render the whole session list on every keystroke.
+ * Enter and blur commit, Escape abandons — and the Escape path sets a flag
+ * the blur handler checks, because cancelling also blurs and would otherwise
+ * immediately re-commit the text the user just rejected.
+ */
+function SessionTitleInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (title: string) => void;
+  onCancel: () => void;
+}) {
+  const cancelled = useRef(false);
+
+  return (
+    <input
+      autoFocus
+      defaultValue={initial}
+      maxLength={200}
+      aria-label="Rename conversation"
+      onFocus={(event) => event.currentTarget.select()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onCommit(event.currentTarget.value.trim());
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelled.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={(event) => {
+        if (cancelled.current) return;
+        onCommit(event.currentTarget.value.trim());
+      }}
+      className="w-full rounded-[var(--r-11)] border px-3 py-2 text-[12.5px] outline-none"
+      style={{
+        background: "var(--ml-panel-legible)",
+        borderColor: "var(--e1)",
+        color: "var(--ml-ink)",
+      }}
+    />
   );
 }
