@@ -65,6 +65,8 @@ class StreamingResponse:
         agents_active: list[str],
         eos: EmotionalOperatingState | dict[str, Any],
         memory_recalled: list[str] | None = None,
+        telemetry: dict[str, Any] | None = None,
+        safety: dict[str, Any] | None = None,
     ) -> None:
         """Send thinking panel update to client."""
         # mode="json" — see EmotionalOperatingState.to_dict()'s docstring;
@@ -78,6 +80,8 @@ class StreamingResponse:
             agents_active=agents_active,
             eos=eos_dict,
             memory_recalled=memory_recalled,
+            telemetry=telemetry,
+            safety=safety,
         )
 
     # -----------------------------------------------------------------------
@@ -124,6 +128,8 @@ class StreamingResponse:
         resources: list[dict] | None = None,
         degraded: list[str] | None = None,
         memory_recalled: list[str] | None = None,
+        telemetry: dict[str, Any] | None = None,
+        safety: dict[str, Any] | None = None,
     ) -> None:
         """
         Send final response payload.
@@ -155,6 +161,8 @@ class StreamingResponse:
                 resources=resources,
                 degraded=degraded,
                 memory_recalled=memory_recalled,
+                telemetry=telemetry,
+                safety=safety,
             )
 
     # -----------------------------------------------------------------------
@@ -220,6 +228,10 @@ async def stream_pipeline_result(
     agent_outputs = pipeline_result.get("agent_outputs", [])
     degraded = pipeline_result.get("degraded", [])
     memory_recalled = pipeline_result.get("memory_recalled", [])
+    # The safety verdict was computed on every turn and then dropped right
+    # here, so the client had nothing to describe and asserted instead.
+    telemetry = pipeline_result.get("telemetry", {})
+    safety = pipeline_result.get("safety", {})
     music_payload = _extract_music_payload(agent_outputs)
 
     # Step 1: Thinking update
@@ -227,6 +239,8 @@ async def stream_pipeline_result(
         agents_active=agents,
         eos=eos,
         memory_recalled=memory_recalled,
+        telemetry=telemetry,
+        safety=safety,
     )
 
     # Small delay so thinking panel renders before text starts
@@ -245,6 +259,8 @@ async def stream_pipeline_result(
             eos_snapshot=eos,
             crisis_flag=True,
             resources=resources,
+            telemetry=telemetry,
+            safety=safety,
         )
     elif enable_streaming and len(assembled_text) > 40:
         # Step 2: Stream text with typing effect
@@ -257,6 +273,8 @@ async def stream_pipeline_result(
             music=music_payload,
             degraded=degraded,
             memory_recalled=memory_recalled,
+            telemetry=telemetry,
+            safety=safety,
         )
     else:
         # Short response or streaming disabled: send final directly
@@ -267,6 +285,8 @@ async def stream_pipeline_result(
             music=music_payload,
             degraded=degraded,
             memory_recalled=memory_recalled,
+            telemetry=telemetry,
+            safety=safety,
         )
 
 

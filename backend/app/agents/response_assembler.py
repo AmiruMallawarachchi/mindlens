@@ -138,8 +138,18 @@ class ResponseAssembler:
 
         text = "\n\n".join(unique_parts)
 
-        # Add disclaimer
-        text = text + MANDATORY_DISCLAIMER
+        # No disclaimer appended here any more. It is chrome, not something
+        # the companion said, and stapling it onto the prose put it mid-reply:
+        # "...what's making it hard to get started? - MindLens is not a
+        # clinical service. If you need urgent help, contact NIMH..."
+        #
+        # The UI carries it persistently instead - the sidebar on desktop,
+        # and under the composer below 780px where the sidebar is a drawer -
+        # so it is still always on screen as DESIGN.md 4.1 requires, just
+        # not spoken by the companion.
+        #
+        # The crisis path is deliberately untouched: there the resources are
+        # the message, not decoration around it.
 
         return self._validated_or_fallback(text, crisis=False, user_name=user_name)
 

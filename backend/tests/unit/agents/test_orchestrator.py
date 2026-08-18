@@ -123,7 +123,10 @@ class TestOrchestratorFullPipeline:
         assert "empathy" in result["agents"]
         assert result["crisis_flag"] is False
         assert len(result["agent_outputs"]) > 0
-        assert "TestUser" in result["assembled_text"] or "MindLens is not a clinical service" in result["assembled_text"]
+        # The disclaimer is no longer appended to the prose, so this can
+        # only assert on the reply itself.
+        assert result["assembled_text"].strip()
+        assert "not a clinical service" not in result["assembled_text"]
 
     @pytest.mark.asyncio
     async def test_full_pipeline_with_session_history(
@@ -264,9 +267,36 @@ class TestOrchestratorAgentRouting:
         assert "mindfulness" in agents
 
     def test_music_for_distress(self) -> None:
-        eos = EmotionalOperatingState(distress_level=0.5)
+        """Music once the conversation is under way — not on turn one."""
+        eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "music" in agents
+
+    def test_music_held_back_on_the_opening_turn(self) -> None:
+        """Music was the one agent with no opening-turn gate, and
+        is_receptive_to("music") defaults true — so the very first reply in
+        every conversation offered a track before asking anything."""
+        eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=0)
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "music" not in agents
+
+    def test_filler_turn_gets_only_empathy(self) -> None:
+        """A short, undistressed turn ("ok thanks") should not summon an
+        exercise or a track, even mid-conversation."""
+        eos = EmotionalOperatingState(distress_level=0.2, session_turn_count=4)
+        agents = Orchestrator._select_agents(eos, crisis_flag=False, substantive=False)
+        assert "music" not in agents
+        assert "distortion" not in agents
+        assert "empathy" in agents
+
+    def test_distress_overrides_the_substance_gate(self) -> None:
+        """"i cant anymore" is three words and the most important turn in the
+        conversation — length must never be what silences the pipeline."""
+        from app.agents.orchestrator import turn_is_substantive
+
+        assert turn_is_substantive("i cant anymore", 0.9) is True
+        assert turn_is_substantive("hi", 0.1) is False
+        assert turn_is_substantive("i have been really struggling lately", 0.1) is True
 
     def test_challenge_gated_by_trust(self) -> None:
         eos = EmotionalOperatingState(
@@ -564,3 +594,88 @@ class TestSessionTurnCountIsPopulated:
         assert result["eos"]["session_turn_count"] == 15
         assert "progress" in result["agents"]        # 15 % 5 == 0
         assert "checkin_scheduler" in result["agents"]  # 15 % 3 == 0
+
+
+class TestTurnTelemetry:
+    """The reasoning trail must describe the turn, not assert a script.
+
+    Before this, the safety verdict was computed and then dropped before
+    transmission, RAG's status was never sent at all, and the UI printed
+    "Working from CBT" on every turn including "hi" — because modality is set
+    unconditionally even when nothing modality-driven ran.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _stub_groq(self):
+        """Pin the Groq singleton to a stub.
+
+        These pipeline tests otherwise make real Groq calls — one of them
+        took 104s and then failed on a 429 rate limit. Telemetry is about
+        routing decisions, not generated text, so the network has no business
+        in it.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.agents import groq_client as groq_module
+
+        stub = MagicMock()
+        stub.chat = AsyncMock(
+            return_value=MagicMock(
+                text="A steady reply.",
+                model_used="stub",
+                tokens_used=8,
+                latency_ms=1.0,
+                finish_reason="stop",
+            )
+        )
+        previous = groq_module._groq_client
+        groq_module._groq_client = stub
+        yield stub
+        groq_module._groq_client = previous
+
+    @pytest.mark.asyncio
+    async def test_trivial_turn_reports_rag_skipped_and_no_modality(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+
+        telemetry = result["telemetry"]
+
+        # The gate and what it gates must agree. Asserting substantive is
+        # False outright would be asserting the mock's distress score, not
+        # the behaviour — distress deliberately overrides length, so a stub
+        # that reports high distress makes "hi" substantive and should.
+        if telemetry["substantive"]:
+            assert telemetry["rag"]["status"] in {"ran", "failed", "provided"}
+        else:
+            assert telemetry["rag"]["status"] == "skipped_trivial"
+            assert telemetry["rag"]["chunks"] == 0
+
+        # No modality-driven agent runs on an opening "hi" either way, so
+        # naming a modality would describe a decision that had no effect.
+        assert telemetry["modality"] is None
+
+    @pytest.mark.asyncio
+    async def test_substantive_turn_reports_rag_status(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline(
+            "I have been feeling really stressed about my final year project",
+            user_name="TestUser",
+        )
+        # "provided" would mean the caller passed chunks in; from this entry
+        # point it must genuinely have attempted retrieval.
+        assert result["telemetry"]["rag"]["status"] in {"ran", "failed"}
+
+    @pytest.mark.asyncio
+    async def test_safety_verdict_survives_into_the_result(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """It was computed and then dropped, which is why the client had to
+        hardcode the sentence."""
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+        assert "safety" in result
+        assert "is_crisis" in result["safety"]

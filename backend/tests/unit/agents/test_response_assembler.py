@@ -22,8 +22,7 @@ class TestResponseAssembler:
     def test_single_output(self, assembler: ResponseAssembler) -> None:
         outputs = [AgentOutput(agent_name="empathy", text="I hear you.")]
         text = assembler.assemble(outputs, user_name="Ravi")
-        assert "I hear you." in text
-        assert "MindLens is not a clinical service" in text
+        assert text == "I hear you."
 
     def test_multiple_outputs_ordered(self, assembler: ResponseAssembler) -> None:
         """Whoever speaks still speaks in priority order."""
@@ -109,10 +108,31 @@ class TestResponseAssembler:
         assert "NIMH" in text
         assert "1926" in text
 
-    def test_disclaimer_always_present(self, assembler: ResponseAssembler) -> None:
+    def test_disclaimer_is_not_spoken_in_normal_replies(
+        self, assembler: ResponseAssembler
+    ) -> None:
+        """The disclaimer is chrome, not something the companion says.
+
+        Appending it to the prose put it mid-reply, immediately after the
+        follow-up question, on every single turn. It is rendered persistently
+        by the UI instead (sidebar on desktop, under the composer below 780px
+        where the sidebar is a drawer), so DESIGN.md 4.1's "always present,
+        never behind a disclosure" still holds.
+        """
         outputs = [AgentOutput(agent_name="empathy", text="Hi.")]
         text = assembler.assemble(outputs, user_name="Ravi")
-        assert "MindLens is not a clinical service" in text
+        assert "not a clinical service" not in text
+        assert text == "Hi."
+
+    def test_crisis_still_carries_its_resources(
+        self, assembler: ResponseAssembler
+    ) -> None:
+        """Crisis is the exception and must stay one — there the helpline
+        numbers are the message, not decoration around it."""
+        outputs = [AgentOutput(agent_name="crisis", text="I can hear you.")]
+        text = assembler.assemble(outputs, in_crisis=True, user_name="Ravi")
+        assert "1926" in text
+        assert "119" in text
 
     def test_crisis_disclaimer(self, assembler: ResponseAssembler) -> None:
         outputs = [AgentOutput(agent_name="crisis", text="Help.")]

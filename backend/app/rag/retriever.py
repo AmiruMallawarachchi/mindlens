@@ -41,7 +41,12 @@ _DEFAULT_LAMBDA = 0.5
 
 #: Recorded on the turn's degradation set when the cross-encoder fails, so a
 #: turn served on raw MMR order is never mistaken for a reranked one.
-RERANKER_DEGRADED = "rag_reranker"
+# Namespaced "rag:" so the client can tell a reranker fallback apart from
+# an LLM one. It shared the flat degradation sink with Groq failures, and
+# the frontend classifies anything without a known prefix as an LLM
+# fallback -- so a cross-encoder failure rendered as "the language model
+# fell back this turn", which was simply untrue.
+RERANKER_DEGRADED = "rag:reranker"
 
 
 class TherapyRetriever:
