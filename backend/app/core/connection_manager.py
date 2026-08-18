@@ -152,8 +152,18 @@ class ConnectionManager:
         agents_active: list[str],
         eos: dict[str, Any],
         memory_recalled: list[str] | None = None,
+        telemetry: dict[str, Any] | None = None,
+        safety: dict[str, Any] | None = None,
+        degraded: list[str] | None = None,
     ) -> bool:
-        """Send a thinking panel update to the client."""
+        """Send a thinking panel update to the client.
+
+        `safety` and `telemetry` exist so the reasoning trail can report what
+        happened instead of asserting it. The safety verdict was computed on
+        every turn and then dropped here, which left the client rendering the
+        sentence "Clear - no crisis signals" as a literal regardless of what
+        the gate had actually decided.
+        """
         return await self.send_to_user(
             user_id,
             {
@@ -161,6 +171,13 @@ class ConnectionManager:
                 "agents_active": agents_active,
                 "eos": eos,
                 "memory_recalled": memory_recalled or [],
+                "telemetry": telemetry or {},
+                "safety": safety or {},
+                # The whole pipeline finishes before streaming begins, so
+                # degradation is already known here. Without it the live trail
+                # had to assume a healthy turn and could not report a fallback
+                # while one was happening.
+                "degraded": degraded or [],
             },
         )
 
@@ -175,6 +192,9 @@ class ConnectionManager:
         resources: list[dict] | None = None,
         degraded: list[str] | None = None,
         memory_recalled: list[str] | None = None,
+        telemetry: dict[str, Any] | None = None,
+        safety: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> bool:
         """Send the final assembled response to the client."""
         return await self.send_to_user(
@@ -198,6 +218,13 @@ class ConnectionManager:
                 # before applies" on every finalized reply even when
                 # memory_recall.py had genuinely recalled something.
                 "memory_recalled": memory_recalled or [],
+                # Same pair as thinking_update: the persisted trail on the
+                # assistant turn needs them too, not just the live one.
+                "telemetry": telemetry or {},
+                "safety": safety or {},
+                # Structured follow-up answers, when the reply asked
+                # something. None on most turns; never present in crisis.
+                "options": options,
             },
         )
 

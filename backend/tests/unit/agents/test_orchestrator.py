@@ -2,11 +2,41 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.agents.orchestrator import Orchestrator
 from app.core.emotional_os import EmotionalOperatingState, Modality
+
+
+@pytest.fixture(autouse=True)
+def _stub_groq():
+    """Pin the Groq singleton to a stub for every test in this module.
+
+    Every class here that calls run_full_pipeline or process_turn was
+    otherwise making a real Groq API call per test — one took 104s and then
+    failed on a 429 rate limit. Routing, EOS construction and telemetry are
+    what this file tests; none of it needs the network, and a flaky external
+    dependency in a unit suite is a bug in the suite.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents import groq_client as groq_module
+
+    stub = MagicMock()
+    stub.chat = AsyncMock(
+        return_value=MagicMock(
+            text="A steady reply.",
+            model_used="stub",
+            tokens_used=8,
+            latency_ms=1.0,
+            finish_reason="stop",
+        )
+    )
+    previous = groq_module._groq_client
+    groq_module._groq_client = stub
+    yield stub
+    groq_module._groq_client = previous
 
 
 @pytest.fixture
@@ -123,7 +153,10 @@ class TestOrchestratorFullPipeline:
         assert "empathy" in result["agents"]
         assert result["crisis_flag"] is False
         assert len(result["agent_outputs"]) > 0
-        assert "TestUser" in result["assembled_text"] or "MindLens is not a clinical service" in result["assembled_text"]
+        # The disclaimer is no longer appended to the prose, so this can
+        # only assert on the reply itself.
+        assert result["assembled_text"].strip()
+        assert "not a clinical service" not in result["assembled_text"]
 
     @pytest.mark.asyncio
     async def test_full_pipeline_with_session_history(
@@ -259,17 +292,46 @@ class TestOrchestratorAgentRouting:
         assert agents == ["crisis"]
 
     def test_mindfulness_for_high_distress(self) -> None:
-        eos = EmotionalOperatingState(distress_level=0.6)
+        eos = EmotionalOperatingState(distress_level=0.6, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "mindfulness" in agents
 
     def test_music_for_distress(self) -> None:
-        eos = EmotionalOperatingState(distress_level=0.5)
+        """Music once the conversation is under way — not on turn one."""
+        eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "music" in agents
 
+    def test_music_held_back_on_the_opening_turn(self) -> None:
+        """Music was the one agent with no opening-turn gate, and
+        is_receptive_to("music") defaults true — so the very first reply in
+        every conversation offered a track before asking anything."""
+        eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=0)
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "music" not in agents
+
+    def test_filler_turn_gets_only_empathy(self) -> None:
+        """A short, undistressed turn ("ok thanks") should not summon an
+        exercise or a track, even mid-conversation."""
+        eos = EmotionalOperatingState(distress_level=0.2, session_turn_count=4)
+        agents = Orchestrator._select_agents(eos, crisis_flag=False, substantive=False)
+        assert "music" not in agents
+        assert "distortion" not in agents
+        assert "empathy" in agents
+
+    def test_distress_overrides_the_substance_gate(self) -> None:
+        """"i cant anymore" is three words and the most important turn in the
+        conversation — length must never be what silences the pipeline."""
+        from app.agents.orchestrator import turn_is_substantive
+
+        assert turn_is_substantive("i cant anymore", 0.9) is True
+        assert turn_is_substantive("hi", 0.1) is False
+        assert turn_is_substantive("i have been really struggling lately", 0.1) is True
+
     def test_challenge_gated_by_trust(self) -> None:
-        eos = EmotionalOperatingState(trust_level=0.7, emotional_stability=0.6, distress_level=0.4)
+        eos = EmotionalOperatingState(
+            trust_level=0.7, emotional_stability=0.6, distress_level=0.4, session_turn_count=3
+        )
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "challenge" in agents
 
@@ -279,9 +341,42 @@ class TestOrchestratorAgentRouting:
         assert "challenge" not in agents
 
     def test_distortion_for_cbt(self) -> None:
-        eos = EmotionalOperatingState(modality=Modality.CBT)
+        eos = EmotionalOperatingState(modality=Modality.CBT, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "distortion" in agents
+
+    def test_opening_turn_lets_empathy_ask_alone(self) -> None:
+        """The wall-of-text complaint. On turn one empathy asks what's
+        going on; a specialist firing alongside it answers a question the
+        user hasn't replied to yet. Someone who said they were putting off
+        their project got a five-step grounding script in the same breath
+        as "what's holding you back?"."""
+        eos = EmotionalOperatingState(
+            session_turn_count=0,
+            distress_level=0.6,
+            core_emotion="nervousness",
+            modality=Modality.CBT,
+            trust_level=0.9,
+            emotional_stability=0.9,
+            mental_fatigue=0.9,
+            session_depth=0.9,
+        )
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "empathy" in agents
+        for prescriptive in (
+            "mindfulness", "reflection", "challenge",
+            "distortion", "routine", "journaling",
+        ):
+            assert prescriptive not in agents, f"{prescriptive} spoke on turn one"
+
+    def test_opening_turn_yields_to_high_distress(self) -> None:
+        """Conversational shape never outranks grounding someone who is
+        genuinely struggling."""
+        eos = EmotionalOperatingState(
+            session_turn_count=0, distress_level=0.8, core_emotion="anxiety"
+        )
+        agents = Orchestrator._select_agents(eos, crisis_flag=False)
+        assert "mindfulness" in agents
 
     def test_distortion_blocked_for_dbt(self) -> None:
         eos = EmotionalOperatingState(modality=Modality.DBT)
@@ -289,7 +384,7 @@ class TestOrchestratorAgentRouting:
         assert "distortion" not in agents
 
     def test_routine_for_fatigue(self) -> None:
-        eos = EmotionalOperatingState(mental_fatigue=0.8)
+        eos = EmotionalOperatingState(mental_fatigue=0.8, session_turn_count=3)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "routine" in agents
 
@@ -299,6 +394,7 @@ class TestOrchestratorAgentRouting:
             emotional_stability=0.5,
             mental_fatigue=0.5,
             receptiveness=Receptiveness(journaling=0.7),
+            session_turn_count=3,
         )
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "journaling" in agents
@@ -528,3 +624,106 @@ class TestSessionTurnCountIsPopulated:
         assert result["eos"]["session_turn_count"] == 15
         assert "progress" in result["agents"]        # 15 % 5 == 0
         assert "checkin_scheduler" in result["agents"]  # 15 % 3 == 0
+
+
+class TestTurnTelemetry:
+    """The reasoning trail must describe the turn, not assert a script.
+
+    Before this, the safety verdict was computed and then dropped before
+    transmission, RAG's status was never sent at all, and the UI printed
+    "Working from CBT" on every turn including "hi" — because modality is set
+    unconditionally even when nothing modality-driven ran.
+
+    Groq is stubbed module-wide (see _stub_groq above) — no class-local
+    override needed here any more.
+    """
+
+    @pytest.mark.asyncio
+    async def test_trivial_turn_reports_rag_skipped_and_no_modality(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+
+        telemetry = result["telemetry"]
+
+        # The gate and what it gates must agree. Asserting substantive is
+        # False outright would be asserting the mock's distress score, not
+        # the behaviour — distress deliberately overrides length, so a stub
+        # that reports high distress makes "hi" substantive and should.
+        if telemetry["substantive"]:
+            assert telemetry["rag"]["status"] in {"ran", "failed", "provided"}
+        else:
+            assert telemetry["rag"]["status"] == "skipped_trivial"
+            assert telemetry["rag"]["chunks"] == 0
+
+        # No modality-driven agent runs on an opening "hi" either way, so
+        # naming a modality would describe a decision that had no effect.
+        assert telemetry["modality"] is None
+
+    @pytest.mark.asyncio
+    async def test_substantive_turn_reports_rag_status(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline(
+            "I have been feeling really stressed about my final year project",
+            user_name="TestUser",
+        )
+        # "provided" would mean the caller passed chunks in; from this entry
+        # point it must genuinely have attempted retrieval.
+        assert result["telemetry"]["rag"]["status"] in {"ran", "failed"}
+
+    @pytest.mark.asyncio
+    async def test_safety_verdict_survives_into_the_result(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """It was computed and then dropped, which is why the client had to
+        hardcode the sentence."""
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+        assert "safety" in result
+        assert "is_crisis" in result["safety"]
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_the_reranker_model_when_it_ran(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """The trail used to say "Pulled 5 passages" with no way to know
+        which model did the ranking — the equivalent of Claude naming a tool
+        it used without saying which one. When retrieval genuinely ran with
+        reranking enabled, the model actually configured for it is named."""
+        orchestrator.models = mock_model_manager
+        with patch("app.agents.orchestrator.settings.rag_reranker_enabled", True):
+            result = await orchestrator.run_full_pipeline(
+                "I have been feeling really stressed about my final year project",
+                user_name="TestUser",
+            )
+        rag = result["telemetry"]["rag"]
+        if rag["status"] == "ran":
+            assert rag["model"] == "mindlens-rag-reranker"
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_no_model_when_reranking_disabled(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """Naming a model that was configured off would claim work that
+        didn't happen — rag_reranker_enabled=False must mean model=None
+        even on a turn where retrieval itself ran fine."""
+        orchestrator.models = mock_model_manager
+        with patch("app.agents.orchestrator.settings.rag_reranker_enabled", False):
+            result = await orchestrator.run_full_pipeline(
+                "I have been feeling really stressed about my final year project",
+                user_name="TestUser",
+            )
+        assert result["telemetry"]["rag"]["model"] is None
+
+    @pytest.mark.asyncio
+    async def test_rag_telemetry_names_no_model_when_skipped_or_failed(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+        rag = result["telemetry"]["rag"]
+        if rag["status"] != "ran":
+            assert rag["model"] is None

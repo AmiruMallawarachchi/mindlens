@@ -101,12 +101,33 @@ class TestEmpathyAgent:
         prompt = agent._build_system_prompt_v3(ctx)
         assert "NO choices" in prompt or "No choices" in prompt or "pure validation" in prompt
 
-    def test_system_prompt_v3_low_distress_has_choices(self, agent: EmpathyAgent) -> None:
-        """Distress < 0.8: end with choice (SYSTEM.md §5.4 Rule 5)."""
-        eos = EmotionalOperatingState(distress_level=0.3)
+    @pytest.mark.parametrize("distress", [0.3, 0.6])
+    def test_system_prompt_never_mandates_the_option_menu(
+        self, agent: EmpathyAgent, distress: float
+    ) -> None:
+        """Regression guard for the stock-line bug.
+
+        The prompt used to hand the model the literal sentence "music,
+        breathing, journaling, or just talking — what do you need?" and
+        instruct it to end every reply that way. It complied verbatim on
+        every turn, so the same canned menu appeared in message after
+        message — offered even to someone who had only said they wanted
+        help, before anyone had asked what was wrong. It also contradicted
+        rule 2 ("ask ONE good follow-up question"), producing replies that
+        ended with two stacked questions.
+
+        The menu words still appear in the prompt — inside the instruction
+        forbidding them — so this asserts on the instruction, not on the
+        absence of the words.
+        """
+        eos = EmotionalOperatingState(distress_level=distress)
         ctx = AgentContext(eos=eos, user_text="test", user_name="Amiru")
-        prompt = agent._build_system_prompt_v3(ctx)
-        assert "music, breathing, journaling" in prompt
+        prompt = agent._build_system_prompt_v3(ctx).lower()
+        assert "never recite a fixed menu" in prompt
+        assert "do not also list options" in prompt
+        # The old mandate must be gone in every distress branch.
+        assert "end with a choice" not in prompt
+        assert "offer one gentle choice" not in prompt
 
     def test_system_prompt_v3_has_forbidden_phrases_warning(self, agent: EmpathyAgent) -> None:
         """Prompt instructs LLM to never use forbidden phrases."""

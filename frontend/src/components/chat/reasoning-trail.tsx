@@ -8,8 +8,10 @@
  * rather than <ReasoningContent>, because that primitive takes a markdown
  * string and this is structured content with a coloured rail per step.
  *
- * §4.1 says open by default, so `open` is held here rather than letting the
- * primitive auto-close when streaming ends.
+ * Collapsed by default. It used to open automatically and show four dense
+ * blocks on every turn, which buried the reply itself. The trigger carries a
+ * one-line summary built from the same facts as the steps, so the collapsed
+ * state still says what happened and can never contradict the expansion.
  */
 
 import { useState } from "react";
@@ -27,14 +29,17 @@ const DOT_COLOR: Record<ReasoningStep["tone"], string> = {
 
 export function ReasoningTrail({
   steps,
+  summary,
   isStreaming = false,
   className,
 }: {
   steps: ReasoningStep[];
+  /** One line for the collapsed state — see summariseTrail. */
+  summary?: string;
   isStreaming?: boolean;
   className?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   if (steps.length === 0) return null;
 
@@ -66,8 +71,11 @@ export function ReasoningTrail({
               style={{ background: "var(--e1)" }}
             />
           )}
+          {/* Collapsed, this is the whole trail: what ran, what it looked up,
+            * whether anything degraded. Expanding adds detail, never a
+            * different story. */}
           <span className="ml-eyebrow">
-            {isStreaming ? "Working it through" : "How I got here"}
+            {isStreaming ? "Working it through" : (summary ?? "How I got here")}
           </span>
           <span className="ml-eyebrow" style={{ opacity: 0.55 }}>
             {open ? "hide" : "show"}

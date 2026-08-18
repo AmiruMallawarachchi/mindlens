@@ -5,6 +5,7 @@ import {
   ApiError,
   completeOnboarding as apiCompleteOnboarding,
   createSession,
+  deleteSession as apiDeleteSession,
   fetchMe,
   fetchMemory,
   getAccessToken,
@@ -12,6 +13,8 @@ import {
   listSessions,
   login as apiLogin,
   logoutLocal,
+  pinSession as apiPinSession,
+  renameSession as apiRenameSession,
   register as apiRegister,
   updateMe,
   type RegisterInput,
@@ -38,9 +41,11 @@ import type {
   CrisisResource,
   EosSnapshot,
   OnboardingInput,
+  SafetyVerdict,
   ServerFrame,
   SessionListItem,
   SessionTurn,
+  TurnTelemetry,
   UserProfile,
 } from "./types";
 
@@ -96,6 +101,11 @@ export function useMindLensClient() {
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [liveEos, setLiveEos] = useState<EosSnapshot | null>(null);
   const [liveMemory, setLiveMemory] = useState<string[]>([]);
+  // The live trail used to hardcode crisis:false and degraded:[], so it
+  // structurally could not report a problem while one was happening.
+  const [liveTelemetry, setLiveTelemetry] = useState<TurnTelemetry | null>(null);
+  const [liveSafety, setLiveSafety] = useState<SafetyVerdict | null>(null);
+  const [liveDegraded, setLiveDegraded] = useState<string[]>([]);
   const [crisis, setCrisis] = useState<{
     text: string;
     resources: CrisisResource[];
@@ -108,6 +118,10 @@ export function useMindLensClient() {
   const messagesRef = useRef<ChatMessage[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  // Set by the sidebar's "Save to Journal" action, read by JournalPage to
+  // open its composer pre-filled — a reflection prompt referencing the
+  // conversation, not the raw transcript (the user writes their own words).
+  const [pendingJournalPrompt, setPendingJournalPrompt] = useState<string | null>(null);
   // null = create a fresh session; a string = open that existing one.
   // Re-requesting the session already open (same id, or null while already on
   // a fresh one) wouldn't change this value, so sessionEpoch exists purely to
@@ -128,6 +142,9 @@ export function useMindLensClient() {
         setActiveAgents(frame.agents_active ?? []);
         setLiveEos(frame.eos ?? null);
         setLiveMemory(frame.memory_recalled ?? []);
+        setLiveTelemetry(frame.telemetry ?? null);
+        setLiveSafety(frame.safety ?? null);
+        setLiveDegraded(frame.degraded ?? []);
         // The read in a thinking_update is the read *of the message the user
         // just sent*, so it belongs to that bubble — that's what the emotion
         // read strip underneath it renders.
@@ -179,6 +196,9 @@ export function useMindLensClient() {
             degraded: frame.degraded,
             memoryRecalled: frame.memory_recalled ?? [],
             music: frame.music ?? null,
+          telemetry: frame.telemetry,
+          safety: frame.safety,
+          options: frame.options ?? null,
             pending: false,
           };
           const exists = current.some((m) => m.id === id);
@@ -434,6 +454,82 @@ export function useMindLensClient() {
     [activeSessionId],
   );
 
+  const pinSession = useCallback(async (sessionId: string, pinned: boolean) => {
+    // Optimistic: reorder immediately rather than waiting on the round trip,
+    // matching session.py's own pinned-first sort so the UI doesn't jump
+    // again once refreshSessions() eventually runs.
+    setSessions((current) =>
+      [...current]
+        .map((s) => (s.session_id === sessionId ? { ...s, pinned } : s))
+        .sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) ||
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+        ),
+    );
+    try {
+      await apiPinSession(sessionId, pinned);
+    } catch (err) {
+      console.error("Failed to pin session", err);
+      refreshSessions();
+    }
+  }, [refreshSessions]);
+
+  const renameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const clean = title.trim();
+      if (!clean) return;
+      // Optimistic, same as pin — but keep the previous title so a failed
+      // rename can put the old one back rather than leaving the sidebar
+      // showing a name the server never accepted.
+      let previous: string | null = null;
+      setSessions((current) =>
+        current.map((s) => {
+          if (s.session_id !== sessionId) return s;
+          previous = s.title;
+          return { ...s, title: clean };
+        }),
+      );
+      try {
+        await apiRenameSession(sessionId, clean);
+      } catch (err) {
+        console.error("Failed to rename session", err);
+        setSessions((current) =>
+          current.map((s) =>
+            s.session_id === sessionId ? { ...s, title: previous } : s,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      setSessions((current) => current.filter((s) => s.session_id !== sessionId));
+      try {
+        await apiDeleteSession(sessionId);
+      } catch (err) {
+        console.error("Failed to delete session", err);
+        refreshSessions();
+        return;
+      }
+      // The transcript of a session the user just deleted shouldn't stay on
+      // screen — start fresh rather than leave it displayed but unreachable
+      // from the sidebar.
+      if (sessionId === activeSessionId) {
+        startNewConversation();
+      }
+    },
+    [activeSessionId, refreshSessions, startNewConversation],
+  );
+
+  const prepareJournalReflection = useCallback((sessionLabel: string) => {
+    setPendingJournalPrompt(`Reflecting on "${sessionLabel}" — what's stayed with you since?`);
+  }, []);
+
+  const clearJournalPrompt = useCallback(() => setPendingJournalPrompt(null), []);
+
   const login = useCallback(async (email: string, password: string) => {
     setAuthBusy(true);
     setAuthError(null);
@@ -538,11 +634,21 @@ export function useMindLensClient() {
       eos: liveEos,
       reading: resolveEmotion(liveEos),
       agents: activeAgents,
-      crisis: false,
+      crisis: liveSafety?.is_crisis ?? false,
       memoryRecalled: liveMemory,
-      degraded: [],
+      degraded: liveDegraded,
+      telemetry: liveTelemetry,
+      safety: liveSafety,
     });
-  }, [thinking, liveEos, activeAgents, liveMemory]);
+  }, [
+    thinking,
+    liveEos,
+    activeAgents,
+    liveMemory,
+    liveDegraded,
+    liveTelemetry,
+    liveSafety,
+  ]);
 
   return {
     authStatus,
@@ -569,6 +675,12 @@ export function useMindLensClient() {
     activeSessionId,
     startNewConversation,
     openSession,
+    pinSession,
+    renameSession,
+    deleteSession,
+    pendingJournalPrompt,
+    prepareJournalReflection,
+    clearJournalPrompt,
     previewMode: PREVIEW_MODE,
     companionId,
     companionName,

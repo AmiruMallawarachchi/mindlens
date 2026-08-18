@@ -6,7 +6,8 @@ Create, list, and end therapy sessions.
 - POST /api/v1/sessions          → create new session
 - GET  /api/v1/sessions          → list user's sessions
 - GET  /api/v1/sessions/{id}     → get session transcript
-- DELETE /api/v1/sessions/{id}   → end / soft-delete session
+- PATCH  /api/v1/sessions/{id}/title → rename session
+- DELETE /api/v1/sessions/{id}   → permanently delete session + its data
 
 All endpoints enforce user_id isolation — users can only see their own sessions.
 """
@@ -18,7 +19,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pymongo import ReturnDocument
 
 from app.db import get_db
 from app.middleware.auth import require_user
@@ -59,6 +61,7 @@ class SessionListItem(BaseModel):
     status: str
     turn_count: int
     primary_modality: str | None
+    pinned: bool = False
 
 
 class SessionDetailResponse(BaseModel):
@@ -74,15 +77,38 @@ class SessionDetailResponse(BaseModel):
     eos_timeline: list[dict[str, Any]]
     agents_used: list[str]
     primary_modality: str | None
+    pinned: bool = False
 
 
-class SessionEndResponse(BaseModel):
-    """Response after ending a session."""
+class SessionPinRequest(BaseModel):
+    """Body for PATCH /{session_id}/pin."""
+
+    pinned: bool
+
+
+class SessionRenameRequest(BaseModel):
+    """Body for PATCH /{session_id}/title."""
+
+    title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        """A title of spaces would render as an empty sidebar row that still
+        suppresses the date fallback, so it is rejected rather than stored."""
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Title cannot be blank")
+        return cleaned
+
+
+class SessionDeleteResponse(BaseModel):
+    """Response after permanently deleting a session."""
 
     session_id: str
-    status: str
-    ended_at: datetime.datetime
-    duration_seconds: int | None
+    # Per-collection counts, so the caller can see what was actually removed
+    # rather than trust that something was.
+    deleted: dict[str, int]
 
 
 # --- Helper ---
@@ -155,6 +181,7 @@ async def create_session(
         "primary_modality": None,
         "music_played": [],
         "check_in_scheduled": False,
+        "pinned": False,
         "updated_at": now,
     }
 
@@ -197,7 +224,9 @@ async def list_sessions(
 
     cursor = (
         db.sessions.find(query)
-        .sort("started_at", -1)
+        # Pinned first (True sorts before False descending), most recent
+        # within each group.
+        .sort([("pinned", -1), ("started_at", -1)])
         .skip(skip)
         .limit(limit)
     )
@@ -213,6 +242,7 @@ async def list_sessions(
                 status=doc.get("status", "unknown"),
                 turn_count=len(doc.get("turns", [])),
                 primary_modality=doc.get("primary_modality"),
+                pinned=doc.get("pinned", False),
             )
         )
     return sessions
@@ -256,68 +286,137 @@ async def get_session(
         eos_timeline=session.get("eos_timeline", []),
         agents_used=session.get("agents_used", []),
         primary_modality=session.get("primary_modality"),
+        pinned=session.get("pinned", False),
+    )
+
+
+@router.patch(
+    "/{session_id}/pin",
+    response_model=SessionListItem,
+    summary="Pin or unpin a session",
+)
+async def pin_session(
+    session_id: str,
+    req: SessionPinRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(require_user),
+):
+    """Toggle whether a session is pinned to the top of the sidebar."""
+    user_id = str(current_user["_id"])
+    now = datetime.datetime.now(datetime.UTC)
+
+    result = await db.sessions.find_one_and_update(
+        {"session_id": session_id, "user_id": user_id},
+        {"$set": {"pinned": req.pinned, "updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    return SessionListItem(
+        session_id=result["session_id"],
+        title=result.get("title"),
+        started_at=result["started_at"],
+        ended_at=result.get("ended_at"),
+        status=result.get("status", "unknown"),
+        turn_count=len(result.get("turns", [])),
+        primary_modality=result.get("primary_modality"),
+        pinned=result.get("pinned", False),
+    )
+
+
+@router.patch(
+    "/{session_id}/title",
+    response_model=SessionListItem,
+    summary="Rename a session",
+)
+async def rename_session(
+    session_id: str,
+    req: SessionRenameRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(require_user),
+):
+    """Rename a session.
+
+    `title` was writable only at creation before this, and nothing in the
+    chat flow ever passed one — so every session a user started read as a
+    bare date in the sidebar, and the only non-null title in the system was
+    the "First Session" written during onboarding.
+    """
+    user_id = str(current_user["_id"])
+    now = datetime.datetime.now(datetime.UTC)
+
+    result = await db.sessions.find_one_and_update(
+        {"session_id": session_id, "user_id": user_id},
+        {"$set": {"title": req.title, "updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    return SessionListItem(
+        session_id=result["session_id"],
+        title=result.get("title"),
+        started_at=result["started_at"],
+        ended_at=result.get("ended_at"),
+        status=result.get("status", "unknown"),
+        turn_count=len(result.get("turns", [])),
+        primary_modality=result.get("primary_modality"),
+        pinned=result.get("pinned", False),
     )
 
 
 @router.delete(
     "/{session_id}",
-    response_model=SessionEndResponse,
-    summary="End (soft-delete) a session",
+    response_model=SessionDeleteResponse,
+    summary="Permanently delete a session and everything scoped to it",
 )
-async def end_session(
+async def delete_session(
     session_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: dict = Depends(require_user),
 ):
-    """
-    End a session by setting status='ended' and ended_at timestamp.
+    """Hard-delete a session across every collection that references it.
 
-    Does not delete data — preserves transcript for longitudinal memory.
+    This used to set status="ended" and keep everything. The row vanished
+    from the sidebar only because listSessions filters ?status=active, so
+    the transcript, the emotion reads and the crisis records all survived a
+    "Delete" the user had every reason to read as permanent. CLAUDE.md rule
+    4 is explicit: delete means delete, a hard delete across every
+    collection, not a flag.
+
+    Three collections carry session_id: the session document itself with its
+    transcript, mood_logs (the per-turn emotion reads), and safety_events
+    (turns where the crisis gate fired). All three go.
+
+    safety_events is the uncomfortable one, and it goes deliberately. It is
+    an audit trail, and there is a real duty-of-care argument for keeping
+    it — but you cannot promise "delete means delete" while quietly
+    retaining crisis records. Retaining them would have to be disclosed, and
+    a disclosed exception is a weaker promise than an unqualified one that
+    is actually true.
     """
     user_id = str(current_user["_id"])
-    now = datetime.datetime.now(datetime.UTC)
 
-    # Find existing session
-    session = await db.sessions.find_one({
-        "session_id": session_id,
-        "user_id": user_id,
-    })
+    session = await db.sessions.find_one({"session_id": session_id, "user_id": user_id})
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
 
-    if session.get("status") == "ended":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session already ended",
-        )
+    # user_id is in every filter, not just session_id — a guessed id must not
+    # delete somebody else's conversation (rule 6).
+    scope = {"session_id": session_id, "user_id": user_id}
+    session_result = await db.sessions.delete_one(scope)
+    moods_result = await db.mood_logs.delete_many(scope)
+    safety_result = await db.safety_events.delete_many(scope)
 
-    # Calculate duration
-    started_at = session["started_at"]
-    duration = None
-    if isinstance(started_at, datetime.datetime):
-        duration = int((now - started_at).total_seconds())
+    deleted = {
+        "sessions": session_result.deleted_count,
+        "mood_logs": moods_result.deleted_count,
+        "safety_events": safety_result.deleted_count,
+    }
+    logger.info("Session hard-deleted: %s for user %s (%s)", session_id, user_id, deleted)
 
-    # Update session
-    await db.sessions.update_one(
-        {"session_id": session_id, "user_id": user_id},
-        {
-            "$set": {
-                "status": "ended",
-                "ended_at": now,
-                "duration_seconds": duration,
-                "updated_at": now,
-            }
-        },
-    )
-
-    logger.info("Session ended: %s for user %s", session_id, user_id)
-
-    return SessionEndResponse(
-        session_id=session_id,
-        status="ended",
-        ended_at=now,
-        duration_seconds=duration,
-    )
+    return SessionDeleteResponse(session_id=session_id, deleted=deleted)

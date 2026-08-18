@@ -16,10 +16,9 @@ import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { EmotionRead } from "./emotion-read";
 import { ReasoningTrail } from "./reasoning-trail";
 import { BreatheCard } from "./breathe-card";
-import { MusicCard } from "./music-card";
 import { createJournalEntry } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
-import { buildReasoningTrail } from "@/lib/reasoning";
+import { buildReasoningTrail, summariseTrail } from "@/lib/reasoning";
 import type { ChatMessage } from "@/lib/types";
 
 export function UserTurn({ message }: { message: ChatMessage }) {
@@ -49,11 +48,18 @@ export function AssistantTurn({
   isStreaming = false,
   onRegenerate,
   companionId,
+  onChooseOption,
+  showOptions = false,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   onRegenerate?: (() => void) | null;
   companionId?: string;
+  /** Sends the chosen answer as an ordinary message. */
+  onChooseOption?: (text: string) => void;
+  /** Only the newest turn offers its options — buttons on a turn three
+   * messages back answer a question that has already moved on. */
+  showOptions?: boolean;
 }) {
   const reading = useMemo(() => resolveEmotion(message.eos), [message.eos]);
 
@@ -69,6 +75,24 @@ export function AssistantTurn({
       crisis: Boolean(message.crisis),
       memoryRecalled: message.memoryRecalled ?? [],
       degraded: message.degraded ?? [],
+      telemetry: message.telemetry,
+      safety: message.safety,
+    });
+  }, [message, reading]);
+
+  // Same inputs as the steps, so the collapsed line can never claim
+  // something the expanded trail contradicts.
+  const summary = useMemo(() => {
+    if (!message.eos || !message.agentsUsed) return undefined;
+    return summariseTrail({
+      eos: message.eos,
+      reading,
+      agents: message.agentsUsed,
+      crisis: Boolean(message.crisis),
+      memoryRecalled: message.memoryRecalled ?? [],
+      degraded: message.degraded ?? [],
+      telemetry: message.telemetry,
+      safety: message.safety,
     });
   }, [message, reading]);
 
@@ -79,8 +103,10 @@ export function AssistantTurn({
     const agents = (message.agentsUsed ?? []).map((a) => a.replace(/_agent$/, ""));
     return agents.includes("mindfulness") || agents.includes("dbt");
   }, [message.agentsUsed]);
-  const music = message.music ?? null;
-  const hasCards = offersBreathing || music !== null;
+  // Music is not rendered inline any more — the right rail is the music
+  // panel and holds the newest track. Rendering it in both places showed the
+  // same card twice on the turn that produced it.
+  const hasCards = offersBreathing;
 
   // The "asking" state — the companion tilts and a "?" blooms. Only once the
   // reply is complete; mid-stream a trailing "?" isn't yet the final shape.
@@ -114,7 +140,9 @@ export function AssistantTurn({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3.5 pb-2">
-        {steps.length > 0 && <ReasoningTrail steps={steps} isStreaming={isStreaming} />}
+        {steps.length > 0 && (
+          <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} />
+        )}
 
         <p className="ml-display m-0 text-[19.5px] leading-[1.6]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
           {message.text}
@@ -130,10 +158,13 @@ export function AssistantTurn({
           <TurnActions text={message.text} onRegenerate={onRegenerate ?? null} />
         )}
 
+        {showOptions && !isStreaming && message.options && onChooseOption && (
+          <OptionChoices payload={message.options} onChoose={onChooseOption} />
+        )}
+
         {hasCards && !isStreaming && (
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(258px, 1fr))" }}>
             {offersBreathing && <BreatheCard />}
-            {music && <MusicCard music={music} />}
           </div>
         )}
       </div>
@@ -230,5 +261,53 @@ function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Tappable answers under a reply that asked something.
+ *
+ * They are a shortcut for typing, never a constraint on what may be said —
+ * so the free-text escape is always present and the composer stays fully
+ * usable while they are on screen. Choosing one sends it as an ordinary
+ * message, which is also the only inbound frame the backend accepts.
+ */
+function OptionChoices({
+  payload,
+  onChoose,
+}: {
+  payload: NonNullable<ChatMessage["options"]>;
+  onChoose: (text: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5" role="group" aria-label="Suggested answers">
+      {payload.options.map((option, index) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChoose(option)}
+          className="flex w-full items-center gap-2.5 rounded-[var(--r-11)] border px-3 py-2 text-left text-[13px] transition-colors hover:border-[var(--ml-ink)]"
+          style={{
+            borderColor: "var(--ml-hairline-strong)",
+            background: "var(--ml-panel)",
+            color: "var(--ml-ink)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="ml-eyebrow shrink-0 tabular-nums"
+            style={{ opacity: 0.5 }}
+          >
+            {index + 1}
+          </span>
+          {option}
+        </button>
+      ))}
+      {payload.allow_other && (
+        <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--ml-faint)" }}>
+          Or say it your own way below — these are just shortcuts.
+        </p>
+      )}
+    </div>
   );
 }

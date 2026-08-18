@@ -9,8 +9,13 @@ RULES (non-negotiable, from SYSTEM.md):
 2. Ask ONE good follow-up question before giving any advice.
 3. If they've mentioned someone (Ravi, mum, etc.) and relevant — reference them.
 4. Connect emotional support to practical outcomes when appropriate.
-5. End with a choice: "music / breathing / journaling / just talking — what do you need?"
-   (ONLY if distress < 0.8; if distress >= 0.8, stay in pure validation mode, no choices).
+5. Do NOT recite a menu of options. This rule used to hand the model the
+   literal sentence "music, breathing, journaling, or just talking — what
+   do you need?" and tell it to end every reply that way. The model did
+   exactly that, word for word, on every single turn — including replies
+   to someone who had only said they wanted help, which offered them four
+   options before ever asking what was wrong. It also contradicted rule 2,
+   so replies ended with two stacked questions.
 6. Keep it to 3-5 sentences MAX.
 7. NEVER use: "I understand your feelings", "That must be hard", "I hear you".
 8. Teen tone (age <= 19): casual, relatable, shorter sentences.
@@ -170,14 +175,12 @@ class EmpathyAgent(BaseAgent):
         elif distress >= 0.5:
             distress_instruction = (
                 "- User is moderately distressed.\n"
-                "- Validate their feeling first, then offer ONE gentle choice at the end.\n"
-                "- Choices: music, breathing, journaling, or just talking — what do you need?\n"
+                "- Validate their feeling first, then ask one question about it.\n"
             )
         else:
             distress_instruction = (
                 "- User is relatively calm.\n"
                 "- Ask a good follow-up question before giving any advice.\n"
-                "- End with a choice: music, breathing, journaling, or just talking — what do you need?\n"
             )
 
         # Session depth instruction (SYSTEM.md §5.4 Rule 9)
@@ -218,8 +221,10 @@ class EmpathyAgent(BaseAgent):
             f"2. Ask ONE good follow-up question before giving any advice.\n"
             f"3. If they've mentioned someone and it's relevant — reference them by name.\n"
             f"4. Connect emotional support to practical outcomes when appropriate.\n"
-            f"5. End with a choice: 'music, breathing, journaling, or just talking — what do you need?'\n"
-            f"   (ONLY if distress < 0.8; if distress >= 0.8, NO choices, pure validation only).\n"
+            f"5. End on your follow-up question. Do NOT also list options.\n"
+            f"   Never recite a fixed menu like 'music, breathing, journaling,\n"
+            f"   or just talking'. If they ask what you can do, say it in your\n"
+            f"   own words, once — not as a stock line every turn.\n"
             f"6. Keep it to 3-5 sentences MAX.\n"
             f"7. NEVER use: 'I understand your feelings', 'That must be hard', 'I hear you'.\n"
             f"8. Age group: {age_group} — adjust tone accordingly.\n"

@@ -2,23 +2,33 @@
 
 /**
  * Music player card — ported from the approved mockup (Mindlens Chat.dc.html,
- * "Music player") and wired to the real `music` payload the backend now
- * sends (streaming.py::_extract_music_payload). Renders only when the music
- * agent actually ran this turn — the payload being null means no card, not
- * an empty one.
+ * "Music player") and wired to the real `music` payload the backend sends
+ * (streaming.py::_extract_music_payload). Renders only when the music agent
+ * actually ran this turn — the payload being null means no card, not an
+ * empty one.
  *
- * The transport controls and waveform are presentational for now: actual
- * audio playback needs the Spotify MCP connection, which isn't wired
- * client-side yet. Tapping a track opens it on Spotify/YouTube instead —
- * a real action, not a dead button.
+ * Tracks come from Apple's iTunes Search API (music_agent.py) — no
+ * connection step, no OAuth. Most tracks carry a real 30-second preview
+ * clip, which this card now actually plays via a plain <audio> element.
+ * When a track has no preview (iTunes doesn't guarantee one), it falls back
+ * to opening the track's Apple Music page; only if neither exists does it
+ * say so honestly rather than rendering a button that does nothing.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MusicPayload } from "@/lib/types";
 
 export function MusicCard({ music }: { music: MusicPayload }) {
   const track = music.tracks[0];
-  const trackUrl = track?.spotify_url || track?.youtube_url || null;
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // A new turn can bring a new track while the old preview is still
+  // playing — stop it rather than leave two clips implicitly stacked.
+  useEffect(() => {
+    setPlaying(false);
+    audioRef.current?.pause();
+  }, [track?.preview_url]);
 
   const wave = useMemo(
     () =>
@@ -32,7 +42,18 @@ export function MusicCard({ music }: { music: MusicPayload }) {
 
   const eyebrow = music.emotion ? `Because you're ${music.emotion}` : "For right now";
   const title = track?.name ?? "Something to listen to";
-  const subtitle = track?.artist ?? (music.connect_prompt ? "Connect Spotify for the full picks" : "");
+  const subtitle = track?.artist ?? "";
+
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+    } else {
+      audio.play().catch(() => setPlaying(false));
+    }
+    setPlaying((p) => !p);
+  };
 
   return (
     <div
@@ -42,6 +63,14 @@ export function MusicCard({ music }: { music: MusicPayload }) {
         borderColor: "var(--ml-hairline)",
       }}
     >
+      {track?.preview_url && (
+        <audio
+          ref={audioRef}
+          src={track.preview_url}
+          onEnded={() => setPlaying(false)}
+          preload="none"
+        />
+      )}
       <div className="flex items-start gap-3">
         <div
           className="relative size-[70px] shrink-0 overflow-hidden rounded-2xl"
@@ -63,6 +92,8 @@ export function MusicCard({ music }: { music: MusicPayload }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {/* A plain note, not a branded mark — this card has no
+              * partnership with any platform to imply. */}
             <svg
               width="11"
               height="11"
@@ -71,12 +102,14 @@ export function MusicCard({ music }: { music: MusicPayload }) {
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
+              strokeLinejoin="round"
               className="shrink-0"
-              style={{ color: "#1db954" }}
+              style={{ color: "var(--e1)" }}
               aria-hidden="true"
             >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M7.5 14.5c3-1 6.5-.8 9 .8M7 11c3.5-1.2 8-.8 10.5 1.2M7.5 7.8c4-1.3 9-.7 11.5 1.5" />
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
             </svg>
             <p className="ml-eyebrow m-0 text-[9px]">{eyebrow}</p>
           </div>
@@ -133,12 +166,11 @@ export function MusicCard({ music }: { music: MusicPayload }) {
       )}
 
       <div className="mt-auto flex items-center justify-center gap-4 pt-4">
-        {trackUrl ? (
-          <a
-            href={trackUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${title} ${track?.spotify_url ? "on Spotify" : "on YouTube"}`}
+        {track?.preview_url ? (
+          <button
+            type="button"
+            onClick={togglePlayback}
+            aria-label={playing ? `Pause ${title}` : `Play ${title}`}
             className="grid size-11 place-items-center rounded-full transition-transform hover:scale-105"
             style={{
               background: "linear-gradient(135deg, var(--e1), var(--e2))",
@@ -147,16 +179,34 @@ export function MusicCard({ music }: { music: MusicPayload }) {
               transition: "background 1.6s, transform .2s",
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M7 4v16l13-8Z" />
-            </svg>
+            {playing ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M7 4v16l13-8Z" />
+              </svg>
+            )}
+          </button>
+        ) : track?.track_url ? (
+          <a
+            href={track.track_url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${title} on Apple Music`}
+            className="rounded-[99px] border px-3.5 py-2 text-[11.5px] transition-colors hover:border-[var(--ml-hairline-strong)]"
+            style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-muted)" }}
+          >
+            Open on Apple Music
           </a>
         ) : (
           <span
             className="rounded-[99px] border px-3.5 py-2 text-[11.5px]"
             style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-faint)" }}
           >
-            Connect Spotify to play
+            No preview available
           </span>
         )}
       </div>

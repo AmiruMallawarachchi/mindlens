@@ -78,6 +78,7 @@ export const PREVIEW_SESSIONS: SessionListItem[] = [
     status: "active",
     turn_count: 2,
     primary_modality: "ACT",
+    pinned: false,
   },
   {
     session_id: "preview-session-2",
@@ -87,5 +88,6 @@ export const PREVIEW_SESSIONS: SessionListItem[] = [
     status: "ended",
     turn_count: 11,
     primary_modality: "Narrative",
+    pinned: false,
   },
 ];

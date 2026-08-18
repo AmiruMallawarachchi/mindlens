@@ -267,8 +267,6 @@ class TestStreamPipelineResult:
                     "metadata": {
                         "tracks": [{"name": "Weightless", "artist": "Marconi Union"}],
                         "emotion": "anxiety",
-                        "spotify_mode": "B",
-                        "connect_prompt": True,
                     },
                 }
             ],
@@ -281,8 +279,7 @@ class TestStreamPipelineResult:
         args = mock_manager.send_response.call_args[1]
         assert args["music"]["message"] == "Here's something calming for you, Amiru."
         assert args["music"]["tracks"] == [{"name": "Weightless", "artist": "Marconi Union"}]
-        assert args["music"]["spotify_connected"] is False
-        assert args["music"]["connect_prompt"] is True
+        assert args["music"]["emotion"] == "anxiety"
 
     @pytest.mark.asyncio
     async def test_stream_pipeline_no_music_agent_sends_none(
@@ -316,39 +313,37 @@ class TestExtractMusicPayload:
     def test_empty_outputs_returns_none(self) -> None:
         assert _extract_music_payload([]) is None
 
-    def test_shapes_spotify_connected_output(self) -> None:
+    def test_shapes_track_output(self) -> None:
         payload = _extract_music_payload([
             {
                 "agent": "music",
                 "text": "Some music for you.",
                 "metadata": {
-                    "tracks": [{"name": "Track"}],
+                    "tracks": [{"name": "Track", "preview_url": "https://example.com/a.m4a"}],
                     "emotion": "sadness",
-                    "spotify_mode": "A",
-                    "playlist": {"id": "abc"},
                 },
             }
         ])
         assert payload is not None
-        assert payload["spotify_connected"] is True
-        assert payload["playlist"] == {"id": "abc"}
-        assert payload["connect_prompt"] is False
+        assert payload["tracks"][0]["preview_url"] == "https://example.com/a.m4a"
+        assert payload["emotion"] == "sadness"
 
     def test_shapes_fallback_output(self) -> None:
+        """No preview_url on any track — the static-fallback shape (iTunes
+        unreachable). The frontend renders this as "No preview available"
+        rather than a dead play button."""
         payload = _extract_music_payload([
             {
                 "agent": "music",
-                "text": "Spotify isn't connected yet.",
+                "text": "Track search is temporarily unavailable.",
                 "metadata": {
-                    "tracks": [],
-                    "spotify_mode": "unavailable",
-                    "connect_prompt": True,
+                    "tracks": [{"name": "Weightless", "artist": "Marconi Union"}],
+                    "emotion": "anxiety",
                 },
             }
         ])
         assert payload is not None
-        assert payload["spotify_connected"] is False
-        assert payload["connect_prompt"] is True
+        assert payload["tracks"][0].get("preview_url") is None
 
 
 class TestStreamAgentOutput:

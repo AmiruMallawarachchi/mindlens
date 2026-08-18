@@ -109,8 +109,74 @@ class TestGroqClientRealMode:
             model_tier="8B",
         )
         assert result.text == "Hello"
-        assert result.model_used == "llama-3.1-8b-instant"
+        assert result.model_used == "openai/gpt-oss-20b"
         assert result.tokens_used == 10
+
+    @pytest.mark.asyncio
+    async def test_chat_pins_reasoning_effort_low(self, real_client: GroqClient) -> None:
+        """Both current models are reasoning models — without effort pinned
+        low, a chain-of-thought phase can consume the whole max_tokens
+        budget and leave the visible answer empty (confirmed live: default
+        effort ran 80+ reasoning tokens against a 30-token budget and
+        returned ""). Regression guard for that class of silent failure."""
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Hello"), finish_reason="stop")],
+            usage=MagicMock(total_tokens=10),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        await real_client.chat(system_prompt="sys", user_prompt="user")
+
+        assert mock_chat.call_args.kwargs["reasoning_effort"] == "low"
+
+    @pytest.mark.asyncio
+    async def test_empty_completion_falls_back_to_stub_text(
+        self, real_client: GroqClient
+    ) -> None:
+        """A 200 response with content="" used to be returned as-is — a
+        successful-looking GroqResponse with no text and nothing recorded
+        to explain why. When that agent was the only one speaking, the
+        whole turn silently degraded to the generic "I'm here with you.
+        Tell me more." with no trace of the actual cause. It must instead
+        produce real, non-empty stub text, same as any other Groq failure."""
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=""), finish_reason="stop")],
+            usage=MagicMock(total_tokens=5, completion_tokens_details=None),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        result = await real_client.chat(
+            system_prompt="You are the empathy agent.",
+            user_prompt="user",
+        )
+
+        assert result.text.strip() != ""
+
+    @pytest.mark.asyncio
+    async def test_empty_completion_is_recorded_as_degraded(
+        self, real_client: GroqClient
+    ) -> None:
+        mock_client = MagicMock()
+        mock_chat = AsyncMock()
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="   "), finish_reason="stop")],
+            usage=MagicMock(total_tokens=5, completion_tokens_details=None),
+        )
+        mock_client.chat.completions.create = mock_chat
+        real_client._client = mock_client
+
+        with patch("app.agents.groq_client._record_degradation") as record:
+            await real_client.chat(system_prompt="sys", user_prompt="user")
+            # _stub_response also records its own "stub" reason once it
+            # takes over — both are real, distinct degradations for this
+            # call, so "empty_completion" only needs to be among them.
+            record.assert_any_call("empty_completion")
 
     @pytest.mark.asyncio
     async def test_chat_timeout(self, real_client: GroqClient) -> None:
@@ -151,7 +217,7 @@ class TestGroqClientRealMode:
             user_prompt="user",
             model_tier="70B",
         )
-        assert result.model_used == "llama-3.3-70b-versatile"
+        assert result.model_used == "openai/gpt-oss-120b"
 
 
 class TestGroqClientSingleton:

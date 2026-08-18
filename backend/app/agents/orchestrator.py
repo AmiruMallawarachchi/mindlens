@@ -23,11 +23,13 @@ from app.agents.mindfulness_agent import MindfulnessAgent
 from app.agents.music_agent import MusicAgent
 from app.agents.personality_agent import PersonalityAgent
 from app.agents.progress_agent import ProgressAgent
+from app.agents.question_options import build_options
 from app.agents.reflection_agent import ReflectionAgent
 from app.agents.response_assembler import ResponseAssembler
 from app.agents.routine_agent import RoutineAgent
 from app.agents.safety_gate import SafetyGateResult, safety_gate
 from app.agents.session_memory_save import SessionMemorySave
+from app.config import settings
 from app.core.anonymizer import anonymize
 from app.core.emotion_labels import (
     EMOTION_LABELS,
@@ -59,6 +61,31 @@ DISTORTION_LABEL_MAP = {
     "LABEL_8": "magnification",
     "LABEL_9": "mental_filter",
 }
+
+
+# A turn shorter than this, with no distress behind it, is treated as
+# conversational filler rather than something to retrieve therapy knowledge
+# for. "hi", "ok", "thanks", "yeah sure" are openers and acknowledgements;
+# running a RAG query and a CBT agent over them produced a reply that
+# challenged the thinking of someone who had only said hello.
+_SUBSTANTIVE_WORD_COUNT = 4
+
+# Agents whose behaviour actually depends on eos.modality. If none of
+# these ran, the turn had no therapy modality in any meaningful sense and
+# the trail must not name one.
+MODALITY_DRIVEN_AGENTS = frozenset({"distortion", "challenge", "reflection"})
+
+
+def turn_is_substantive(user_text: str, distress_level: float) -> bool:
+    """Whether this turn earns RAG and the therapy agents.
+
+    Distress overrides length unconditionally. A short message can carry the
+    most weight in the conversation — "i cant anymore" is three words — so
+    length alone must never be what silences the pipeline.
+    """
+    if distress_level >= 0.5:
+        return True
+    return len(user_text.split()) >= _SUBSTANTIVE_WORD_COUNT
 
 
 class Orchestrator:
@@ -185,18 +212,31 @@ class Orchestrator:
                 except ValueError:
                     pass
 
-        # Step 3: Retrieve RAG context if not provided
-        if rag_chunks is None and not crisis_flag:
+        # Step 3: Retrieve RAG context if not provided.
+        #
+        # rag_status is reported to the client, so "skipped" is a fact the UI
+        # can state rather than something it has to guess at or stay silent
+        # about. Retrieval used to run on every non-crisis turn, including
+        # "hi".
+        substantive = turn_is_substantive(user_text, eos.distress_level)
+        rag_status = "provided"
+        if crisis_flag:
+            # Crisis: skip RAG, use crisis protocols directly
+            rag_chunks = []
+            rag_status = "skipped_crisis"
+        elif not substantive:
+            rag_chunks = []
+            rag_status = "skipped_trivial"
+        elif rag_chunks is None:
             try:
                 rag_chunks = await asyncio.to_thread(
                     self._retriever.retrieve, anonymize(user_text), eos
                 )
+                rag_status = "ran"
             except Exception as exc:
                 logger.warning("RAG retrieval failed: %s", exc)
                 rag_chunks = []
-        elif crisis_flag:
-            # Crisis: skip RAG, use crisis protocols directly
-            rag_chunks = []
+                rag_status = "failed"
 
         # Step 4: Build agent context
         #
@@ -215,6 +255,10 @@ class Orchestrator:
             user_name=user_name,
             session_history=anonymized_history,
             rag_chunks=rag_chunks or [],
+            # Local-only, never forwarded to Groq or RAG -- see
+            # AgentContext.raw_user_text's docstring for why
+            # session_memory_save specifically needs it.
+            raw_user_text=user_text,
         )
 
         # Step 5: Run agents in parallel
@@ -248,6 +292,13 @@ class Orchestrator:
             user_name=user_name,
         )
 
+        # Offered only when the reply actually asks something, and only
+        # outside crisis — a crisis turn is templated and must not sprout
+        # buttons (rule 3).
+        options_payload = None
+        if not crisis_flag:
+            options_payload = await build_options(assembled_text, user_text)
+
         return {
             # mode="json": eos carries PeopleGraph.mentioned_at and other
             # datetime fields that don't survive a plain model_dump() into
@@ -269,6 +320,36 @@ class Orchestrator:
             # SYSTEM.md §13.3: "Memory recalled" in the thinking panel. Empty
             # unless something on file was genuinely relevant to this turn.
             "memory_recalled": recall.memory_recalled,
+            "options": options_payload,
+            # Everything the reasoning trail needs to describe this turn
+            # truthfully, rather than inferring it or reciting a fixed
+            # sentence. See connection_manager.send_thinking_update.
+            "telemetry": {
+                "rag": {
+                    "status": rag_status,
+                    "chunks": len(rag_chunks or []),
+                    # Named only when the reranker was actually configured to
+                    # run for this turn -- a degraded reranker call is already
+                    # reported separately (the "rag:reranker" degradation),
+                    # so this is a statement of what was asked to run, not a
+                    # guarantee every chunk got its score from it.
+                    "model": (
+                        settings.rag_reranker_model_id.split("/")[-1]
+                        if rag_status == "ran" and settings.rag_reranker_enabled
+                        else None
+                    ),
+                },
+                # Only claim a modality when one actually shaped a running
+                # agent. Every turn carries a modality field, but on a turn
+                # where no modality-driven agent ran, naming one describes a
+                # decision that had no effect.
+                "modality": (
+                    eos.modality.value
+                    if any(a in agent_names for a in MODALITY_DRIVEN_AGENTS)
+                    else None
+                ),
+                "substantive": substantive,
+            },
         }
 
     # -----------------------------------------------------------------------
@@ -411,8 +492,14 @@ class Orchestrator:
             session_turn_count=session_turn_count,
         )
 
-        # Routing decision
-        agents = self._select_agents(eos, crisis_flag)
+        # Routing decision. process_turn does its own substance check —
+        # it is a separate entry point from run_full_pipeline and has no
+        # access to that one's local.
+        agents = self._select_agents(
+            eos,
+            crisis_flag,
+            substantive=turn_is_substantive(user_text, eos.distress_level),
+        )
 
         # Synchronize run flags based on agents
         eos.run_mindfulness = "mindfulness" in agents
@@ -533,7 +620,9 @@ class Orchestrator:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _select_agents(eos: EmotionalOperatingState, crisis_flag: bool) -> list[str]:
+    def _select_agents(
+        eos: EmotionalOperatingState, crisis_flag: bool, *, substantive: bool = True
+    ) -> list[str]:
         """
         Cost-optimized agent dispatch.
         $0 agents run every turn; paid agents gated by thresholds.
@@ -543,32 +632,53 @@ class Orchestrator:
 
         agents: list[str] = ["empathy"]
 
+        # The opening turn asks a question; it does not prescribe.
+        #
+        # Empathy's job on turn one is to find out what's going on. A
+        # specialist firing alongside it answers a question the user has not
+        # had a chance to reply to yet — someone who said they were putting
+        # off their project got a five-step grounding script in the same
+        # breath as "what's holding you back?". Let empathy open alone and
+        # give them a turn to answer.
+        #
+        # High distress overrides this: grounding someone who is struggling
+        # matters more than conversational shape.
+        opening_turn = eos.session_turn_count == 0 and eos.distress_level < 0.7
+        # A filler turn gets the same treatment as an opening one: nobody
+        # wants an exercise in response to "ok thanks".
+        held_back = opening_turn or not substantive
+
         # Safety-critical: mindfulness for high distress or anxiety
-        if eos.distress_level > 0.5 or eos.core_emotion in {"anxiety", "fear", "nervousness"}:
+        if not held_back and (
+            eos.distress_level > 0.5
+            or eos.core_emotion in {"anxiety", "fear", "nervousness"}
+        ):
             agents.append("mindfulness")
 
-        # Music for moderate distress or music-receptive users
-        if eos.distress_level > 0.4 or eos.is_receptive_to("music"):
+        # Music for moderate distress or music-receptive users. Gated like
+        # the rest: is_receptive_to defaults true, so an ungated music
+        # agent offered a track in reply to "hi".
+        if not held_back and (eos.distress_level > 0.4 or eos.is_receptive_to("music")):
             agents.append("music")
 
         # Reflection for meaningful session depth
-        if eos.session_depth >= 0.3:
+        if not held_back and eos.session_depth >= 0.3:
             agents.append("reflection")
 
         # Challenge: only when trust is high and not in crisis
-        if eos.trust_level >= 0.6 and eos.emotional_stability >= 0.5 and not eos.is_in_crisis():
+        if not held_back and eos.trust_level >= 0.6 and eos.emotional_stability >= 0.5 and not eos.is_in_crisis():
             agents.append("challenge")
 
         # Distortion: when CBT modality is active
-        if eos.modality == Modality.CBT:
+        if not held_back and eos.modality == Modality.CBT:
             agents.append("distortion")
 
         # Routine: when fatigue is high
-        if eos.mental_fatigue >= 0.7:
+        if not held_back and eos.mental_fatigue >= 0.7:
             agents.append("routine")
 
         # Journaling: when stable enough and receptive
-        if eos.emotional_stability >= 0.3 and eos.mental_fatigue < 0.8 and eos.is_receptive_to("journaling"):
+        if not held_back and eos.emotional_stability >= 0.3 and eos.mental_fatigue < 0.8 and eos.is_receptive_to("journaling"):
             agents.append("journaling")
 
         # Progress: periodic insight (every 5 turns or at end of session)

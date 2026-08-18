@@ -40,12 +40,18 @@ _RELATIONS = (
 # matched case-insensitively (scoped inline flag, Python 3.11+) since "My"
 # is routinely capitalized at the start of a sentence; the name itself stays
 # case-sensitive, since a leading capital is the actual signal it's a name.
+# A name may be two capitalised tokens: "Dr Perera", "Mary Jane".
+# Capturing only the first meant "my supervisor Dr Perera" was stored as
+# the person "Dr" -- so every later mention of Perera recalled nothing,
+# and the Memory page listed a title as a person.
+_NAME = r"[A-Z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
+
 _RE_PERSON_FORWARD = re.compile(
-    rf"\b(?i:my ({_RELATIONS}))\s*,?\s+([A-Z][a-zA-Z']{{1,20}})\b"
+    rf"\b(?i:my ({_RELATIONS}))\s*,?\s+({_NAME})\b"
 )
 # "Amaya, my sister" / "Alex my best friend"
 _RE_PERSON_REVERSE = re.compile(
-    rf"\b([A-Z][a-zA-Z']{{1,20}}),?\s+(?i:my\s+({_RELATIONS}))\b"
+    rf"\b({_NAME}),?\s+(?i:my\s+({_RELATIONS}))\b"
 )
 
 # Canonical topic label -> the words that count as a mention of it. Narrow
@@ -83,10 +89,13 @@ _HELPED_PHRASES = ("helped", "helps me", "helped me", "worked for me", "calmed m
 
 
 def _normalize_name(name: str) -> str:
-    """First letter upper, rest lower — so "AMAYA", "amaya" and "Amaya"
-    collapse to the same `people` key instead of becoming three separate
-    entries the Memory page's `$exists: False` guard can't tell apart."""
-    return name[:1].upper() + name[1:].lower()
+    """Title-case each word — so "AMAYA", "amaya" and "Amaya" collapse to
+    the same `people` key instead of becoming three separate entries the
+    Memory page's `$exists: False` guard can't tell apart.
+
+    Per word, not per string: a single pass over the whole thing turned
+    "Dr Perera" into "Dr perera"."""
+    return " ".join(w[:1].upper() + w[1:].lower() for w in name.split())
 
 
 def _extract_person(text_lower: str, text: str) -> tuple[str, str] | None:
@@ -153,7 +162,15 @@ class SessionMemorySave(BaseAgent):
             text = ctx.user_text
             text_lower = text.lower()
 
-            person = _extract_person(text_lower, text)
+            # Person extraction runs on the RAW message, not the anonymized
+            # one. anonymize() replaces titled/capitalised names ("Dr
+            # Perera") with "[NAME]" before ctx.user_text is built -- correct
+            # for anything that reaches Groq or leaves this process, but it
+            # meant this regex could never see a real name to store. This
+            # never leaves the server: it only ever becomes a key in this
+            # user's own people graph.
+            raw = ctx.raw_user_text
+            person = _extract_person(raw.lower(), raw)
             if person:
                 extracted["person_relation"] = person[0]
                 extracted["person_name"] = person[1]

@@ -48,6 +48,7 @@ export interface SessionListItem {
   status: string;
   turn_count: number;
   primary_modality: string | null;
+  pinned: boolean;
 }
 
 /** One turn as stored by chat.py::_save_turn — role is "user" or "assistant";
@@ -223,17 +224,57 @@ export interface CrisisResource {
 }
 
 /** backend/app/agents/streaming.py::_extract_music_payload. Null when the
- * music agent didn't run this turn — distinct from running with no tracks. */
+ * music agent didn't run this turn — distinct from running with no tracks.
+ * Tracks come from Apple's iTunes Search API (music_agent.py) — no user
+ * connection step. preview_url is a real, directly-playable 30s clip,
+ * present on most but not all tracks; track_url (the Apple Music page) is
+ * present whenever preview_url is. */
 export interface MusicPayload {
   message: string;
-  tracks: Array<{ name?: string; artist?: string; spotify_url?: string; youtube_url?: string; uri?: string }>;
+  tracks: Array<{ name?: string; artist?: string; preview_url?: string | null; track_url?: string | null }>;
   emotion: string | null;
-  spotify_connected: boolean;
-  playlist: Record<string, unknown> | null;
-  connect_prompt: boolean;
+}
+
+/** Structured follow-up answers offered as buttons under a reply.
+ *
+ * Deliberately not the canned menu empathy_agent forbids: generated per
+ * turn from what was actually said, schema-validated rather than parsed out
+ * of prose, and never a closed set — `allow_other` is always true because
+ * the point is to save typing, not to limit what someone may say. */
+export interface OptionsPayload {
+  options: string[];
+  allow_other: boolean;
 }
 
 export type ChatRole = "user" | "assistant";
+
+/** What the pipeline actually did this turn, so the reasoning trail can
+ * describe it rather than assert a script. backend: orchestrator's
+ * `telemetry` key. */
+export interface TurnTelemetry {
+  rag?: {
+    /** "ran" | "skipped_trivial" | "skipped_crisis" | "failed" | "provided" */
+    status: string;
+    chunks: number;
+    /** The reranker model that ordered these chunks, named only when it was
+     * actually configured to run this turn. */
+    model?: string | null;
+  };
+  /** Null when no agent that consults a modality ran. A modality is set on
+   * every turn regardless, so a non-null value here is the only honest
+   * signal that one actually shaped the reply. */
+  modality?: string | null;
+  substantive?: boolean;
+}
+
+/** The safety gate's real verdict — computed on every turn and, until now,
+ * dropped before it reached the client. backend: SafetyGateResult. */
+export interface SafetyVerdict {
+  is_crisis?: boolean;
+  layer_triggered?: string | null;
+  confidence?: number;
+  reason?: string;
+}
 
 export interface ChatMessage {
   id: string;
@@ -254,6 +295,9 @@ export interface ChatMessage {
   pending?: boolean;
   /** A client- or server-side error rendered inline, not a real turn. */
   kind?: "error";
+  telemetry?: TurnTelemetry;
+  safety?: SafetyVerdict;
+  options?: OptionsPayload | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +310,9 @@ export type ServerFrame =
       agents_active: string[];
       eos: EosSnapshot;
       memory_recalled?: string[];
+      telemetry?: TurnTelemetry;
+      safety?: SafetyVerdict;
+      degraded?: string[];
     }
   | { type: "stream_chunk"; chunk: string; index: number }
   | { type: "stream_end" }
@@ -279,6 +326,9 @@ export type ServerFrame =
       resources?: CrisisResource[];
       degraded?: string[];
       memory_recalled?: string[];
+      telemetry?: TurnTelemetry;
+      safety?: SafetyVerdict;
+      options?: OptionsPayload | null;
     }
   | {
       type: "crisis_response";

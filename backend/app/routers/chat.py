@@ -275,19 +275,43 @@ async def websocket_chat(
 
 
 def _extract_token(websocket: WebSocket) -> tuple[str | None, str | None]:
-    """Extract JWT from a cookie, server client header, or WebSocket subprotocol."""
-    cookie_token = websocket.cookies.get("access_token")
-    if cookie_token:
-        return cookie_token, None
-    if websocket.headers.get("authorization"):
-        auth = websocket.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            return auth[7:], None
+    """Extract the JWT, and the subprotocol to echo on accept.
+
+    These are two separate questions and conflating them broke every browser
+    client. RFC 6455: if the client offers a subprotocol, the server must
+    echo one back, and browsers abort the handshake when it doesn't --
+    "Sent non-empty 'Sec-WebSocket-Protocol' header but no response was
+    received". The frontend always offers `mindlens.jwt.<token>`, because a
+    browser cannot set headers on a WebSocket.
+
+    So the offered protocol is resolved first and returned no matter which
+    source the token comes from. Previously the cookie branch returned early
+    with None, meaning the echo only happened when there was no cookie.
+
+    That hid the bug in exactly the wrong place. Deployed, the frontend and
+    backend are different sites, the SameSite=lax cookie is not sent on the
+    handshake, and the subprotocol branch runs and echoes. On localhost both
+    are the same site, the cookie is sent, and the handshake fails -- so chat
+    worked in production and was broken in local development.
+    """
     offered = websocket.headers.get("sec-websocket-protocol", "")
+    subprotocol_token: str | None = None
+    selected: str | None = None
     for protocol in (item.strip() for item in offered.split(",")):
         if protocol.startswith("mindlens.jwt."):
-            return protocol.removeprefix("mindlens.jwt."), protocol
-    return None, None
+            subprotocol_token = protocol.removeprefix("mindlens.jwt.")
+            selected = protocol
+            break
+
+    cookie_token = websocket.cookies.get("access_token")
+    if cookie_token:
+        return cookie_token, selected
+
+    auth = websocket.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:], selected
+
+    return subprotocol_token, selected
 
 
 def _origin_allowed(websocket: WebSocket) -> bool:

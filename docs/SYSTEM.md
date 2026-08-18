@@ -26,13 +26,13 @@
 | Backend | FastAPI, async-first, MongoDB, WebSocket chat |
 | Realtime transport | WebSocket for chat and streaming agent activity |
 | LLM provider | Groq only for therapy generation |
-| LLM routing | Llama 3.1 8B for simple turns, Llama 3.3 70B for emotional or complex turns |
+| LLM routing | A smaller/faster Groq model for simple turns, a larger one for emotional or complex turns — see §9 for the current pair; Groq's lineup has changed underneath this once already |
 | ML models | Five MindLens Hugging Face models: emotion, mental health, crisis, RAG reranker, distortion |
 | Safety | Hardwired safety gate runs before every agent and cannot be bypassed |
 | Crisis response | Template-only crisis agent. Zero LLM calls during crisis |
 | RAG | ChromaDB vector retrieval plus MindLens RAG reranker |
 | Memory | MongoDB user profile, session memory, people graph, progress records |
-| Music | Spotify OAuth when connected, app-level search/fallback when not connected |
+| Music | iTunes Search API — no login or connection step, static fallback if unreachable |
 | Scheduler | APScheduler inside FastAPI for check-ins. No Redis required |
 | Admin | Separate admin surface for users, health, model status, reports, and sessions |
 | Security | JWT in httpOnly cookies, ownership-scoped MongoDB queries, rate limits everywhere |
@@ -142,7 +142,7 @@ USER
 Next.js 15 Frontend
   - Sidebar: sessions, new chat, settings
   - Main chat: messages, mode badge, input
-  - Right panel: thinking, EOS, memory, model health
+  - Right panel: music only, mounted when a track exists
   - Dashboard: progress, mood, routines, memory
   - Onboarding: profile, age, preferences, goals
   - Admin: health, users, models, reports
@@ -156,11 +156,10 @@ FastAPI Backend
   +-- PII anonymizer
   |
   v
-Layer 0: Safety Gate
-  - Regex crisis scan
-  - MindLens crisis model
-  - Semantic crisis similarity
-  - Any trigger routes to CrisisAgent only
+Layer 0: Safety Gate  (two layers, not three -- see 8.1)
+  - L1 regex crisis scan, always runs, independent of model health
+  - L2 MindLens crisis model, threshold 0.45
+  - Either trigger routes to CrisisAgent only
   |
   v
 Parallel ML Inference
@@ -182,10 +181,10 @@ Agent Orchestrator
   |
   v
 Response Assembler
-  - combines outputs
+  - empathy + at most one specialist (7.3)
   - validates response
-  - appends disclaimer
   - streams to frontend
+  - disclaimer is rendered by the UI, not appended to the reply
   |
   v
 MongoDB Memory + Sessions + Audit Logs
@@ -232,9 +231,10 @@ MongoDB Memory + Sessions + Audit Logs
 |---|---|
 | Groq | Therapy response generation |
 | Hugging Face | Hosted model repositories |
-| Spotify | Music therapy search and playback control |
+| Apple iTunes Search API | Music track search, no auth required |
 | MongoDB Atlas | Production persistence |
-| Railway | Backend deployment target |
+| Vercel | Frontend deployment target |
+| Cloudflare Tunnel | Exposes the backend (models loaded in-process, so it runs on developer hardware, not a hosted platform) — see docs/DEPLOYMENT.md for why |
 
 ---
 
@@ -439,7 +439,7 @@ decided before they run.
 | `challenge_agent` | Gentle Socratic challenge when safe |
 | `routine_agent` | Builds small practical routines |
 | `journaling_agent` | Offers reflective prompts |
-| `music_agent` | Recommends music or Spotify actions |
+| `music_agent` | Recommends real, playable tracks via iTunes search |
 | `checkin_agent` | Generates proactive follow-up message |
 | `checkin_scheduler` | Schedules future check-ins |
 | `progress_agent` | Weekly progress and insight summaries |
@@ -448,35 +448,59 @@ decided before they run.
 
 ### 7.2 Agent Routing Rules
 
+Two gates run before the table below. Both exist because the pipeline used to
+answer "hi" with a grounding exercise, a CBT challenge and a music track.
+
+| Gate | Meaning |
+|---|---|
+| `opening_turn` | First turn of a session, distress < 0.7 |
+| `substantive` | 4+ words **or** distress >= 0.5 |
+
+`held_back = opening_turn or not substantive`. Distress overriding word count
+is deliberate and load-bearing: *"i cant anymore"* is three words and the most
+important turn in the conversation, so length must never be what silences the
+pipeline.
+
 | Condition | Agents |
 |---|---|
 | Crisis detected | `crisis_agent` only |
-| Every safe turn | `empathy_agent`, `session_memory_save` |
-| Distress above 0.5 | `mindfulness_agent` |
-| Music receptive or distress above 0.4 | `music_agent` |
-| CBT modality active | `distortion_agent` |
-| Trust high and stability safe | `challenge_agent` |
-| Fatigue high | `routine_agent` |
-| Journaling receptive and stable | `journaling_agent` |
+| Every safe turn | `empathy_agent`, `session_memory_save`, `personality_agent` |
+| Not held back, distress above 0.5 or anxious/fearful | `mindfulness_agent` |
+| Not held back, music receptive or distress above 0.4 | `music_agent` |
+| Not held back, CBT modality active | `distortion_agent` |
+| Not held back, trust high and stability safe | `challenge_agent` |
+| Not held back, fatigue >= 0.7 | `routine_agent` |
+| Not held back, journaling receptive and stable | `journaling_agent` |
+| Not held back, session depth >= 0.3 | `reflection_agent` |
 | Every 3 turns | `checkin_scheduler` |
-| Every 5 turns or session end | `progress_agent` |
+| Every 5 turns | `progress_agent` |
 
 ### 7.3 Response Assembly Order
 
-1. Crisis response, if crisis.
-2. Empathy.
-3. Mindfulness.
-4. Reflection.
-5. Distortion insight.
-6. Challenge question.
-7. Routine/action plan.
-8. Journaling.
-9. Music.
-10. Check-in/progress.
-11. Mandatory disclaimer.
+Priority order for whoever speaks: crisis, empathy, mindfulness, reflection,
+distortion, challenge, routine, journaling, music, checkin, progress.
 
-The final response must feel like one coherent message, not separate agent
-fragments pasted together.
+**At most two agents speak per turn: empathy, plus one specialist.**
+
+Every speaking agent writes a *complete* conversational turn, so
+concatenating them all produced three or four whole replies stapled together
+— an empathy greeting, then a CBT challenge, then a music pitch, at someone
+who had only said they wanted help. The rest still run; their metadata drives
+the reasoning trail. They simply do not get to talk. Priority order decides
+who wins the one slot, so grounding always beats challenging.
+
+Two agents never contribute prose:
+
+- **Music** — its text is what the music card renders, so including it in the
+  reply printed the same sentence twice.
+- **Bookkeeping** (`personality`, `checkin_scheduler`, `session_memory_save`)
+  — they return empty text by design.
+
+**The mandatory disclaimer is no longer appended to the reply.** It is chrome,
+not something the companion said, and it landed mid-reply immediately after
+the follow-up question on every turn. The UI renders it persistently instead.
+The crisis path is the exception and keeps its resources inline — there the
+helpline numbers *are* the message.
 
 ---
 
@@ -487,13 +511,71 @@ decision, every RAG retrieval, and every Groq call.
 
 ### 8.1 Safety Gate Layers
 
-| Layer | Method | Target latency |
-|---|---|---|
-| L1 | Regex crisis pattern scan | less than 1ms |
-| L2 | `mindlens-crisis` classifier | less than 60ms |
-| L3 | Semantic search against crisis corpus | less than 100ms |
+| Layer | Method | Where | Target latency |
+|---|---|---|---|
+| L1 | Regex crisis pattern scan | `safety_gate.evaluate()` | less than 1ms |
+| L2 | `mindlens-crisis` classifier, fires above 0.45 | orchestrator, after L1 clears | less than 60ms |
 
-Any trigger means crisis mode.
+Either trigger means crisis mode.
+
+L1 is deliberately first and independent of model health: if the
+classifier is down, unloaded or returns nothing, the regex screen still
+runs and still catches. A turn where the classifier was unavailable is
+logged as degraded rather than passing silently.
+
+**There is no semantic-search layer.** An earlier design called for a
+third layer doing embedding search against a crisis corpus; it was never
+built, and this table previously described it as if it were. It is not in
+the code, so it is not claimed here. Adding it would improve recall on
+paraphrased crisis language that neither the patterns nor the classifier
+catch — that is the honest gap, and it is future work.
+
+### 8.1.1 Known limitation: L2 over-triggers on ordinary distress
+
+Measured against the deployed `mindlens-crisis` classifier:
+
+| Message | Score | Verdict |
+|---|---|---|
+| "I want to kill myself" | 0.88 | crisis, correct |
+| "It is mostly that I am scared it will not be good enough." | 0.82 | **false positive** |
+| "so i need a help okay" | 0.72 | **false positive** |
+| "There is no point in living" | 0.59 | crisis, correct |
+| "I have been really anxious about my final year project." | 0.03 | safe, correct |
+
+On a 15-benign / 6-crisis probe set at the shipped 0.45 threshold: 6/6
+crisis caught, 2/15 benign flagged. Raising the threshold does not fix
+this. At 0.85 the false positives vanish but only 4/6 real crisis
+messages are caught — the two lost include "There is no point in
+living". Six hundredths separate a student worrying about coursework
+from a genuine suicide statement, so the classes are not linearly
+separable by score at any cutoff.
+
+The cause is train/serve mismatch, in three parts:
+
+1. **Composition.** The training set's `safe` class is Reddit meme
+   chatter; its `crisis` class is long, sincere, distressed posts. The
+   model never saw text that was emotionally serious and *not* a crisis,
+   so it learned "heartfelt equals crisis".
+2. **Preprocessing.** The upstream corpus is lemmatized and
+   stopword-stripped ("not see point anymore"). Nothing in the serving
+   path preprocesses anything — `predict_all` passes raw user text
+   directly to the model.
+3. **Length.** Training posts have a median of 30 words; real chat
+   messages are four to fifteen.
+
+Aggregate F1 concealed all of this, because the test split was drawn
+from the same distribution as the training data.
+
+The threshold is deliberately left at 0.45. It errs toward interrupting
+a conversation that did not need interrupting, rather than missing one
+that did — the right direction for this failure to point, but a real
+cost to the experience, and stated here rather than smoothed over.
+
+`scripts/build_crisis_dataset.py` rebuilds the corpus against all three
+mismatches and `scripts/train_crisis_model.py` retrains from it,
+publishing to a separate repo so the live classifier is not overwritten
+before the numbers are checked. Until that lands, the limitation above
+is current.
 
 ### 8.2 Crisis Mode
 
@@ -528,8 +610,17 @@ Groq is the only therapy generation provider.
 
 | Tier | Model | Use |
 |---|---|---|
-| Fast | `llama-3.1-8b-instant` | Simple safe turns, short responses |
-| Deep | `llama-3.3-70b-versatile` | Emotional, complex, high-distress safe turns |
+| Fast | `openai/gpt-oss-20b` | Simple safe turns, short responses |
+| Deep | `openai/gpt-oss-120b` | Emotional, complex, high-distress safe turns |
+
+Both are reasoning models — Groq's `llama-3.1-8b-instant`/`llama-3.3-70b-versatile`
+pair (the original choice here) was removed from Groq's catalog entirely, not
+just renamed, discovered when every reply started silently falling back to
+the canned stub. Reasoning models spend completion tokens on hidden
+chain-of-thought before the visible answer; every call pins
+`reasoning_effort: "low"` (`groq_client.py`) so that overhead stays small
+instead of occasionally consuming the whole token budget and returning
+nothing.
 
 Use deep tier when:
 
@@ -619,25 +710,48 @@ Process:
 ### 11.2 RAG Rules
 
 - RAG must not run during crisis mode.
+- **RAG does not run on a non-substantive turn.** It previously ran on every
+  non-crisis turn, including "hi".
 - RAG context must be short and relevant.
 - RAG must not contain diagnostic claims.
 - RAG must be filtered before prompt injection.
 - Admin/dev tools may show retrieved chunks.
-- User-facing thinking panel may show simplified memory and knowledge summaries.
+
+### 11.3 Retrieval status is reported
+
+`telemetry.rag` carries `status` (`ran` / `skipped_trivial` / `skipped_crisis`
+/ `failed` / `provided`) and a chunk count, on both `thinking_update` and
+`response`. The UI states it plainly — *"Pulled 5 passages from the therapy
+notes"* or *"No need to look anything up for this one."* Retrieval status was
+previously never transmitted in any form, so a turn that searched the corpus
+and one that skipped it read identically.
+
+A reranker failure is namespaced `rag:reranker` so it is reported as a
+reranker failure. It previously shared the flat degradation sink with Groq
+failures, and the frontend classified anything unprefixed as an LLM fallback
+— so a cross-encoder failure rendered as *"the language model fell back this
+turn"*, which named the wrong component.
 
 ---
 
-## 12. Spotify And Music System
+## 12. Music System
 
 Music is an intervention, not decoration.
 
-### 12.1 Modes
+Originally designed around Spotify OAuth (user-connected playback and
+personalization). Not shipped: Spotify's Web API has required the
+*developer's own account* to hold an active Premium subscription since
+February/March 2026, on top of the `/recommendations` endpoint this design
+depended on being withdrawn for new apps in November 2024. Rebuilt on
+Apple's iTunes Search API instead — no auth, no account connection, no
+personal subscription required by anyone.
 
-| Mode | Description |
+### 12.1 How it works
+
+| Path | Description |
 |---|---|
-| Spotify OAuth | User connects account; MindLens can personalize and control playback |
-| App-level search | No login required; MindLens recommends tracks/playlists |
-| Static fallback | Used when Spotify is down or unavailable |
+| iTunes search | Emotion maps to a genre + mood search term (no login, no connection step); returns real tracks with a 30-second preview clip the client plays directly |
+| Static fallback | Used only if iTunes itself is unreachable — names a track and artist, never a fabricated link |
 
 ### 12.2 Music Agent Rules
 
@@ -839,7 +953,7 @@ On FastAPI startup:
 |---|---|
 | Groq down | Template fallback, session continues |
 | MongoDB down | Retry, then safe 503 |
-| Spotify down | YouTube/static fallback |
+| iTunes unreachable | Static fallback, no fabricated links |
 | RAG empty | Agents continue without RAG |
 | Model unavailable | Mark unhealthy, use approved fallback only |
 | Scheduler down | Restart or resume on next startup |
@@ -936,9 +1050,6 @@ JWT_REFRESH_SECRET_KEY
 ADMIN_JWT_SECRET
 ENCRYPTION_KEY
 GROQ_API_KEY
-SPOTIFY_CLIENT_ID
-SPOTIFY_CLIENT_SECRET
-SPOTIFY_REDIRECT_URI
 HF_TOKEN
 CORS_ORIGINS
 ```
@@ -983,7 +1094,7 @@ MindLens must handle:
 - Deleted account with old token.
 - MongoDB timeout.
 - Groq timeout.
-- Spotify unavailable.
+- iTunes unreachable.
 - RAG empty.
 - Model unavailable.
 
@@ -1018,7 +1129,7 @@ Deliverables:
 - Dashboard.
 - RAG wired.
 - Check-ins.
-- Spotify basic mode.
+- Music recommendations (iTunes search).
 
 ### Phase 3 - Polish And Admin
 
@@ -1088,7 +1199,7 @@ MindLens v1.0 is complete when:
 - All five models are registered, loadable, monitored, and tested.
 - Crisis response never calls Groq.
 - RAG retrieval and reranking are wired into safe turns.
-- Groq 8B/70B routing works.
+- Groq fast/deep tier routing works.
 - WebSocket chat streams responses and thinking updates.
 - Admin can inspect model health and system health.
 - Security checklist passes.

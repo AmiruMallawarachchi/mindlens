@@ -38,9 +38,18 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 GROQ_MODELS = {
-    "8B": "llama-3.1-8b-instant",
-    "70B": "llama-3.3-70b-versatile",
+    "8B": "openai/gpt-oss-20b",
+    "70B": "openai/gpt-oss-120b",
 }
+
+# Both current models are reasoning models: unlike llama-3.1/3.3, they spend
+# completion tokens on hidden chain-of-thought before the visible answer.
+# Confirmed live: at "low" effort that overhead is ~7-10 tokens; at default
+# effort it can run 80+ tokens and, combined with an agent's own max_tokens
+# budget, silently produces empty content (all of it spent on reasoning,
+# none left for the answer). This app wants a fast, direct, in-character
+# reply, not deliberation, so every call pins effort low.
+_REASONING_EFFORT = "low"
 
 # Per-agent max tokens (from SYSTEM.md §25.2)
 DEFAULT_MAX_TOKENS = 200
@@ -108,7 +117,7 @@ class GroqClient:
             self._stub_mode = True
             logger.warning(
                 "groq package not installed. Forcing stub mode. "
-                "Install with: pip install groq==0.8.0"
+                "Install with: pip install groq"
             )
             return
 
@@ -158,6 +167,7 @@ class GroqClient:
                     ],
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    reasoning_effort=_REASONING_EFFORT,
                 ),
                 timeout=timeout,
             )
@@ -181,6 +191,37 @@ class GroqClient:
         elapsed = (asyncio.get_event_loop().time() - start) * 1000
         content = response.choices[0].message.content or ""
         usage = response.usage
+
+        if not content.strip():
+            # A 200 with empty content is not a success — it just doesn't
+            # look like a failure to the caller, which is exactly how this
+            # went unnoticed. It reached response_assembler as a real
+            # AgentOutput with text="", and when that agent was the only
+            # one speaking, the whole turn silently degraded to the generic
+            # "I'm here with you. Tell me more." with nothing recorded to
+            # say why.
+            #
+            # The known cause: on a reasoning model, the completion budget
+            # can be spent entirely on hidden chain-of-thought
+            # (usage.completion_tokens_details.reasoning_tokens) before any
+            # visible text is written, leaving content empty even though the
+            # call itself succeeded. reasoning_effort="low" above cuts this
+            # sharply but doesn't guarantee zero — a tight max_tokens on a
+            # long prompt can still exhaust it.
+            reasoning_tokens = getattr(
+                getattr(usage, "completion_tokens_details", None), "reasoning_tokens", None
+            )
+            logger.warning(
+                "Groq call returned empty content (model=%s, finish_reason=%s, "
+                "reasoning_tokens=%s) — falling back to a stub reply",
+                model_id,
+                response.choices[0].finish_reason,
+                reasoning_tokens,
+            )
+            _record_degradation("empty_completion")
+            return self._stub_response(
+                system_prompt, user_prompt, model_tier, max_tokens
+            )
 
         return GroqResponse(
             text=content.strip(),

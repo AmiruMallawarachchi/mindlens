@@ -7,19 +7,31 @@
  * Today / Previous 7 days / Earlier, and the privacy card pinned at the base.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Brain,
   LineChart,
   MessageCircle,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
+  Pin,
+  PinOff,
   Plus,
   Settings2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { MindlensMark, Wordmark } from "@/components/brand/wordmark";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { EmotionId } from "@/lib/emotion";
 import type { SessionListItem, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,12 +50,20 @@ const DAY = 86_400_000;
 
 function groupSessions(sessions: SessionListItem[]) {
   const now = Date.now();
+  // Pinned sessions get their own group regardless of age — that's the
+  // point of pinning them — and are excluded from the date buckets below so
+  // they don't appear twice.
   const groups: Record<string, SessionListItem[]> = {
+    Pinned: [],
     Today: [],
     "Previous 7 days": [],
     Earlier: [],
   };
   for (const session of sessions) {
+    if (session.pinned) {
+      groups.Pinned.push(session);
+      continue;
+    }
     const age = now - new Date(session.started_at).getTime();
     if (age < DAY) groups.Today.push(session);
     else if (age < 7 * DAY) groups["Previous 7 days"].push(session);
@@ -52,7 +72,7 @@ function groupSessions(sessions: SessionListItem[]) {
   return groups;
 }
 
-function sessionLabel(session: SessionListItem): string {
+export function sessionLabel(session: SessionListItem): string {
   if (session.title) return session.title;
   const date = new Date(session.started_at);
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -67,6 +87,10 @@ export function ChatSidebar({
   onNavigate,
   onNewConversation,
   onOpenSession,
+  onPinSession,
+  onRenameSession,
+  onDeleteSession,
+  onSaveToJournal,
   collapsed = false,
   onToggleCollapsed,
 }: {
@@ -78,11 +102,22 @@ export function ChatSidebar({
   onNavigate: (view: ChatNavView) => void;
   onNewConversation: () => void;
   onOpenSession: (sessionId: string) => void;
+  onPinSession: (sessionId: string, pinned: boolean) => void;
+  onRenameSession: (sessionId: string, title: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onSaveToJournal: (session: SessionListItem) => void;
   /** Icon-only rail instead of the full 262px panel. Optional — callers
    * that don't offer the collapse feature (the mobile drawer) just omit it. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
 }) {
+  // Renaming swaps the row for an input in place, rather than opening a
+  // dialog for one short string.
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  // Delete is a real, irreversible delete now — the transcript, the
+  // emotion reads and the crisis records all go. UI rule 4 asks for a
+  // typed confirmation for irreversible actions, not just a second click.
+  const [pendingDelete, setPendingDelete] = useState<SessionListItem | null>(null);
   // §8 — full keyboard nav, ⌘K starts a new conversation.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -179,7 +214,17 @@ export function ChatSidebar({
       aria-label="Conversations and navigation"
     >
       <div className="flex items-center gap-2 px-5 pb-4 pt-5">
-        <Wordmark mood={mood} size={21} className="min-w-0 flex-1" />
+        {/* Was a bare <span> — it looked like a home affordance and did
+          * nothing when clicked. It goes to the marketing home, which is
+          * what "/" actually is; the product's own landing view is the
+          * Chat nav row below. */}
+        <Link
+          href="/"
+          aria-label="Mindlens home"
+          className="min-w-0 flex-1 rounded-[var(--r-10)] transition-opacity hover:opacity-80"
+        >
+          <Wordmark mood={mood} size={21} className="min-w-0" />
+        </Link>
         {onToggleCollapsed && (
           <button
             type="button"
@@ -266,12 +311,25 @@ export function ChatSidebar({
                   {items.map((session) => {
                     const active = session.session_id === activeSessionId;
                     return (
-                      <li key={session.session_id}>
+                      <li key={session.session_id} className="group/session relative flex items-center">
+                        {renamingSessionId === session.session_id ? (
+                          <SessionTitleInput
+                            initial={sessionLabel(session)}
+                            onCommit={(next) => {
+                              setRenamingSessionId(null);
+                              if (next && next !== sessionLabel(session)) {
+                                onRenameSession(session.session_id, next);
+                              }
+                            }}
+                            onCancel={() => setRenamingSessionId(null)}
+                          />
+                        ) : (
+                        <>
                         <button
                           type="button"
                           onClick={() => onOpenSession(session.session_id)}
                           className={cn(
-                            "w-full truncate rounded-[var(--r-11)] px-3 py-2 text-left text-[12.5px] transition-colors",
+                            "w-full truncate rounded-[var(--r-11)] py-2 pl-3 pr-8 text-left text-[12.5px] transition-colors",
                             !active && "hover:bg-white/[0.04]",
                           )}
                           style={{
@@ -281,8 +339,67 @@ export function ChatSidebar({
                             color: active ? "var(--ml-ink)" : "var(--ml-muted)",
                           }}
                         >
+                          {session.pinned && (
+                            <Pin size={10} strokeWidth={2} className="mr-1 inline-block shrink-0 align-middle" aria-hidden="true" />
+                          )}
                           {sessionLabel(session)}
                         </button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`More options for ${sessionLabel(session)}`}
+                              className="absolute right-1 grid size-6 shrink-0 place-items-center rounded-[8px] opacity-0 transition-opacity group-hover/session:opacity-100 focus-visible:opacity-100 hover:bg-white/[0.08]"
+                              style={{ color: "var(--ml-faint)" }}
+                            >
+                              <MoreHorizontal size={14} strokeWidth={1.8} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            style={{
+                              background: "var(--ml-panel-legible)",
+                              border: "1px solid var(--ml-hairline-strong)",
+                              color: "var(--ml-ink)",
+                            }}
+                          >
+                            <DropdownMenuItem
+                              onSelect={() => onPinSession(session.session_id, !session.pinned)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              {session.pinned ? (
+                                <PinOff size={14} strokeWidth={1.8} />
+                              ) : (
+                                <Pin size={14} strokeWidth={1.8} />
+                              )}
+                              {session.pinned ? "Unpin" : "Pin"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => setRenamingSessionId(session.session_id)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              <Pencil size={14} strokeWidth={1.8} />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => onSaveToJournal(session)}
+                              style={{ color: "var(--ml-ink)" }}
+                            >
+                              <BookOpen size={14} strokeWidth={1.8} />
+                              Save to Journal
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() => setPendingDelete(session)}
+                            >
+                              <Trash2 size={14} strokeWidth={1.8} />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        </>
+                        )}
                       </li>
                     );
                   })}
@@ -324,7 +441,196 @@ export function ChatSidebar({
           </span>
           <Settings2 size={15} strokeWidth={1.7} className="shrink-0" style={{ color: "var(--ml-faint)" }} />
         </button>
+
+        {/* §4.1's disclaimer. It used to sit under the composer on every
+          * turn; it lives here now so the chat column stays quiet. This is
+          * the desktop home for it only — below 780px this whole sidebar is
+          * a drawer behind a hamburger, and a safety disclaimer that has to
+          * be opened is not "always present", so the composer keeps a
+          * compact copy at those widths. */}
+        <p
+          className="mt-2.5 px-1 text-[10.5px] leading-[1.55]"
+          style={{ color: "var(--ml-faint)" }}
+        >
+          Mindlens is a wellbeing companion — not emergency or medical care.{" "}
+          <a
+            href="https://findahelpline.com"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 transition-colors hover:text-[var(--ml-muted)]"
+          >
+            Reach a human
+          </a>
+        </p>
       </div>
+
+      {pendingDelete && (
+        <DeleteSessionDialog
+          session={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const id = pendingDelete.session_id;
+            setPendingDelete(null);
+            onDeleteSession(id);
+          }}
+        />
+      )}
     </aside>
+  );
+}
+
+/**
+ * In-place rename field for one session row.
+ *
+ * Uncontrolled on purpose: the value only matters at commit, and letting the
+ * parent own it would re-render the whole session list on every keystroke.
+ * Enter and blur commit, Escape abandons — and the Escape path sets a flag
+ * the blur handler checks, because cancelling also blurs and would otherwise
+ * immediately re-commit the text the user just rejected.
+ */
+function SessionTitleInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (title: string) => void;
+  onCancel: () => void;
+}) {
+  const cancelled = useRef(false);
+
+  return (
+    <input
+      autoFocus
+      defaultValue={initial}
+      maxLength={200}
+      aria-label="Rename conversation"
+      onFocus={(event) => event.currentTarget.select()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onCommit(event.currentTarget.value.trim());
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelled.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={(event) => {
+        if (cancelled.current) return;
+        onCommit(event.currentTarget.value.trim());
+      }}
+      className="w-full rounded-[var(--r-11)] border px-3 py-2 text-[12.5px] outline-none"
+      style={{
+        background: "var(--ml-panel-legible)",
+        borderColor: "var(--e1)",
+        color: "var(--ml-ink)",
+      }}
+    />
+  );
+}
+
+/**
+ * Typed confirmation for deleting a conversation.
+ *
+ * Delete used to set a status flag and keep everything, so a second click
+ * was proportionate friction. It is a real hard delete now — the transcript,
+ * the emotion reads and the crisis records are all removed and cannot be
+ * recovered — and UI rule 4 asks for a typed confirmation at that point.
+ *
+ * The escape is as easy to reach as the confirm: Cancel is focused first,
+ * Escape closes, and the confirm stays disabled until the word matches.
+ */
+function DeleteSessionDialog({
+  session,
+  onCancel,
+  onConfirm,
+}: {
+  session: SessionListItem;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const armed = typed.trim().toLowerCase() === "delete";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] grid place-items-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-session-title"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onCancel();
+      }}
+    >
+      <button
+        type="button"
+        aria-label="Cancel deleting this conversation"
+        onClick={onCancel}
+        className="absolute inset-0 cursor-default border-none bg-black/45"
+      />
+      <div
+        className="relative w-full max-w-[380px] rounded-[var(--r-18)] border p-5"
+        style={{
+          background: "var(--ml-panel-legible)",
+          borderColor: "var(--ml-hairline-strong)",
+        }}
+      >
+        <p
+          id="delete-session-title"
+          className="ml-display m-0 text-[17px] leading-[1.45]"
+          style={{ color: "var(--ml-ink)" }}
+        >
+          Delete &ldquo;{sessionLabel(session)}&rdquo;?
+        </p>
+        <p className="mt-2 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
+          This removes the whole conversation, the emotion reads taken during
+          it, and any safety records from it. It cannot be undone and there is
+          no copy kept.
+        </p>
+        <label
+          className="mt-3.5 block text-[11.5px]"
+          style={{ color: "var(--ml-faint)" }}
+          htmlFor="delete-confirm-input"
+        >
+          Type <strong style={{ color: "var(--ml-ink)" }}>delete</strong> to confirm
+        </label>
+        <input
+          id="delete-confirm-input"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && armed) onConfirm();
+          }}
+          autoComplete="off"
+          className="mt-1.5 w-full rounded-[var(--r-11)] border px-3 py-2 text-[13px] outline-none"
+          style={{
+            background: "var(--ml-panel)",
+            borderColor: "var(--ml-hairline-strong)",
+            color: "var(--ml-ink)",
+          }}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            autoFocus
+            onClick={onCancel}
+            className="rounded-[10px] border px-3.5 py-2 text-[12.5px] transition-colors hover:border-[var(--ml-ink)]"
+            style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
+          >
+            Keep it
+          </button>
+          <button
+            type="button"
+            disabled={!armed}
+            onClick={onConfirm}
+            className="rounded-[10px] px-3.5 py-2 text-[12.5px] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: "#c2453c" }}
+          >
+            Delete for good
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
