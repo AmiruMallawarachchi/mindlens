@@ -27,6 +27,7 @@ EMOTION → SEARCH MOOD (replaces the old tempo/energy/valence targets):
 
 from __future__ import annotations
 
+import random
 from typing import Any
 
 import httpx
@@ -42,19 +43,73 @@ ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
 # Emotion -> (genre, mood words). Used to build the iTunes search term
 # directly — no numeric audio-feature targets, because a text search has
 # nothing to target them against. Coarse and word-based on purpose.
+# Every label the emotion classifier can actually emit gets a mapping.
+#
+# This previously listed 12 moods, only 7 of which the classifier ever
+# produces — it emits the 28 GoEmotions classes (core/emotion_labels.py),
+# so 21 of them missed the map entirely and fell through to the default.
+# The default was "chill lo-fi", iTunes returns a deterministic result set
+# for a fixed query, and the agent always played the first hit. That is the
+# whole reason every reply offered "Coffee Break - Lo-Fi Chill Cafe" no
+# matter what the user said: "confusion", "disappointment", "nervousness"
+# and eighteen others all resolved to the same search, and that search's
+# first result never changes.
+#
+# Mood terms are kept to one or two words on purpose. Three-word moods
+# looked more precise but matched almost nothing in iTunes' catalogue --
+# "acoustic reflective mellow" returned literally zero results, so that
+# emotion silently fell through to the static fallback on every single
+# turn. Every query below was checked against the live API for a usable
+# result count rather than assumed to work.
+#
+# Several emotions deliberately share a target — the useful axis here is
+# what the music needs to *do* (settle, lift, hold steady), not a distinct
+# genre per label.
 EMOTION_SEARCH_TERMS: dict[str, dict[str, Any]] = {
-    "anxiety":    {"genre": "ambient",     "mood": "calm slow instrumental"},
-    "fear":       {"genre": "ambient",     "mood": "calm slow instrumental"},
-    "panic":      {"genre": "ambient",     "mood": "calm slow instrumental"},
-    "sadness":    {"genre": "acoustic",    "mood": "gentle soft"},
-    "grief":      {"genre": "acoustic",    "mood": "gentle soft"},
-    "anger":      {"genre": "alternative", "mood": "steady grounding"},
-    "joy":        {"genre": "pop",         "mood": "upbeat bright"},
-    "excitement": {"genre": "pop",         "mood": "upbeat bright"},
-    "neutral":    {"genre": "chill",       "mood": "lo-fi"},
-    "numbness":   {"genre": "chill",       "mood": "lo-fi"},
-    "burnout":    {"genre": "ambient",     "mood": "nature slow"},
-    "stress":     {"genre": "ambient",     "mood": "calm slow"},
+    # Distress and agitation -> settle the nervous system
+    "anxiety":        {"genre": "ambient",     "mood": "calm peaceful"},
+    "nervousness":    {"genre": "ambient",     "mood": "calm peaceful"},
+    "fear":           {"genre": "ambient",     "mood": "calm peaceful"},
+    "panic":          {"genre": "ambient",     "mood": "calm peaceful"},
+    "stress":         {"genre": "ambient",     "mood": "relaxing calm"},
+    "burnout":        {"genre": "ambient",     "mood": "nature sounds rest"},
+    "embarrassment":  {"genre": "ambient",     "mood": "soft warm"},
+    "confusion":      {"genre": "instrumental", "mood": "focus clarity calm"},
+
+    # Low mood -> sit with it rather than force brightness
+    "sadness":        {"genre": "acoustic",    "mood": "melancholy"},
+    "grief":          {"genre": "piano",       "mood": "reflective"},
+    "disappointment": {"genre": "acoustic",    "mood": "reflective"},
+    "remorse":        {"genre": "piano",       "mood": "reflective quiet"},
+
+    # Heat -> steady rather than stoke
+    "anger":          {"genre": "instrumental", "mood": "grounding"},
+    "annoyance":      {"genre": "instrumental", "mood": "steady focus"},
+    "disgust":        {"genre": "instrumental", "mood": "steady grounding"},
+    "disapproval":    {"genre": "instrumental", "mood": "steady calm"},
+
+    # Bright -> match the lift
+    "joy":            {"genre": "pop",         "mood": "upbeat happy"},
+    "excitement":     {"genre": "pop",         "mood": "energetic upbeat"},
+    "amusement":      {"genre": "pop",         "mood": "playful light"},
+    "optimism":       {"genre": "indie",       "mood": "hopeful bright"},
+    "pride":          {"genre": "indie",       "mood": "uplifting"},
+    "gratitude":      {"genre": "acoustic",    "mood": "warm uplifting"},
+    "relief":         {"genre": "ambient",     "mood": "uplifting"},
+    "admiration":     {"genre": "indie",       "mood": "warm bright"},
+    "approval":       {"genre": "indie",       "mood": "warm easy"},
+
+    # Tender / reflective
+    "love":           {"genre": "soul",        "mood": "warm romantic"},
+    "caring":         {"genre": "acoustic",    "mood": "warm tender"},
+    "desire":         {"genre": "soul",        "mood": "smooth warm"},
+    "curiosity":      {"genre": "instrumental", "mood": "curious light"},
+    "realization":    {"genre": "instrumental", "mood": "reflective open"},
+    "surprise":       {"genre": "indie",       "mood": "bright"},
+
+    # Flat
+    "neutral":        {"genre": "lofi",        "mood": "chill study"},
+    "numbness":       {"genre": "ambient",     "mood": "spacious"},
 }
 _DEFAULT_SEARCH_TERM = {"genre": "chill", "mood": "lo-fi"}
 
@@ -120,7 +175,12 @@ class MusicAgent(BaseAgent):
                     "term": query,
                     "media": "music",
                     "entity": "song",
-                    "limit": min(limit * 4, 50),
+                    # Deliberately the API maximum rather than limit*4.
+                    # iTunes returns a stable, identically-ordered result set
+                    # for a fixed query, so taking the top few and playing the
+                    # first meant the same song forever for a given emotion. A
+                    # wide pool is what makes the shuffle below meaningful.
+                    "limit": 200,
                 },
             )
             resp.raise_for_status()
@@ -143,10 +203,21 @@ class MusicAgent(BaseAgent):
                 "preview_url": t.get("previewUrl"),
                 "track_url": t.get("trackViewUrl"),
             })
-            if len(tracks) >= limit:
-                break
 
-        return tracks
+        # Prefer tracks that can actually be played in-app. A track with no
+        # previewUrl can only offer an outbound Apple Music link, so putting
+        # one first would hand the user a dead-end card when a playable
+        # alternative existed in the same result set.
+        playable = [t for t in tracks if t["preview_url"]]
+        pool = playable or tracks
+
+        # iTunes' ordering is deterministic; without this the same emotion
+        # returns the same track every single turn, which is exactly what it
+        # did. Shuffling a wide pool is what makes the suggestion feel chosen
+        # rather than hardcoded — and it keeps every track on the card from
+        # the same emotion-matched search, so variety never costs relevance.
+        random.shuffle(pool)
+        return pool[:limit]
 
     async def _build_output(
         self,

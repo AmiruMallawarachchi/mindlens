@@ -181,6 +181,24 @@ class ConnectionManager:
             },
         )
 
+    async def send_stage_update(
+        self,
+        user_id: str,
+        stage: str,
+        detail: str,
+    ) -> bool:
+        """Announce that one pipeline stage just finished.
+
+        Sent while the pipeline is still running, unlike thinking_update
+        which is sent afterwards with the completed picture. This is what
+        makes the reasoning trail arrive a step at a time instead of all
+        four sections landing at once, already done.
+        """
+        return await self.send_to_user(
+            user_id,
+            {"type": "stage_update", "stage": stage, "detail": detail},
+        )
+
     async def send_response(
         self,
         user_id: str,

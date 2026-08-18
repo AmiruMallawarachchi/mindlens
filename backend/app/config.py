@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     admin_email: str = "admin@mindlens.app"
 
     emotion_model_id: str = "SamLowe/roberta-base-go_emotions"
-    crisis_model_id: str = "AmiruMallawarachchi/mindlens-crisis"
+    crisis_model_id: str = "AmiruMallawarachchi/mindlens-crisis-v3"
     mh_model_id: str = "AmiruMallawarachchi/mindlens-mh-classifier"
     distortion_model_id: str = "AmiruMallawarachchi/mindlens-distortion-classifier"
     rag_reranker_model_id: str = "AmiruMallawarachchi/mindlens-rag-reranker"

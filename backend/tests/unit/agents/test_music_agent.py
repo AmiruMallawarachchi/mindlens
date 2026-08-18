@@ -59,7 +59,13 @@ class TestMusicAgent:
     ) -> None:
         """The happy path: iTunes returns tracks, one with a preview URL —
         that shape must survive into the agent's output metadata unchanged,
-        since the frontend plays preview_url directly."""
+        since the frontend plays preview_url directly.
+
+        The fixture's second track has no preview, and playable tracks are
+        now preferred, so only the playable one should survive: offering a
+        card whose play button can't work when a playable alternative existed
+        in the same result set is the dead-end this filter exists to avoid.
+        """
         with (
             patch("app.agents.music_agent.get_groq_client", return_value=mock_groq),
             patch.object(
@@ -74,11 +80,53 @@ class TestMusicAgent:
         assert tracks[0]["name"] == "Weightless"
         assert tracks[0]["artist"] == "Marconi Union"
         assert tracks[0]["preview_url"] == "https://audio-ssl.itunes.apple.com/preview.m4a"
-        # Second track genuinely has no preview in the fixture — must pass
-        # through as None, not be silently dropped or defaulted to a value
-        # that would render a fake play button.
-        assert tracks[1]["preview_url"] is None
-        assert tracks[1]["track_url"] == "https://music.apple.com/track/no-preview"
+        # The no-preview track is dropped while a playable one exists.
+        assert all(t["preview_url"] for t in tracks)
+
+    @pytest.mark.asyncio
+    async def test_unplayable_tracks_still_offered_when_nothing_is_playable(
+        self, agent: MusicAgent, agent_context: EmotionalOperatingState, mock_groq: MagicMock
+    ) -> None:
+        """Preferring playable tracks must not mean returning nothing when
+        iTunes has no previews at all — the card's Apple Music fallback is
+        still better than an empty result."""
+        no_previews = {
+            "results": [
+                {
+                    "trackName": "No Preview Track",
+                    "artistName": "Some Artist",
+                    "previewUrl": None,
+                    "trackViewUrl": "https://music.apple.com/track/no-preview",
+                }
+            ]
+        }
+        with (
+            patch("app.agents.music_agent.get_groq_client", return_value=mock_groq),
+            patch.object(
+                httpx.AsyncClient, "get", AsyncMock(return_value=self._mock_itunes_response(no_previews))
+            ),
+        ):
+            result = await agent.run(agent_context)
+
+        tracks = result.metadata["tracks"]
+        assert len(tracks) == 1
+        assert tracks[0]["preview_url"] is None
+        assert tracks[0]["track_url"] == "https://music.apple.com/track/no-preview"
+
+    @pytest.mark.asyncio
+    async def test_every_classifier_emotion_has_its_own_search(
+        self, agent: MusicAgent
+    ) -> None:
+        """21 of the classifier's 28 labels used to miss EMOTION_SEARCH_TERMS
+        and fall through to one default query. iTunes returns a stable,
+        identically-ordered result set for a fixed query, so that default
+        produced the same track ("Coffee Break - Lo-Fi Chill Cafe") on nearly
+        every turn regardless of what the user actually felt."""
+        from app.agents.music_agent import EMOTION_SEARCH_TERMS
+        from app.core.emotion_labels import EMOTION_LABELS
+
+        unmapped = set(EMOTION_LABELS.values()) - set(EMOTION_SEARCH_TERMS)
+        assert unmapped == set(), f"these fall back to one shared query: {sorted(unmapped)}"
 
     @pytest.mark.asyncio
     async def test_run_falls_back_when_itunes_unreachable(

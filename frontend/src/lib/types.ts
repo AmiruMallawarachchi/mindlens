@@ -314,6 +314,7 @@ export type ServerFrame =
       safety?: SafetyVerdict;
       degraded?: string[];
     }
+  | { type: "stage_update"; stage: string; detail: string }
   | { type: "stream_chunk"; chunk: string; index: number }
   | { type: "stream_end" }
   | {

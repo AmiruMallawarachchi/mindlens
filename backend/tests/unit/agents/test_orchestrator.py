@@ -727,3 +727,64 @@ class TestTurnTelemetry:
         rag = result["telemetry"]["rag"]
         if rag["status"] != "ran":
             assert rag["model"] is None
+
+
+class TestStageCallback:
+    """The pipeline used to run to completion before anything streamed —
+    the client received all four trail sections at once, already finished,
+    so there was no "one by one" to watch. on_stage fires as each stage
+    genuinely completes so the client can show real, not staged, progress.
+    """
+
+    @pytest.mark.asyncio
+    async def test_stages_fire_in_pipeline_order(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        orchestrator.models = mock_model_manager
+        seen: list[str] = []
+
+        async def on_stage(stage: str, detail: str) -> None:
+            seen.append(stage)
+            assert isinstance(detail, str) and detail
+
+        await orchestrator.run_full_pipeline(
+            "I have been feeling really stressed about my final year project",
+            user_name="TestUser",
+            on_stage=on_stage,
+        )
+
+        assert seen == ["safety", "reading", "memory", "retrieval", "approach"]
+
+    @pytest.mark.asyncio
+    async def test_crisis_still_announces_safety_and_reading(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """Crisis skips memory/retrieval/agent-selection stages entirely, but
+        the two that ran before the crisis check must still be reported —
+        the trail must not go silent on the turn where honesty matters most."""
+        orchestrator.models.predict_all = AsyncMock(return_value={
+            "emotion": [[{"label": "LABEL_25", "score": 0.9}]],
+            "crisis": [{"label": "CRISIS", "score": 0.85}],
+            "mental_health": [[{"label": "LABEL_1", "score": 0.5}]],
+        })
+        seen: list[str] = []
+
+        async def on_stage(stage: str, detail: str) -> None:
+            seen.append(stage)
+
+        await orchestrator.run_full_pipeline(
+            "suicidal text", user_name="TestUser", on_stage=on_stage
+        )
+
+        assert "safety" in seen
+        assert "reading" in seen
+
+    @pytest.mark.asyncio
+    async def test_no_callback_is_a_no_op_not_an_error(
+        self, orchestrator: Orchestrator, mock_model_manager: MagicMock
+    ) -> None:
+        """Every existing caller omits on_stage — it must default to doing
+        nothing, not raise, or every non-streaming caller breaks."""
+        orchestrator.models = mock_model_manager
+        result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
+        assert "assembled_text" in result

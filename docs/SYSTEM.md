@@ -530,52 +530,65 @@ the code, so it is not claimed here. Adding it would improve recall on
 paraphrased crisis language that neither the patterns nor the classifier
 catch — that is the honest gap, and it is future work.
 
-### 8.1.1 Known limitation: L2 over-triggers on ordinary distress
+### 8.1.1 Resolved: L2 over-triggering on ordinary distress (was `mindlens-crisis`, now `mindlens-crisis-v3`)
 
-Measured against the deployed `mindlens-crisis` classifier:
+The originally shipped `mindlens-crisis` classifier scored 0.88 on "I want
+to kill myself" against 0.82 on "It is mostly that I am scared it will not
+be good enough" and 0.72 on "so i need a help okay" — both false positives.
+On a 15-benign / 6-crisis probe set at the shipped 0.45 threshold: 6/6
+crisis caught, 2/15 benign flagged. No threshold fixed this: at 0.85 the
+false positives vanished but only 4/6 real crisis messages were caught,
+"There is no point in living" among the missed.
+
+The cause was train/serve mismatch, in three parts: (1) **composition** —
+the `safe` class was Reddit meme chatter, the `crisis` class was long,
+sincere, distressed posts, so the model learned "heartfelt equals crisis";
+(2) **preprocessing** — the upstream corpus was lemmatized and
+stopword-stripped, but nothing in the serving path preprocesses raw user
+text; (3) **length** — training posts had a median of 30 words, real chat
+messages run four to fifteen. Aggregate F1 concealed all three, because the
+test split was drawn from the same distribution as the training data.
+
+A first retrain (`mindlens-crisis-v2`) fixed the length and composition
+mismatch for the `safe` class only — it added short, clean synthetic
+examples there but left `crisis` untouched (median 69 words, and even the
+short rows were Reddit title+selftext glued together with no space, e.g.
+"Im outFuck this shit im done, good bye"). That checkpoint learned "short
+and clean == not crisis" regardless of content: it scored "I want to kill
+myself" at 0.367 and missed 5/5 blunt crisis probes outright. It was never
+promoted — caught by the same probe check before deployment.
+
+`mindlens-crisis-v3` adds the mirror synthetic set on the crisis side (40
+short, direct, first-person crisis sentences, upsampled 40x, same as the
+safe-side fix) so both classes span the same register. Measured results:
 
 | Message | Score | Verdict |
 |---|---|---|
-| "I want to kill myself" | 0.88 | crisis, correct |
-| "It is mostly that I am scared it will not be good enough." | 0.82 | **false positive** |
-| "so i need a help okay" | 0.72 | **false positive** |
-| "There is no point in living" | 0.59 | crisis, correct |
-| "I have been really anxious about my final year project." | 0.03 | safe, correct |
+| "I want to kill myself" | 0.999 | crisis, correct |
+| "It is mostly that I am scared it will not be good enough." | <0.001 | safe, correct |
+| "so i need a help okay" | <0.001 | safe, correct |
 
-On a 15-benign / 6-crisis probe set at the shipped 0.45 threshold: 6/6
-crisis caught, 2/15 benign flagged. Raising the threshold does not fix
-this. At 0.85 the false positives vanish but only 4/6 real crisis
-messages are caught — the two lost include "There is no point in
-living". Six hundredths separate a student worrying about coursework
-from a genuine suicide statement, so the classes are not linearly
-separable by score at any cutoff.
+Kaggle probe set (6 safe / 5 crisis): 0/6 false positives and 5/5 crisis
+caught at every threshold from 0.45 to 0.9. Separation margin +0.998
+(v1's was +0.06, too thin for any threshold to split; v2's probes never
+separated at all). This is the classifier deployed today —
+`config.py`'s `crisis_model_id` and `backend/.env`'s `CRISIS_MODEL_ID`
+both point at `AmiruMallawarachchi/mindlens-crisis-v3`.
 
-The cause is train/serve mismatch, in three parts:
+Not claimed: generalization beyond the probe set above and the training
+distribution it was built from. The probes are the specific production
+failures this retrain answers, not a held-out benchmark of open-ended
+crisis language.
 
-1. **Composition.** The training set's `safe` class is Reddit meme
-   chatter; its `crisis` class is long, sincere, distressed posts. The
-   model never saw text that was emotionally serious and *not* a crisis,
-   so it learned "heartfelt equals crisis".
-2. **Preprocessing.** The upstream corpus is lemmatized and
-   stopword-stripped ("not see point anymore"). Nothing in the serving
-   path preprocesses anything — `predict_all` passes raw user text
-   directly to the model.
-3. **Length.** Training posts have a median of 30 words; real chat
-   messages are four to fifteen.
+The threshold is unchanged at 0.45. With v1's thin margin it was a
+deliberate lean toward interrupting a conversation that didn't need it
+rather than missing one that did; with v3's wide margin the threshold
+choice matters far less, but there was no reason to move it.
 
-Aggregate F1 concealed all of this, because the test split was drawn
-from the same distribution as the training data.
-
-The threshold is deliberately left at 0.45. It errs toward interrupting
-a conversation that did not need interrupting, rather than missing one
-that did — the right direction for this failure to point, but a real
-cost to the experience, and stated here rather than smoothed over.
-
-`scripts/build_crisis_dataset.py` rebuilds the corpus against all three
-mismatches and `scripts/train_crisis_model.py` retrains from it,
-publishing to a separate repo so the live classifier is not overwritten
-before the numbers are checked. Until that lands, the limitation above
-is current.
+`scripts/build_crisis_dataset.py` builds the corpus and
+`scripts/train_crisis_model.py` trains and publishes it — each version
+goes to its own repo so a bad checkpoint never overwrites the live
+classifier before its probes are checked.
 
 ### 8.2 Crisis Mode
 

@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { MindlensMark, Wordmark } from "@/components/brand/wordmark";
 import {
   DropdownMenu,
@@ -91,6 +92,8 @@ export function ChatSidebar({
   onRenameSession,
   onDeleteSession,
   onSaveToJournal,
+  companionId,
+  companionActivity = "idle",
   collapsed = false,
   onToggleCollapsed,
 }: {
@@ -106,6 +109,9 @@ export function ChatSidebar({
   onRenameSession: (sessionId: string, title: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onSaveToJournal: (session: SessionListItem) => void;
+  companionId?: string;
+  /** Drives the companion's pose in the sidebar rest spot. */
+  companionActivity?: "idle" | "listening" | "sending" | "thinking";
   /** Icon-only rail instead of the full 262px panel. Optional — callers
    * that don't offer the collapse feature (the mobile drawer) just omit it. */
   collapsed?: boolean;
@@ -409,6 +415,24 @@ export function ChatSidebar({
           )
         )}
       </div>
+
+      {/* The companion's resting place. It used to float over the
+        * conversation on a fixed right-hand pixel offset that assumed the
+        * music rail was always mounted — once that rail became conditional,
+        * the offset pointed into the middle of the transcript and the
+        * companion sat on top of the user's own text while they typed.
+        * A stable home in the sidebar cannot collide with anything. */}
+      {companionId && (
+        <div className="flex justify-center pb-1 pt-2">
+          <CompanionAvatar
+            companionId={companionId}
+            size={54}
+            mood={mood}
+            activity={companionActivity}
+            withShadow
+          />
+        </div>
+      )}
 
       <div className="p-3">
         <button

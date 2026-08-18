@@ -26,6 +26,7 @@ import { CrisisPanel } from "./crisis-banner";
 import { Inspector } from "./inspector";
 import { AssistantTurn, UserTurn } from "./message-flow";
 import { ReasoningTrail } from "./reasoning-trail";
+import { LiveStageTrail } from "./live-stage-trail";
 import {
   capIntensity,
   emotionCssVars,
@@ -51,6 +52,7 @@ export function ChatScreen({
     paletteReading,
     thinking,
     thinkingSteps,
+    liveStages,
     crisis,
     dismissCrisis,
     sendMessage,
@@ -163,6 +165,10 @@ export function ChatScreen({
           onRenameSession={renameSession}
           onDeleteSession={deleteSession}
           onSaveToJournal={saveToJournal}
+          companionId={companionId}
+          companionActivity={
+            crisis ? "idle" : sending ? "sending" : typing ? "listening" : "idle"
+          }
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
         />
@@ -306,9 +312,15 @@ export function ChatScreen({
               ),
             )}
 
-            {/* The trail streams before any text arrives, so the room shows
-             * its working rather than an anonymous typing dot. */}
-            {thinking && !streamingId && thinkingSteps.length > 0 && (
+            {/* Two phases, not one. While the pipeline is still running,
+              * stage_update frames arrive one at a time and LiveStageTrail
+              * grows to match — this is the genuinely live half. Once the
+              * pipeline finishes, thinking_update delivers the complete
+              * picture and the full ReasoningTrail takes over; that one was
+              * always "complete the instant it appears" and still is, but
+              * now it appears after a real progression instead of after a
+              * silent wait. */}
+            {thinking && !streamingId && (thinkingSteps.length > 0 || liveStages.length > 0) && (
               <div className="flex w-full gap-3">
                 {/* Same 44px gutter as an assistant turn (message-flow.tsx),
                   * so the trail doesn't jump sideways when the text arrives. */}
@@ -316,7 +328,11 @@ export function ChatScreen({
                   <CompanionAvatar companionId={companionId} size={44} mood={reading.state.id} activity="thinking" frozen={!!crisis} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <ReasoningTrail steps={thinkingSteps} isStreaming />
+                  {thinkingSteps.length > 0 ? (
+                    <ReasoningTrail steps={thinkingSteps} isStreaming />
+                  ) : (
+                    <LiveStageTrail stages={liveStages} />
+                  )}
                 </div>
               </div>
             )}
@@ -352,20 +368,6 @@ export function ChatScreen({
         </div>
       )}
 
-      {/* The companion leans toward the composer while the user types, then
-       * pops once as the message goes. Kept out of the message flow so it
-       * doesn't shift the transcript. */}
-      <span className="pointer-events-none fixed bottom-28 right-[360px] hidden min-[981px]:block">
-        {(typing || sending) && !crisis && (
-          <CompanionAvatar
-            companionId={companionId}
-            size={56}
-            mood={reading.state.id}
-            activity={sending ? "sending" : "listening"}
-            withShadow
-          />
-        )}
-      </span>
     </div>
   );
 }
