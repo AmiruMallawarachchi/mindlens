@@ -9,51 +9,36 @@
  *
  * Tracks come from Apple's iTunes Search API (music_agent.py) — no
  * connection step, no OAuth. Most tracks carry a real 30-second preview
- * clip, which this card now actually plays via a plain <audio> element.
- * When a track has no preview (iTunes doesn't guarantee one), it falls back
- * to opening the track's Apple Music page; only if neither exists does it
- * say so honestly rather than rendering a button that does nothing.
+ * clip. When a track has no preview (iTunes doesn't guarantee one), it falls
+ * back to opening the track's Apple Music page; only if neither exists does
+ * it say so honestly rather than rendering a button that does nothing.
+ *
+ * Playback is AI Elements' AudioPlayer (media-chrome) rather than a
+ * hand-rolled play button. That replaced a decorative 42-bar "waveform"
+ * which hardcoded 28% of its bars as played and never moved — a progress
+ * indicator that showed a position unrelated to the audio, on a card whose
+ * whole job is playing it. A real scrubber, elapsed time and duration are
+ * both more useful and the only version that isn't quietly lying.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import type { MusicPayload } from "@/lib/types";
+import {
+  AudioPlayer,
+  AudioPlayerControlBar,
+  AudioPlayerDurationDisplay,
+  AudioPlayerElement,
+  AudioPlayerMuteButton,
+  AudioPlayerPlayButton,
+  AudioPlayerTimeDisplay,
+  AudioPlayerTimeRange,
+} from "@/components/ai-elements/audio-player";
 
 export function MusicCard({ music }: { music: MusicPayload }) {
   const track = music.tracks[0];
-  const [playing, setPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // A new turn can bring a new track while the old preview is still
-  // playing — stop it rather than leave two clips implicitly stacked.
-  useEffect(() => {
-    setPlaying(false);
-    audioRef.current?.pause();
-  }, [track?.preview_url]);
-
-  const wave = useMemo(
-    () =>
-      Array.from({ length: 42 }, (_, i) => {
-        const played = i / 42 < 0.28;
-        const h = 6 + Math.round(24 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21)));
-        return { h, played };
-      }),
-    [],
-  );
 
   const eyebrow = music.emotion ? `Because you're ${music.emotion}` : "For right now";
   const title = track?.name ?? "Something to listen to";
   const subtitle = track?.artist ?? "";
-
-  const togglePlayback = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play().catch(() => setPlaying(false));
-    }
-    setPlaying((p) => !p);
-  };
 
   return (
     <div
@@ -63,14 +48,6 @@ export function MusicCard({ music }: { music: MusicPayload }) {
         borderColor: "var(--ml-hairline)",
       }}
     >
-      {track?.preview_url && (
-        <audio
-          ref={audioRef}
-          src={track.preview_url}
-          onEnded={() => setPlaying(false)}
-          preload="none"
-        />
-      )}
       <div className="flex items-start gap-3">
         <div
           className="relative size-[70px] shrink-0 overflow-hidden rounded-2xl"
@@ -133,21 +110,6 @@ export function MusicCard({ music }: { music: MusicPayload }) {
         </p>
       )}
 
-      <div aria-hidden="true" className="mb-1.5 mt-4 flex h-8 items-center gap-[2.5px]">
-        {wave.map((bar, i) => (
-          <span
-            key={i}
-            className="flex-1 rounded-[2px]"
-            style={{
-              height: bar.h,
-              background: bar.played
-                ? "var(--e1)"
-                : "color-mix(in oklab, var(--ml-ink) 16%, transparent)",
-            }}
-          />
-        ))}
-      </div>
-
       {music.tracks.length > 1 && (
         <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
           {music.tracks.slice(1, 4).map((t, i) => (
@@ -165,49 +127,55 @@ export function MusicCard({ music }: { music: MusicPayload }) {
         </ul>
       )}
 
-      <div className="mt-auto flex items-center justify-center gap-4 pt-4">
+      <div className="mt-auto pt-4">
         {track?.preview_url ? (
-          <button
-            type="button"
-            onClick={togglePlayback}
-            aria-label={playing ? `Pause ${title}` : `Play ${title}`}
-            className="grid size-11 place-items-center rounded-full transition-transform hover:scale-105"
+          <AudioPlayer
+            className="w-full overflow-hidden rounded-[14px] border"
             style={{
-              background: "linear-gradient(135deg, var(--e1), var(--e2))",
-              color: "#fffdf8",
-              boxShadow: "0 10px 22px -12px var(--e1)",
-              transition: "background 1.6s, transform .2s",
-            }}
+              borderColor: "var(--ml-hairline-strong)",
+              background: "var(--ml-panel)",
+              // media-chrome themes off its own custom properties; point the
+              // ones that carry colour at the emotion tokens so the player
+              // crossfades with the room instead of sitting outside it.
+              "--media-primary-color": "var(--e1)",
+              "--media-range-bar-color": "var(--e1)",
+              "--media-text-color": "var(--ml-ink)",
+              "--media-icon-color": "var(--ml-ink)",
+              "--media-control-hover-background":
+                "color-mix(in oklab, var(--ml-ink) 6%, transparent)",
+            } as React.CSSProperties}
           >
-            {playing ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M7 4v16l13-8Z" />
-              </svg>
-            )}
-          </button>
+            <AudioPlayerElement src={track.preview_url} preload="none" />
+            <AudioPlayerControlBar className="flex w-full items-center gap-1 px-1.5 py-1">
+              <AudioPlayerPlayButton aria-label={`Play ${title}`} />
+              <AudioPlayerTimeDisplay />
+              <AudioPlayerTimeRange className="min-w-0 flex-1" />
+              <AudioPlayerDurationDisplay />
+              <AudioPlayerMuteButton />
+            </AudioPlayerControlBar>
+          </AudioPlayer>
         ) : track?.track_url ? (
-          <a
-            href={track.track_url}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${title} on Apple Music`}
-            className="rounded-[99px] border px-3.5 py-2 text-[11.5px] transition-colors hover:border-[var(--ml-hairline-strong)]"
-            style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-muted)" }}
-          >
-            Open on Apple Music
-          </a>
+          <div className="flex justify-center">
+            <a
+              href={track.track_url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${title} on Apple Music`}
+              className="rounded-[99px] border px-3.5 py-2 text-[11.5px] transition-colors hover:border-[var(--ml-hairline-strong)]"
+              style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-muted)" }}
+            >
+              Open on Apple Music
+            </a>
+          </div>
         ) : (
-          <span
-            className="rounded-[99px] border px-3.5 py-2 text-[11.5px]"
-            style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-faint)" }}
-          >
-            No preview available
-          </span>
+          <div className="flex justify-center">
+            <span
+              className="rounded-[99px] border px-3.5 py-2 text-[11.5px]"
+              style={{ borderColor: "var(--ml-hairline-strong)", color: "var(--ml-faint)" }}
+            >
+              No preview available
+            </span>
+          </div>
         )}
       </div>
     </div>

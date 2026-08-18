@@ -11,14 +11,16 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { BookOpen, Check, Copy, RefreshCw, Volume2 } from "lucide-react";
+import { BookOpen, Check, Copy, RefreshCw, Square, Volume2 } from "lucide-react";
 import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { EmotionRead } from "./emotion-read";
 import { ReasoningTrail } from "./reasoning-trail";
+import { PipelineTrace } from "./pipeline-trace";
 import { BreatheCard } from "./breathe-card";
 import { createJournalEntry } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
 import { buildReasoningTrail, summariseTrail } from "@/lib/reasoning";
+import { useReadAloud } from "@/lib/use-read-aloud";
 import type { ChatMessage } from "@/lib/types";
 
 export function UserTurn({ message }: { message: ChatMessage }) {
@@ -144,6 +146,10 @@ export function AssistantTurn({
           <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} />
         )}
 
+        {/* The mechanical counterpart to the prose trail above — collapsed
+          * by default, so the default reading experience is unchanged. */}
+        {!isStreaming && steps.length > 0 && <PipelineTrace message={message} />}
+
         <p className="ml-display m-0 text-[19.5px] leading-[1.6]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
           {message.text}
           {isStreaming && (
@@ -174,13 +180,17 @@ export function AssistantTurn({
 
 /**
  * Actions row from the mockup: Copy · save-to-journal · Regenerate · Read
- * aloud (soon). Regenerate resends the previous user message — only offered
- * on the last assistant turn, where "try that again" has a well-defined
- * meaning. Read-aloud is explicitly labelled "soon" in the mockup; it's a
- * visible declared-future control there, so it renders disabled rather than
- * hidden. Save-to-journal uses the same journal CRUD the Journal page
- * already calls (lib/api.ts's createJournalEntry) — this was the one action
- * §4.1 lists that had no button anywhere.
+ * aloud. Regenerate resends the previous user message — only offered on the
+ * last assistant turn, where "try that again" has a well-defined meaning.
+ * Save-to-journal uses the same journal CRUD the Journal page already calls
+ * (lib/api.ts's createJournalEntry) — this was the one action §4.1 lists
+ * that had no button anywhere.
+ *
+ * Read aloud was the mockup's declared-future control and rendered disabled
+ * for exactly as long as there was nothing behind it. It now really speaks,
+ * via SpeechSynthesis (see use-read-aloud.ts for why this needs no privacy
+ * disclosure where the mic did), and is not rendered at all in a browser
+ * without the API rather than rendered dead.
  */
 function TurnActions({
   text,
@@ -191,6 +201,7 @@ function TurnActions({
 }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const { supported: canSpeak, speaking, toggle: toggleSpeech } = useReadAloud(text);
 
   const copy = useCallback(() => {
     navigator.clipboard
@@ -229,9 +240,19 @@ function TurnActions({
           <RefreshCw size={13} strokeWidth={1.7} />
         </ActionButton>
       )}
-      <ActionButton title="Read aloud — soon" disabled>
-        <Volume2 size={13} strokeWidth={1.7} />
-      </ActionButton>
+      {canSpeak && (
+        <ActionButton
+          title={speaking ? "Stop reading" : "Read aloud"}
+          onClick={toggleSpeech}
+          active={speaking}
+        >
+          {speaking ? (
+            <Square size={12} strokeWidth={2.2} fill="currentColor" />
+          ) : (
+            <Volume2 size={13} strokeWidth={1.7} />
+          )}
+        </ActionButton>
+      )}
     </div>
   );
 }
