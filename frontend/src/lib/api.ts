@@ -32,6 +32,12 @@ const API_BASE_URL = (
 
 const TOKEN_STORAGE_KEY = "mindlens.access_token";
 
+// A dead or unreachable API_BASE_URL (a stale tunnel hostname, a sleeping
+// host) used to hang on the browser's own fetch timeout — 60s or more,
+// depending on platform — with nothing on screen but a spinner the whole
+// time. That read as the app being merely slow, not actually broken.
+const REQUEST_TIMEOUT_MS = 12_000;
+
 let inMemoryToken: string | null = null;
 
 export function getAccessToken(): string | null {
@@ -78,9 +84,15 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
   if (!refreshInFlight) {
+    // Same reasoning as request()'s timeout: an unreachable backend must
+    // not hang this silently for a minute — every caller of request() is
+    // awaiting this before it can even report its own error.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     refreshInFlight = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      signal: controller.signal,
     })
       .then(async (response) => {
         if (!response.ok) return false;
@@ -90,6 +102,7 @@ async function refreshAccessToken(): Promise<boolean> {
       })
       .catch(() => false)
       .finally(() => {
+        clearTimeout(timeout);
         refreshInFlight = null;
       });
   }
@@ -114,20 +127,40 @@ async function request<T>(
   // which reads as a rejected password and sends people to check credentials
   // that were never actually sent. Status 0 means "never reached the server",
   // so it can't be confused with a real 401.
+  //
+  // Three distinct failures get three distinct messages, because they call
+  // for different next actions from the person reading them — "check your
+  // wifi" is useless advice for a request that's simply taking too long, and
+  // vice versa. What the browser will *not* tell JavaScript, on purpose, for
+  // privacy reasons, is which of DNS failure / connection refused / CORS
+  // block actually happened — those three collapse into one identical
+  // TypeError. Claiming to tell them apart would be a claim the code can't
+  // back up (rule 2), so the unreachable branch stays honestly generic.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       headers,
       credentials: "omit",
+      signal: controller.signal,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError(
+        0,
+        "Mindlens is taking too long to respond. It may be waking up — try again in a moment.",
+      );
+    }
     throw new ApiError(
       0,
       typeof navigator !== "undefined" && !navigator.onLine
         ? "You're offline. Check your connection and try again."
         : "Couldn't reach Mindlens. It may be down — try again in a moment.",
     );
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (response.status === 401 && auth && !_retried) {

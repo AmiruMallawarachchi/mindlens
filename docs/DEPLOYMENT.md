@@ -1,17 +1,101 @@
 # Deploying MindLens
 
-Everything below is a $0 setup: a free Hugging Face Docker Space for the
-backend (models included, in-process, no code changes to how they load),
-Vercel Hobby for the frontend, MongoDB Atlas's free M0 tier for the
-database, and Groq's free tier for generation.
+**What's actually live right now: a local backend + a Cloudflare Tunnel +
+Vercel.** That's the section below titled "Backend: local + Cloudflare
+Tunnel (the current live setup)" — read that one first. The Hugging Face
+Docker Space section further down is a real, documented, $0 alternative
+that was designed but never deployed; it's kept for if the tunnel approach
+stops being good enough, the same way `render.yaml` is kept as a documented
+alternative nobody currently runs. Don't follow the HF steps expecting them
+to match what's live — they don't yet.
 
-Render is **not** used for the backend. Its free tier is 512MB against the
-five models' ~2.5–3.5GB resident need — a 5–7× gap, not a tuning problem —
-and free Render has no persistent disk either. `render.yaml` is kept as a
-documented, correct alternative for if that ever changes (see its header
-comment for the plan size it actually needs); it isn't part of this path.
+## Backend: local + Cloudflare Tunnel (the current live setup)
+
+The backend runs on a developer machine, not a hosted platform, exposed to
+the internet through a Cloudflare quick tunnel. $0, no card, no signup — but
+it means **the demo depends on that machine being on and connected**. This
+is an accepted, deliberate limitation, not an oversight: see
+`SYSTEM.md`'s external-services table.
+
+### Start the backend
+
+```bash
+cd backend
+../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+First boot takes ~15–20s (five ML models + the RAG index). Confirm it's
+actually healthy before doing anything else:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+`--reload` does not reliably pick up code changes on this Windows setup —
+after editing backend code, stop the process (Ctrl+C) and start it again
+rather than trusting the reload flag.
+
+### Start the tunnel
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+This is a **quick tunnel** — no `cloudflared login`, no named-tunnel config
+file exists in this setup (confirmed: no `~/.cloudflared` directory). That
+means every restart of `cloudflared` hands out a brand new random
+`https://<random-words>.trycloudflare.com` hostname. The old one stops
+working the moment the process exits, even if you restart it seconds later.
+
+### After every tunnel restart: update Vercel
+
+The new hostname has to be pushed into the frontend, or `mindlens-theta.vercel.app`
+will show "Couldn't reach Mindlens. It may be down" on the login screen —
+this is the single most common failure mode of this setup, and it looks
+exactly like a real outage when it's actually just a stale URL.
+
+1. Copy the `https://*.trycloudflare.com` URL `cloudflared` printed on startup.
+2. Vercel dashboard → the Mindlens project → **Settings → Environment
+   Variables** → edit `NEXT_PUBLIC_API_BASE_URL` to the new URL.
+3. **Redeploy is required**, not optional — `NEXT_PUBLIC_*` variables are
+   baked into the JavaScript bundle at build time, so saving the new value
+   alone does nothing until the next build picks it up. Deployments tab →
+   latest deployment → **⋯ → Redeploy**.
+
+`CORS_ORIGINS` in `backend/.env` already includes the Vercel production
+origin, so no backend-side change is needed when the tunnel URL changes —
+only the Vercel env var and the redeploy.
+
+### Troubleshooting: "Couldn't reach Mindlens" on the login screen
+
+In order of likelihood:
+
+1. **The tunnel isn't running, or was restarted since the last deploy.**
+   Check for a `cloudflared` process; if absent or if its logged URL doesn't
+   match what's in Vercel's `NEXT_PUBLIC_API_BASE_URL`, that's the cause —
+   follow "After every tunnel restart" above.
+2. **The backend isn't running.** `curl http://127.0.0.1:8000/health`
+   locally; a tunnel forwarding to a dead port fails the same way.
+3. **Vercel env var was updated but not redeployed.** The bundle still has
+   the old URL baked in until a fresh build runs.
+4. **The machine slept or lost network.** Free quick tunnels don't survive
+   either; both the backend and `cloudflared` need restarting.
 
 ## Backend on a Hugging Face Docker Space
+
+Designed as the original $0 backend host — free Docker Spaces give far more
+RAM than the five models need, and the weights already live on the same HF
+account. **Not currently deployed**; the steps below are kept accurate and
+ready, not aspirational, should the tunnel-and-laptop approach above stop
+being sufficient (e.g. a demo that needs to run unattended, or without
+depending on a specific machine being online).
+
+Render is **not** used for the backend either. Its free tier is 512MB
+against the five models' ~2.5–3.5GB resident need — a 5–7× gap, not a
+tuning problem — and free Render has no persistent disk either.
+`render.yaml` is kept as a documented, correct alternative for if that ever
+changes (see its header comment for the plan size it actually needs); it
+isn't part of this path.
 
 ### 1. Create the Space
 
