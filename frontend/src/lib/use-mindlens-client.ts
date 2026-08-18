@@ -119,6 +119,12 @@ export function useMindLensClient() {
 
   const socketRef = useRef<MindLensSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  // Real wall-clock elapsed time for the trail's "Thought for Ns"
+  // trigger. The persisted trail (message-flow.tsx) renders in a fresh
+  // <Reasoning> instance that never itself observes a streaming
+  // transition, so without this it always fell back to a generic
+  // "quick thought" regardless of how long the turn actually took.
+  const thinkingStartRef = useRef<number | null>(null);
   // Mirror of `messages` for callbacks that need to read without
   // subscribing (regenerate reads the last user turn at click time).
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -197,6 +203,10 @@ export function useMindLensClient() {
       case "response": {
         const id = streamingIdRef.current ?? makeId();
         streamingIdRef.current = null;
+        const thinkingDurationS = thinkingStartRef.current
+          ? Math.max(1, Math.round((Date.now() - thinkingStartRef.current) / 1000))
+          : undefined;
+        thinkingStartRef.current = null;
         setMessages((current) => {
           const finalized: ChatMessage = {
             id,
@@ -211,6 +221,7 @@ export function useMindLensClient() {
           safety: frame.safety,
           options: frame.options ?? null,
             pending: false,
+            thinkingDurationS,
           };
           const exists = current.some((m) => m.id === id);
           return exists
@@ -222,16 +233,21 @@ export function useMindLensClient() {
         break;
       }
 
-      case "crisis_response":
+      case "crisis_response": {
         streamingIdRef.current = null;
+        const thinkingDurationS = thinkingStartRef.current
+          ? Math.max(1, Math.round((Date.now() - thinkingStartRef.current) / 1000))
+          : undefined;
+        thinkingStartRef.current = null;
         setMessages((current) => [
           ...current,
-          { id: makeId(), role: "assistant", text: frame.text, crisis: true },
+          { id: makeId(), role: "assistant", text: frame.text, crisis: true, thinkingDurationS },
         ]);
         setCrisis({ text: frame.text, resources: frame.resources });
         setThinking(false);
         setActiveAgents([]);
         break;
+      }
 
       case "checkin":
         setMessages((current) => [
@@ -430,6 +446,7 @@ export function useMindLensClient() {
     if (!socketRef.current) return;
     setThinking(true);
     setLiveStages([]);
+    thinkingStartRef.current = Date.now();
     socketRef.current.sendMessage(trimmed);
   }, []);
 
@@ -441,6 +458,7 @@ export function useMindLensClient() {
     if (!lastUser || !socketRef.current) return;
     setThinking(true);
     setLiveStages([]);
+    thinkingStartRef.current = Date.now();
     socketRef.current.sendMessage(lastUser.text);
   }, []);
 

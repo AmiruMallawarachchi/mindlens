@@ -143,7 +143,7 @@ export function AssistantTurn({
 
       <div className="flex min-w-0 flex-1 flex-col gap-3.5 pb-2">
         {steps.length > 0 && (
-          <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} />
+          <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} duration={message.thinkingDurationS} />
         )}
 
         {/* The mechanical counterpart to the prose trail above — collapsed

@@ -298,6 +298,10 @@ export interface ChatMessage {
   telemetry?: TurnTelemetry;
   safety?: SafetyVerdict;
   options?: OptionsPayload | null;
+  /** Real wall-clock seconds from send to this reply arriving — see
+   * use-mindlens-client.ts's thinkingStartRef for why this has to be
+   * measured client-side rather than left to the trail component. */
+  thinkingDurationS?: number;
 }
 
 // ---------------------------------------------------------------------------
