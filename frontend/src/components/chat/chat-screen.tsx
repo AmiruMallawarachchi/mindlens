@@ -28,7 +28,6 @@ import { AssistantTurn, UserTurn } from "./message-flow";
 import { ReasoningTrail } from "./reasoning-trail";
 import {
   capIntensity,
-  EMOTION_STATES,
   emotionCssVars,
   RESTING_READING,
   type EmotionId,
@@ -80,43 +79,28 @@ export function ChatScreen({
     [prepareJournalReflection, onNavigate],
   );
 
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  // The rail is a music panel now, so it is driven by whether there is a
+  // track rather than left open permanently. `dismissed` lets the user
+  // shut it; a newer track clears that so the next one still appears.
+  const [musicDismissed, setMusicDismissed] = useState(false);
   const [typing, setTyping] = useState(false);
   const [sending, setSending] = useState(false);
-  const [manualEmotion, setManualEmotion] = useState<EmotionId | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isDay, toggleGrade } = useGrade();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
 
-  // A fresh read from the backend always wins over a hand-picked one — the
-  // picker is the user naming this moment, not a permanent override.
-  useEffect(() => {
-    setManualEmotion(null);
-  }, [liveReading.state.id]);
+  const reading = useMemo(
+    () => (crisis ? RESTING_READING : liveReading),
+    [liveReading, crisis],
+  );
 
-  const reading = useMemo(() => {
-    if (crisis) return RESTING_READING;
-    if (!manualEmotion) return liveReading;
-    return {
-      ...liveReading,
-      state: EMOTION_STATES[manualEmotion],
-      // A hand-picked feeling has no classifier confidence behind it, and §8
-      // forbids showing a score that didn't come from a read.
-      confidence: null,
-      subs: EMOTION_STATES[manualEmotion].subs,
-      resting: false,
-    };
-  }, [liveReading, manualEmotion, crisis]);
-
-  /** Colour only. Three things can decide it, in order of authority:
-   * crisis (always neutral) > a deliberate tap in the inspector (this
-   * moment) > the saved palette preference (auto tracks the read, manual
-   * pins it). The transcript's read strip is never affected by any of it. */
-  const paletteColour = useMemo(() => {
-    if (crisis) return RESTING_READING;
-    if (manualEmotion) return reading;
-    return paletteReading;
-  }, [crisis, manualEmotion, reading, paletteReading]);
+  /** Colour only. Crisis always wins and forces neutral; otherwise the
+   * saved palette preference decides (auto tracks the read, manual pins
+   * it). The transcript's read strip is never affected by either. */
+  const paletteColour = useMemo(
+    () => (crisis ? RESTING_READING : paletteReading),
+    [crisis, paletteReading],
+  );
 
   const activeSession = sessions.find((s) => s.session_id === activeSessionId);
   const title = activeSession?.title ?? "A new conversation";
@@ -139,6 +123,21 @@ export function ChatScreen({
 
   const lastMessage = messages[messages.length - 1];
   const streamingId = lastMessage?.pending ? lastMessage.id : null;
+
+  // The newest track in the conversation, if any. Older ones scroll away with
+  // their turn; the panel holds whatever came last.
+  const latestMusic = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const found = messages[i].music;
+      if (found) return found;
+    }
+    return null;
+  }, [messages]);
+
+  // A new track re-opens the panel even if the last one was dismissed.
+  useEffect(() => setMusicDismissed(false), [latestMusic]);
+
+  const musicOpen = latestMusic !== null && !musicDismissed;
 
   return (
     <div
@@ -260,19 +259,23 @@ export function ChatScreen({
             {isDay ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setInspectorOpen((open) => !open)}
-            aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"}
-            className="hidden size-9 items-center justify-center rounded-[var(--r-11)] transition-colors hover:bg-white/[0.06] min-[981px]:inline-flex"
-            style={{ color: "var(--ml-faint)" }}
-          >
-            {inspectorOpen ? (
-              <PanelRightClose size={16} strokeWidth={1.7} />
-            ) : (
-              <PanelRightOpen size={16} strokeWidth={1.7} />
-            )}
-          </button>
+          {/* Only rendered when there is a track to show or hide. A toggle
+            * for an empty panel is a control that does nothing. */}
+          {latestMusic && (
+            <button
+              type="button"
+              onClick={() => setMusicDismissed((d) => !d)}
+              aria-label={musicOpen ? "Hide music" : "Show music"}
+              className="hidden size-9 items-center justify-center rounded-[var(--r-11)] transition-colors hover:bg-white/[0.06] min-[981px]:inline-flex"
+              style={{ color: "var(--ml-faint)" }}
+            >
+              {musicOpen ? (
+                <PanelRightClose size={16} strokeWidth={1.7} />
+              ) : (
+                <PanelRightOpen size={16} strokeWidth={1.7} />
+              )}
+            </button>
+          )}
         </header>
 
         <Conversation className="min-h-0 flex-1">
@@ -336,13 +339,11 @@ export function ChatScreen({
         />
       </main>
 
-      {inspectorOpen && (
+      {musicOpen && latestMusic && (
         <div className="hidden min-[981px]:block">
           <Inspector
             reading={reading}
-            messages={messages}
-            manualEmotion={manualEmotion}
-            onPickEmotion={setManualEmotion}
+            music={latestMusic}
             companionId={companionId}
             companionName={companionName}
           />

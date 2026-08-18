@@ -92,6 +92,15 @@ export function ProgressPage() {
     return { percent, direction: percent <= 0 ? ("down" as const) : ("up" as const) };
   }, [moods]);
 
+  // Last 24h of logs, newest 24 points, for the Today strip below.
+  const today = useMemo(() => {
+    if (!moods) return [];
+    const cutoff = Date.now() - 86_400_000;
+    return moods
+      .filter((m) => new Date(m.timestamp).getTime() >= cutoff)
+      .slice(-24);
+  }, [moods]);
+
   const days = useMemo(() => {
     const today = new Date();
     return Array.from({ length: 7 }, (_, i) => {
@@ -207,6 +216,48 @@ export function ProgressPage() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Moved here from the chat's right rail, which is a music panel now.
+        * It reuses the mood logs this page already fetched rather than
+        * issuing a second request for the same data. */}
+      <section>
+        <p className="ml-eyebrow mb-3">Today</p>
+        <div
+          className="rounded-[var(--r-18)] p-5"
+          style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
+        >
+          {moodsError ? (
+            <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>{moodsError}</p>
+          ) : moods === null ? (
+            <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>Loading…</p>
+          ) : today.length === 0 ? (
+            <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>
+              Nothing logged yet today.
+            </p>
+          ) : (
+            <div className="flex h-12 items-end gap-[3px]">
+              {today.map((entry, index) => {
+                const state = resolveEmotion({
+                  surface_emotion: entry.surface_emotion ?? undefined,
+                  distress_level: entry.distress_level ?? undefined,
+                }).state;
+                return (
+                  <span
+                    key={`${entry.timestamp}-${index}`}
+                    className="flex-1 rounded-[2px]"
+                    style={{
+                      height: `${20 + 80 * (entry.distress_level ?? 0.4)}%`,
+                      background: state.c1,
+                      opacity: 0.8,
+                    }}
+                    title={`${state.name} · ${new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

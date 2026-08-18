@@ -16,7 +16,6 @@ import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { EmotionRead } from "./emotion-read";
 import { ReasoningTrail } from "./reasoning-trail";
 import { BreatheCard } from "./breathe-card";
-import { MusicCard } from "./music-card";
 import { createJournalEntry } from "@/lib/api";
 import { resolveEmotion } from "@/lib/emotion";
 import { buildReasoningTrail } from "@/lib/reasoning";
@@ -79,8 +78,10 @@ export function AssistantTurn({
     const agents = (message.agentsUsed ?? []).map((a) => a.replace(/_agent$/, ""));
     return agents.includes("mindfulness") || agents.includes("dbt");
   }, [message.agentsUsed]);
-  const music = message.music ?? null;
-  const hasCards = offersBreathing || music !== null;
+  // Music is not rendered inline any more — the right rail is the music
+  // panel and holds the newest track. Rendering it in both places showed the
+  // same card twice on the turn that produced it.
+  const hasCards = offersBreathing;
 
   // The "asking" state — the companion tilts and a "?" blooms. Only once the
   // reply is complete; mid-stream a trailing "?" isn't yet the final shape.
@@ -133,7 +134,6 @@ export function AssistantTurn({
         {hasCards && !isStreaming && (
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(258px, 1fr))" }}>
             {offersBreathing && <BreatheCard />}
-            {music && <MusicCard music={music} />}
           </div>
         )}
       </div>

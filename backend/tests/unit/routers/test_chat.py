@@ -575,3 +575,72 @@ class TestEnsureUserMemoryDoc:
         second_query, second_update = db.user_memory.update_one.await_args_list[1].args
         assert second_query == {"user_id": "u1"}
         assert second_update["$set"]["preferences.introvert_score"] == 0.4
+
+
+class TestWebSocketSubprotocolEcho:
+    """RFC 6455 requires echoing an offered subprotocol.
+
+    The frontend always offers `mindlens.jwt.<token>` because a browser
+    cannot set headers on a WebSocket. When the cookie branch returned early
+    with no selected subprotocol, the server accepted without echoing and
+    every browser aborted the handshake with "Sent non-empty
+    'Sec-WebSocket-Protocol' header but no response was received".
+
+    It only showed up locally: deployed, frontend and backend are different
+    sites so the SameSite=lax cookie never reaches the handshake and the
+    subprotocol branch ran. Same-site localhost sends the cookie, so chat was
+    broken in development and fine in production.
+    """
+
+    @staticmethod
+    def _socket(*, cookie=None, auth=None, offered=None):
+        from unittest.mock import MagicMock
+
+        ws = MagicMock()
+        ws.cookies = {"access_token": cookie} if cookie else {}
+        headers = {}
+        if auth:
+            headers["authorization"] = auth
+        if offered:
+            headers["sec-websocket-protocol"] = offered
+        ws.headers = headers
+        return ws
+
+    def test_echoes_subprotocol_even_when_cookie_supplies_the_token(self) -> None:
+        from app.routers.chat import _extract_token
+
+        ws = self._socket(cookie="cookie-jwt", offered="mindlens.jwt.header-jwt")
+        token, selected = _extract_token(ws)
+
+        # The cookie still wins for identity...
+        assert token == "cookie-jwt"
+        # ...but the offer must be echoed or the browser drops the handshake.
+        assert selected == "mindlens.jwt.header-jwt"
+
+    def test_echoes_subprotocol_when_bearer_header_supplies_the_token(self) -> None:
+        from app.routers.chat import _extract_token
+
+        ws = self._socket(auth="Bearer header-jwt", offered="mindlens.jwt.sub-jwt")
+        token, selected = _extract_token(ws)
+        assert token == "header-jwt"
+        assert selected == "mindlens.jwt.sub-jwt"
+
+    def test_subprotocol_alone_still_supplies_the_token(self) -> None:
+        from app.routers.chat import _extract_token
+
+        ws = self._socket(offered="mindlens.jwt.only-jwt")
+        assert _extract_token(ws) == ("only-jwt", "mindlens.jwt.only-jwt")
+
+    def test_nothing_offered_echoes_nothing(self) -> None:
+        """A non-browser client that offers no subprotocol must not be sent
+        one back — echoing an unoffered protocol is equally invalid."""
+        from app.routers.chat import _extract_token
+
+        ws = self._socket(cookie="cookie-jwt")
+        assert _extract_token(ws) == ("cookie-jwt", None)
+
+    def test_ignores_unrelated_offered_protocols(self) -> None:
+        from app.routers.chat import _extract_token
+
+        ws = self._socket(cookie="cookie-jwt", offered="graphql-ws, someother")
+        assert _extract_token(ws) == ("cookie-jwt", None)
