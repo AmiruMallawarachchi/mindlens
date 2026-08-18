@@ -91,6 +91,17 @@ class EmotionalOperatingState(BaseModel):
         default=None,
         description="Detected cognitive distortion, when available",
     )
+    distortion_score: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        description=(
+            "The classifier's actual score for distortion_label. Carried so "
+            "downstream agents report the real number instead of inventing "
+            "one -- distortion_agent used to hardcode 0.5 whenever a label "
+            "existed at all."
+        ),
+    )
 
     # --- Distress & Stability ---
     distress_level: float = Field(

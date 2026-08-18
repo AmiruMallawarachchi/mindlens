@@ -524,8 +524,10 @@ class Orchestrator:
             raw_results.get("distortion", []), DISTORTION_LABEL_MAP
         )
         distortion_label = self._argmax(distortion_scores)
-        if distortion_scores.get(distortion_label, 0.0) < 0.45:
+        distortion_score = distortion_scores.get(distortion_label, 0.0)
+        if distortion_score < 0.45:
             distortion_label = None
+            distortion_score = 0.0
 
         # Compute composite distress
         distress_level = self._compute_distress(emotion_scores, mh_scores, crisis_score)
@@ -563,6 +565,7 @@ class Orchestrator:
             trust_level=0.5,
             session_depth=0.0,
             distortion_label=distortion_label,
+            distortion_score=round(distortion_score, 3),
             session_turn_count=session_turn_count,
         )
 
