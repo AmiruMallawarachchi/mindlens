@@ -163,6 +163,10 @@ export function ChatScreen({
           onRenameSession={renameSession}
           onDeleteSession={deleteSession}
           onSaveToJournal={saveToJournal}
+          companionId={companionId}
+          companionActivity={
+            crisis ? "idle" : sending ? "sending" : typing ? "listening" : "idle"
+          }
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
         />
@@ -352,20 +356,6 @@ export function ChatScreen({
         </div>
       )}
 
-      {/* The companion leans toward the composer while the user types, then
-       * pops once as the message goes. Kept out of the message flow so it
-       * doesn't shift the transcript. */}
-      <span className="pointer-events-none fixed bottom-28 right-[360px] hidden min-[981px]:block">
-        {(typing || sending) && !crisis && (
-          <CompanionAvatar
-            companionId={companionId}
-            size={56}
-            mood={reading.state.id}
-            activity={sending ? "sending" : "listening"}
-            withShadow
-          />
-        )}
-      </span>
     </div>
   );
 }
