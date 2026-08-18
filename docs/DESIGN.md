@@ -202,19 +202,37 @@ Three columns in a 12px-gutter flex row, each a 22px-radius glass panel (`--pane
 
 ```
 ┌──────────┬────────────────────────────────┬─────────────┐
-│ Sidebar  │ Header                         │ Inspector   │
-│ 250px    ├────────────────────────────────┤ 300px       │
-│          │ Message list (scroll)          │  (scroll)   │
-│  logo    │   max-width 720px, centred     │  Nimbus     │
-│  new     │                                │  field grid │
-│  nav     ├────────────────────────────────┤  weather    │
-│  history │ ▼ scroll-to-bottom (42px band) │  worked on  │
-│  privacy ├────────────────────────────────┤  privacy    │
-│          │ suggestions + composer         │             │
-└──────────┴────────────────────────────────┴─────────────┘
+│ Sidebar  │ Header                         │ Music panel │
+│ 262px    ├────────────────────────────────┤ 336px       │
+│          │ Message list (scroll)          │  companion  │
+│  logo    │   max-width 760px, centred     │  track card │
+│  new     │   trail · reply · options      │  privacy    │
+│  nav     ├────────────────────────────────┤             │
+│  history │ ▼ scroll-to-bottom (42px band) │  (mounted   │
+│  privacy ├────────────────────────────────┤   only when │
+│  legal   │ composer                       │   a track   │
+└──────────┴────────────────────────────────┴─  exists)  ─┘
 ```
 
-**Breakpoints** (match the existing app): inspector hides `≤1040px`; sidebar hides `≤780px`. Both are progressive disclosure, not content loss — expose them behind the header's panel button and a sidebar drawer.
+**The right column is a music panel, not a permanent inspector.** It is
+mounted only when the turn produced a track, and its header toggle is
+rendered only alongside one — a toggle for an empty panel is a control that
+does nothing. What it used to hold is gone or moved:
+
+- **The field grid is deleted.** §5.3 already described it as a demo
+  affordance rather than a mood logger, and open item #4 required it be gated
+  or converted before production. Tapping it repainted the room but changed
+  nothing the model believed.
+- **Today's weather moved to Progress**, which already fetches the same mood
+  logs for its 7-day chart.
+- **What we worked on is deleted.** It mapped agents through a 13-entry label
+  table that silently dropped any agent missing from it and listed six —
+  cbt, dbt, act, mi, narrative, planning — that are not agents and never run.
+  The reasoning trail reports the real per-turn list instead.
+
+**Breakpoints**: music panel hides `≤980px`; sidebar hides `≤780px`. Both are
+progressive disclosure, not content loss — the sidebar behind a drawer, the
+panel's content still reachable in the turn that produced it.
 
 ### 5.1 Sidebar (250px)
 
@@ -226,13 +244,16 @@ Session titles are model-generated short phrases in the user's own register ("Tw
 
 Mono eyebrow `THE ROOM IS LISTENING` (`--faint`, nowrap) over the session title in Newsreader 23px/300, truncating. Right side: connection pill (mono 10px, 7px green dot, `#52d6bb` when live), day/night toggle, inspector toggle. Title block needs `min-width: 150px` so it never collapses.
 
-### 5.3 Inspector (300px)
+### 5.3 Music panel (336px)
 
-1. **Nimbus hero** — 112px stage in an 18px-radius card with a `color-mix(--e1 13%)` gradient wash. Caption in Newsreader 15.5px: *"Nimbus is holding {state} with you"* — state name italic in `color-mix(in oklab, var(--e1) 75%, var(--ink))`.
-2. **The field** — 6×2 grid of 34px swatches, one per state, `linear-gradient(140deg, c1, c2)`; unselected `opacity .55`, selected `opacity 1` + `1.5px solid var(--ink)`; hover `scale(1.12)`. Header `THE FIELD — TAP TO FEEL IT` with a `reset` link when manually overridden. **This is a demo/inspection affordance, not a mood logger** — the real read comes from the model. In production, gate it behind a debug flag or relabel it as an explicit "correct the read" control that posts feedback to the backend.
-3. **Today's weather** — 8 bars, 44px tall, each `linear-gradient(180deg, c1, c2)` at 85% opacity, height = intensity, `9am → now` axis in mono 9px. Session-level mood timeline.
-4. **What we worked on** — bullet list, 6px emotion dots, 12px `--muted` lines. Written as accomplishments, never as symptoms.
-5. Privacy note, pinned bottom.
+1. **Companion hero** — 92px stage in an 18px-radius card with a
+   `color-mix(--e1 13%)` gradient wash. Caption in Newsreader 15.5px:
+   *"{name} is holding {state} with you"*, state italic in
+   `color-mix(in oklab, var(--e1) 75%, var(--ink))`.
+2. **The track** — the music card (§7.2), with real `<audio>` playback of the
+   30-second preview. Rendered here and *only* here; it used to also appear
+   inline in the turn, which showed the same card twice.
+3. Privacy note, pinned bottom.
 
 ---
 
@@ -281,7 +302,36 @@ When the safety gate fires, the conversation surface changes shape:
 
 24px-radius, `--panel-strong`, `blur(18px)`, hairline, plus the emotion focus ring and glow (§2.3). Auto-growing textarea, 14.5px, placeholder *"Say it however it comes out…"*. Toolbar row: attach + mic ghost buttons (30px), `Adaptive` chip (model-routing indicator), `Voice · soon` chip at `--faint`, mono `⏎ TO SEND` hint pushed right, then a 38px circular gradient send button (`linear-gradient(135deg, --e1, --e2)`, hover `scale(1.06)`).
 
-Above it: a horizontally scrolling row of **suggestion chips** (mask-faded right edge) that fill the draft on click — phrased in the user's voice, not the product's ("Why do I freeze like this?"). Below it, centred 11px disclaimer with a "Talk to a human →" link.
+**Two controls were removed rather than left disabled.** The paperclip is
+gone: there is no upload endpoint and every agent is text-only, so an
+attached file had nowhere to go. The mic now genuinely dictates via the
+browser's Web Speech API — which ships audio to the browser vendor, so it
+says so once before first use and is not rendered at all where the API is
+missing.
+
+**The starter suggestion chips are gone.** They were four canned openers
+above an empty conversation, and there is no per-turn suggestion output to
+replace them with. Structured follow-up options (§6.6) serve the real need.
+
+**The disclaimer moved to the sidebar.** It is chrome, not something the
+companion says, and it was also being appended into the reply text itself —
+landing mid-sentence after the follow-up question on every turn. §4.1 still
+holds: it is always on screen, never behind a disclosure. Below 780px, where
+the sidebar is a drawer, the composer keeps a copy.
+
+### 6.6 Structured options
+
+When a reply ends on a question the turn may carry two to four short answers,
+rendered as numbered rows beneath it, with the line *"Or say it your own way
+below — these are just shortcuts."*
+
+This is **not** the canned menu that was removed from the empathy prompt.
+That was one fixed sentence recited verbatim every turn. These are generated
+per turn from what was actually said, schema-validated rather than parsed out
+of prose, and offered only when something was genuinely asked. Validation
+fails closed — wrong shape, a duplicate, anything over 48 characters, fewer
+than two or more than four, and no options are shown at all. Only the newest
+turn renders them.
 
 **Scroll-to-bottom:** a 34px glass circle in its own reserved 42px band *below* the scroll container, rendered only when `scrollHeight - scrollTop - clientHeight ≥ 24`. It must never overlay message text.
 
@@ -396,6 +446,8 @@ Do not: introduce a brand colour outside the emotion field · use emoji as UI ·
 1. Hero portrait is an unfilled drop-zone — needs a real licensed image.
 2. Crisis helpline numbers are unverified placeholders; resolve by locale before any public deploy.
 3. Docs cards link to a GitHub profile, not the repo files.
-4. Inspector's field grid must be gated or converted to a "correct the read" feedback control before production.
-5. Mobile inspector bottom sheet is specified but not mocked.
+4. ~~Inspector's field grid must be gated or converted~~ — **done**: the grid
+   is deleted and the rail is a music panel (§5.3).
+5. Mobile bottom sheet for the music panel is unspecified; below 980px the
+   track is simply not shown.
 6. `frontend/src/app/tokens.css` still holds the superseded dark-glass palette — migrate and delete.

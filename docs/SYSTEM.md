@@ -142,7 +142,7 @@ USER
 Next.js 15 Frontend
   - Sidebar: sessions, new chat, settings
   - Main chat: messages, mode badge, input
-  - Right panel: thinking, EOS, memory, model health
+  - Right panel: music only, mounted when a track exists
   - Dashboard: progress, mood, routines, memory
   - Onboarding: profile, age, preferences, goals
   - Admin: health, users, models, reports
@@ -156,11 +156,10 @@ FastAPI Backend
   +-- PII anonymizer
   |
   v
-Layer 0: Safety Gate
-  - Regex crisis scan
-  - MindLens crisis model
-  - Semantic crisis similarity
-  - Any trigger routes to CrisisAgent only
+Layer 0: Safety Gate  (two layers, not three -- see 8.1)
+  - L1 regex crisis scan, always runs, independent of model health
+  - L2 MindLens crisis model, threshold 0.45
+  - Either trigger routes to CrisisAgent only
   |
   v
 Parallel ML Inference
@@ -182,10 +181,10 @@ Agent Orchestrator
   |
   v
 Response Assembler
-  - combines outputs
+  - empathy + at most one specialist (7.3)
   - validates response
-  - appends disclaimer
   - streams to frontend
+  - disclaimer is rendered by the UI, not appended to the reply
   |
   v
 MongoDB Memory + Sessions + Audit Logs
@@ -449,35 +448,59 @@ decided before they run.
 
 ### 7.2 Agent Routing Rules
 
+Two gates run before the table below. Both exist because the pipeline used to
+answer "hi" with a grounding exercise, a CBT challenge and a music track.
+
+| Gate | Meaning |
+|---|---|
+| `opening_turn` | First turn of a session, distress < 0.7 |
+| `substantive` | 4+ words **or** distress >= 0.5 |
+
+`held_back = opening_turn or not substantive`. Distress overriding word count
+is deliberate and load-bearing: *"i cant anymore"* is three words and the most
+important turn in the conversation, so length must never be what silences the
+pipeline.
+
 | Condition | Agents |
 |---|---|
 | Crisis detected | `crisis_agent` only |
-| Every safe turn | `empathy_agent`, `session_memory_save` |
-| Distress above 0.5 | `mindfulness_agent` |
-| Music receptive or distress above 0.4 | `music_agent` |
-| CBT modality active | `distortion_agent` |
-| Trust high and stability safe | `challenge_agent` |
-| Fatigue high | `routine_agent` |
-| Journaling receptive and stable | `journaling_agent` |
+| Every safe turn | `empathy_agent`, `session_memory_save`, `personality_agent` |
+| Not held back, distress above 0.5 or anxious/fearful | `mindfulness_agent` |
+| Not held back, music receptive or distress above 0.4 | `music_agent` |
+| Not held back, CBT modality active | `distortion_agent` |
+| Not held back, trust high and stability safe | `challenge_agent` |
+| Not held back, fatigue >= 0.7 | `routine_agent` |
+| Not held back, journaling receptive and stable | `journaling_agent` |
+| Not held back, session depth >= 0.3 | `reflection_agent` |
 | Every 3 turns | `checkin_scheduler` |
-| Every 5 turns or session end | `progress_agent` |
+| Every 5 turns | `progress_agent` |
 
 ### 7.3 Response Assembly Order
 
-1. Crisis response, if crisis.
-2. Empathy.
-3. Mindfulness.
-4. Reflection.
-5. Distortion insight.
-6. Challenge question.
-7. Routine/action plan.
-8. Journaling.
-9. Music.
-10. Check-in/progress.
-11. Mandatory disclaimer.
+Priority order for whoever speaks: crisis, empathy, mindfulness, reflection,
+distortion, challenge, routine, journaling, music, checkin, progress.
 
-The final response must feel like one coherent message, not separate agent
-fragments pasted together.
+**At most two agents speak per turn: empathy, plus one specialist.**
+
+Every speaking agent writes a *complete* conversational turn, so
+concatenating them all produced three or four whole replies stapled together
+— an empathy greeting, then a CBT challenge, then a music pitch, at someone
+who had only said they wanted help. The rest still run; their metadata drives
+the reasoning trail. They simply do not get to talk. Priority order decides
+who wins the one slot, so grounding always beats challenging.
+
+Two agents never contribute prose:
+
+- **Music** — its text is what the music card renders, so including it in the
+  reply printed the same sentence twice.
+- **Bookkeeping** (`personality`, `checkin_scheduler`, `session_memory_save`)
+  — they return empty text by design.
+
+**The mandatory disclaimer is no longer appended to the reply.** It is chrome,
+not something the companion said, and it landed mid-reply immediately after
+the follow-up question on every turn. The UI renders it persistently instead.
+The crisis path is the exception and keeps its resources inline — there the
+helpline numbers *are* the message.
 
 ---
 
@@ -687,11 +710,27 @@ Process:
 ### 11.2 RAG Rules
 
 - RAG must not run during crisis mode.
+- **RAG does not run on a non-substantive turn.** It previously ran on every
+  non-crisis turn, including "hi".
 - RAG context must be short and relevant.
 - RAG must not contain diagnostic claims.
 - RAG must be filtered before prompt injection.
 - Admin/dev tools may show retrieved chunks.
-- User-facing thinking panel may show simplified memory and knowledge summaries.
+
+### 11.3 Retrieval status is reported
+
+`telemetry.rag` carries `status` (`ran` / `skipped_trivial` / `skipped_crisis`
+/ `failed` / `provided`) and a chunk count, on both `thinking_update` and
+`response`. The UI states it plainly — *"Pulled 5 passages from the therapy
+notes"* or *"No need to look anything up for this one."* Retrieval status was
+previously never transmitted in any form, so a turn that searched the corpus
+and one that skipped it read identically.
+
+A reranker failure is namespaced `rag:reranker` so it is reported as a
+reranker failure. It previously shared the flat degradation sink with Groq
+failures, and the frontend classified anything unprefixed as an LLM fallback
+— so a cross-encoder failure rendered as *"the language model fell back this
+turn"*, which named the wrong component.
 
 ---
 
