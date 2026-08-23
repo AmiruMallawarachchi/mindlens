@@ -35,7 +35,6 @@ import type { MusicPayload } from "@/lib/types";
 import {
   AudioPlayer,
   AudioPlayerControlBar,
-  AudioPlayerDurationDisplay,
   AudioPlayerElement,
   AudioPlayerMuteButton,
   AudioPlayerPlayButton,
@@ -189,14 +188,27 @@ export function MusicCard({ music }: { music: MusicPayload }) {
             } as React.CSSProperties}
           >
             <AudioPlayerElement src={track.preview_url} preload="none" />
-            <AudioPlayerControlBar className="flex w-full items-center gap-1 px-1.5 py-1">
+            {/* This card's control bar lives inside a fixed 336px panel
+              * (Inspector), not a flexible one — the shared AI-elements
+              * defaults (px-4 ButtonGroupText padding, a separate duration
+              * display) add up to more width than that panel has, and
+              * because the wrapper above clips overflow, the excess used to
+              * just vanish behind the rounded corner instead of scrolling.
+              * showDuration folds "current / total" into one display
+              * instead of two, and the padding/text-size overrides below
+              * are scoped to this card only via className (tailwind-merge
+              * resolves them over the shared component's own px-4/text-sm),
+              * so the shared audio-player component is untouched. */}
+            <AudioPlayerControlBar className="flex w-full items-center gap-0.5 px-1 py-1">
               <AudioPlayerSeekBackwardButton seekOffset={5} aria-label="Back 5 seconds" />
               <AudioPlayerPlayButton aria-label={`Play ${title}`} />
               <AudioPlayerSeekForwardButton seekOffset={5} aria-label="Forward 5 seconds" />
-              <AudioPlayerTimeDisplay />
-              <AudioPlayerTimeRange className="min-w-0 flex-1" />
-              <AudioPlayerDurationDisplay />
-              <AudioPlayerMuteButton />
+              <AudioPlayerTimeDisplay
+                showDuration
+                className="px-1.5 text-[9.5px]"
+              />
+              <AudioPlayerTimeRange className="min-w-0 flex-1 px-1" />
+              <AudioPlayerMuteButton className="px-1.5" />
             </AudioPlayerControlBar>
           </AudioPlayer>
         ) : track?.track_url ? (

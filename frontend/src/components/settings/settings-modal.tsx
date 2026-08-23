@@ -68,13 +68,18 @@ export function SettingsModal({
       />
 
       <div
-        className="ml-glass relative flex h-[min(760px,92vh)] w-full max-w-[1040px] overflow-hidden rounded-[var(--r-22)]"
+        className="ml-glass relative flex h-[min(760px,92vh)] w-full max-w-[1040px] flex-col overflow-hidden rounded-[var(--r-22)] min-[720px]:flex-row"
         style={{ background: "var(--ml-panel-legible)", border: "1px solid var(--ml-hairline)" }}
       >
-        {/* --- Left nav ---------------------------------------------------- */}
+        {/* --- Left nav ----------------------------------------------------
+          * Below 720px there isn't room for a 248px sidebar beside any
+          * usable amount of content (it was leaving well under half the
+          * modal's width for the actual settings) — so the nav becomes a
+          * horizontal-scroll pill row stacked above the content instead of
+          * a fixed-width column beside it. */}
         <aside
-          className="flex w-[248px] shrink-0 flex-col gap-3 overflow-y-auto p-4"
-          style={{ borderRight: "1px solid var(--ml-hairline)" }}
+          className="flex w-full shrink-0 flex-col gap-3 overflow-y-auto border-b p-4 min-[720px]:w-[248px] min-[720px]:border-b-0 min-[720px]:border-r"
+          style={{ borderColor: "var(--ml-hairline)" }}
         >
           <label
             className="flex items-center gap-2 rounded-[var(--r-11)] px-3 py-2"
@@ -90,36 +95,64 @@ export function SettingsModal({
             />
           </label>
 
-          {groups.map((group) => (
-            <div key={group.label}>
-              <p className="ml-eyebrow px-2 pb-1.5">{group.label}</p>
-              <div className="flex flex-col gap-0.5">
-                {group.items.map(({ id, label, icon: Icon }) => {
-                  const active = section === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setSection(id)}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-[var(--r-11)] px-3 py-2 text-left text-[13px] transition-colors",
-                        active ? "font-medium" : "hover:bg-white/[0.04]",
-                      )}
-                      style={{
-                        background: active ? "var(--ml-panel-strong)" : undefined,
-                        border: active ? "1px solid var(--ml-hairline)" : "1px solid transparent",
-                        color: active ? "var(--ml-ink)" : "var(--ml-muted)",
-                      }}
-                    >
-                      <Icon size={15} strokeWidth={1.7} />
-                      {label}
-                    </button>
-                  );
-                })}
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 min-[720px]:hidden">
+            {groups.flatMap((group) => group.items).map(({ id, label, icon: Icon }) => {
+              const active = section === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSection(id)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--r-pill)] px-3 py-1.5 text-[12.5px] transition-colors",
+                    active ? "font-medium" : "hover:bg-white/[0.04]",
+                  )}
+                  style={{
+                    background: active ? "var(--ml-panel-strong)" : "var(--ml-panel)",
+                    border: "1px solid var(--ml-hairline)",
+                    color: active ? "var(--ml-ink)" : "var(--ml-muted)",
+                  }}
+                >
+                  <Icon size={14} strokeWidth={1.7} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden flex-col gap-3 min-[720px]:flex">
+            {groups.map((group) => (
+              <div key={group.label}>
+                <p className="ml-eyebrow px-2 pb-1.5">{group.label}</p>
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map(({ id, label, icon: Icon }) => {
+                    const active = section === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setSection(id)}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-[var(--r-11)] px-3 py-2 text-left text-[13px] transition-colors",
+                          active ? "font-medium" : "hover:bg-white/[0.04]",
+                        )}
+                        style={{
+                          background: active ? "var(--ml-panel-strong)" : undefined,
+                          border: active ? "1px solid var(--ml-hairline)" : "1px solid transparent",
+                          color: active ? "var(--ml-ink)" : "var(--ml-muted)",
+                        }}
+                      >
+                        <Icon size={15} strokeWidth={1.7} />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </aside>
 
         {/* --- Content ----------------------------------------------------- */}
@@ -135,8 +168,11 @@ export function SettingsModal({
           </button>
 
           {/* pb-2 leaves the sticky SaveBar somewhere to land without
-            * clipping the last row of whatever section is open. */}
-          <div className="px-8 pb-2 pt-7">
+            * clipping the last row of whatever section is open. pr-14
+            * keeps that row clear of the absolute-positioned close button
+            * above, which would otherwise sit on top of it at narrow
+            * widths where the header has no other content to its right. */}
+          <div className="px-5 pb-2 pr-14 pt-7 min-[720px]:px-8">
             {section === "general" && <GeneralSection client={client} />}
             {section === "account" && <AccountSection client={client} />}
             {section === "privacy" && <PrivacySection client={client} />}
