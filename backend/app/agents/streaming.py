@@ -125,7 +125,6 @@ class StreamingResponse:
         assembled_text: str,
         agents_used: list[str],
         eos_snapshot: EmotionalOperatingState | dict[str, Any],
-        music: dict[str, Any] | None = None,
         crisis_flag: bool = False,
         resources: list[dict] | None = None,
         degraded: list[str] | None = None,
@@ -159,7 +158,6 @@ class StreamingResponse:
                 text=assembled_text,
                 agents_used=agents_used,
                 eos_snapshot=eos_dict,
-                music=music,
                 crisis_flag=crisis_flag,
                 resources=resources,
                 degraded=degraded,
@@ -236,7 +234,6 @@ async def stream_pipeline_result(
     # here, so the client had nothing to describe and asserted instead.
     telemetry = pipeline_result.get("telemetry", {})
     safety = pipeline_result.get("safety", {})
-    music_payload = _extract_music_payload(agent_outputs)
     options_payload = pipeline_result.get("options")
 
     # Step 1: Thinking update
@@ -276,7 +273,6 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
-            music=music_payload,
             degraded=degraded,
             memory_recalled=memory_recalled,
             telemetry=telemetry,
@@ -289,37 +285,12 @@ async def stream_pipeline_result(
             assembled_text=assembled_text,
             agents_used=agents,
             eos_snapshot=eos,
-            music=music_payload,
             degraded=degraded,
             memory_recalled=memory_recalled,
             telemetry=telemetry,
             safety=safety,
             options=options_payload,
         )
-
-
-def _extract_music_payload(agent_outputs: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """
-    Shape the music agent's output into the structured `music` field the
-    WebSocket response carries. `end_stream`/`send_response` have accepted a
-    `music` payload since they were written; nothing ever built one to pass —
-    the field was always sent as null regardless of whether music_agent ran.
-
-    Returns None when the music agent didn't run this turn, so the frontend
-    can tell "no music this turn" apart from "music with nothing in it".
-    """
-    music_output = next(
-        (o for o in agent_outputs if o.get("agent") == "music"), None
-    )
-    if music_output is None:
-        return None
-
-    metadata = music_output.get("metadata", {})
-    return {
-        "message": music_output.get("text", ""),
-        "tracks": metadata.get("tracks", []),
-        "emotion": metadata.get("emotion"),
-    }
 
 
 async def stream_agent_output(
@@ -331,7 +302,7 @@ async def stream_agent_output(
 ) -> None:
     """
     Stream a single agent's output directly (for specialized agents
-    that run outside the full orchestrator pipeline, e.g. music agent).
+    that run outside the full orchestrator pipeline).
     """
     conn = conn_manager or get_connection_manager()
     streamer = StreamingResponse(user_id, session_id, conn)

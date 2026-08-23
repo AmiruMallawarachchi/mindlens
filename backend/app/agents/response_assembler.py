@@ -27,23 +27,18 @@ AGENT_PRIORITY: dict[str, int] = {
     "challenge": 5,     # Socratic question
     "routine": 6,       # Action plan
     "journaling": 7,    # Reflection prompts
-    "music": 8,         # Music therapy
-    "checkin": 9,       # Proactive follow-up
-    "progress": 10,     # Weekly insight
-    "personality": 11,  # Tone adaptation (invisible)
+    "checkin": 8,       # Proactive follow-up
+    "progress": 9,      # Weekly insight
+    "personality": 10,  # Tone adaptation (invisible)
 }
-
-# Agents whose text already has its own place in the UI. Including it in
-# the prose too showed the same sentence twice — music's text is what the
-# music card renders as its message.
-CARD_RENDERED_AGENTS = frozenset({"music"})
 
 # Empathy opens the turn; at most this many specialists may add to it.
 #
 # Every speaking agent writes a *complete* conversational turn, so with no
-# cap the assembler stapled three or four whole replies together: empathy
-# greeting, then a distortion challenge, then a music pitch, in one wall of
-# text. It read like a committee rather than one person, and it challenged
+# cap the assembler stapled three or four whole replies together: an
+# empathy greeting, then a distortion challenge, then another whole reply,
+# in one wall of text. It read like a committee rather than one person,
+# and it challenged
 # users who had only said they wanted help. The agents still all run —
 # their metadata drives the thinking panel — but only this many get to
 # speak. Priority order below decides who wins, so grounding beats
@@ -118,8 +113,6 @@ class ResponseAssembler:
         for output in sorted_outputs:
             if not (output.text and output.text.strip()):
                 continue
-            if output.agent_name in CARD_RENDERED_AGENTS:
-                continue
             if output.agent_name != "empathy":
                 if specialists_spoken >= MAX_SPECIALIST_VOICES:
                     continue
@@ -152,8 +145,8 @@ class ResponseAssembler:
         # the message, not decoration around it.
 
         if not text.strip():
-            # Every agent that ran either had nothing to say (a card-only
-            # agent like music, or one held back by the specialist cap) or
+            # Every agent that ran either had nothing to say (held back by
+            # the specialist cap) or
             # came back with genuinely empty text — a Groq call whose content
             # was "" (a real API hiccup, or every token spent on hidden
             # reasoning; see groq_client's reasoning_effort pin for the class
@@ -162,9 +155,7 @@ class ResponseAssembler:
             # then rendered the same fixed line regardless of who was
             # supposed to speak. Naming which agent failed here at least
             # makes the cause diagnosable instead of an unexplained stub.
-            empty_speakers = sorted(
-                {o.agent_name for o in outputs if o.agent_name not in CARD_RENDERED_AGENTS}
-            )
+            empty_speakers = sorted({o.agent_name for o in outputs})
             logger.warning(
                 "No agent produced usable text this turn (ran: %s) — using fallback",
                 empty_speakers,

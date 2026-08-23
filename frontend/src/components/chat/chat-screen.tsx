@@ -11,8 +11,8 @@
  * here. It appears only inside the reasoning trail.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Menu, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Menu } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -23,7 +23,6 @@ import { CompanionAvatar } from "@/components/companion/companion-avatar";
 import { ChatSidebar, sessionLabel, type ChatNavView } from "./chat-sidebar";
 import { Composer } from "./composer";
 import { CrisisPanel } from "./crisis-banner";
-import { Inspector } from "./inspector";
 import { AssistantTurn, UserTurn } from "./message-flow";
 import { ReasoningTrail } from "./reasoning-trail";
 import { LiveStageTrail } from "./live-stage-trail";
@@ -81,10 +80,6 @@ export function ChatScreen({
     [prepareJournalReflection, onNavigate],
   );
 
-  // The rail is a music panel now, so it is driven by whether there is a
-  // track rather than left open permanently. `dismissed` lets the user
-  // shut it; a newer track clears that so the next one still appears.
-  const [musicDismissed, setMusicDismissed] = useState(false);
   const [typing, setTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -125,21 +120,6 @@ export function ChatScreen({
 
   const lastMessage = messages[messages.length - 1];
   const streamingId = lastMessage?.pending ? lastMessage.id : null;
-
-  // The newest track in the conversation, if any. Older ones scroll away with
-  // their turn; the panel holds whatever came last.
-  const latestMusic = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const found = messages[i].music;
-      if (found) return found;
-    }
-    return null;
-  }, [messages]);
-
-  // A new track re-opens the panel even if the last one was dismissed.
-  useEffect(() => setMusicDismissed(false), [latestMusic]);
-
-  const musicOpen = latestMusic !== null && !musicDismissed;
 
   return (
     <div
@@ -265,23 +245,6 @@ export function ChatScreen({
             {isDay ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          {/* Only rendered when there is a track to show or hide. A toggle
-            * for an empty panel is a control that does nothing. */}
-          {latestMusic && (
-            <button
-              type="button"
-              onClick={() => setMusicDismissed((d) => !d)}
-              aria-label={musicOpen ? "Hide music" : "Show music"}
-              className="hidden size-9 items-center justify-center rounded-[var(--r-11)] transition-colors hover:bg-white/[0.06] min-[981px]:inline-flex"
-              style={{ color: "var(--ml-faint)" }}
-            >
-              {musicOpen ? (
-                <PanelRightClose size={16} strokeWidth={1.7} />
-              ) : (
-                <PanelRightOpen size={16} strokeWidth={1.7} />
-              )}
-            </button>
-          )}
         </header>
 
         <Conversation className="min-h-0 flex-1">
@@ -356,18 +319,6 @@ export function ChatScreen({
           preview={previewMode}
         />
       </main>
-
-      {musicOpen && latestMusic && (
-        <div className="hidden min-[981px]:block">
-          <Inspector
-            reading={reading}
-            music={latestMusic}
-            companionId={companionId}
-            companionName={companionName}
-          />
-        </div>
-      )}
-
     </div>
   );
 }

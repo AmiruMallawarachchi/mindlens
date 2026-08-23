@@ -21,7 +21,6 @@ from app.agents.empathy_agent import EmpathyAgent
 from app.agents.groq_client import _record_degradation, begin_degradation_tracking
 from app.agents.journaling_agent import JournalingAgent
 from app.agents.mindfulness_agent import MindfulnessAgent
-from app.agents.music_agent import MusicAgent
 from app.agents.personality_agent import PersonalityAgent
 from app.agents.progress_agent import ProgressAgent
 from app.agents.question_options import build_options
@@ -112,7 +111,7 @@ class Orchestrator:
         self._init_registry()
 
     def _init_registry(self) -> None:
-        """Register all 14 agents in the global registry."""
+        """Register all 13 agents in the global registry."""
         registry = get_registry()
         if not registry.list_names():
             agents = [
@@ -124,7 +123,6 @@ class Orchestrator:
                 DistortionAgent(),
                 RoutineAgent(),
                 JournalingAgent(),
-                MusicAgent(),
                 CheckInAgent(),
                 ProgressAgent(),
                 PersonalityAgent(),
@@ -580,7 +578,6 @@ class Orchestrator:
 
         # Synchronize run flags based on agents
         eos.run_mindfulness = "mindfulness" in agents
-        eos.run_music = "music" in agents
         eos.run_challenge = "challenge" in agents
         eos.run_journaling = "journaling" in agents
         eos.run_distortion = "distortion" in agents
@@ -731,12 +728,6 @@ class Orchestrator:
             or eos.core_emotion in {"anxiety", "fear", "nervousness"}
         ):
             agents.append("mindfulness")
-
-        # Music for moderate distress or music-receptive users. Gated like
-        # the rest: is_receptive_to defaults true, so an ungated music
-        # agent offered a track in reply to "hi".
-        if not held_back and (eos.distress_level > 0.4 or eos.is_receptive_to("music")):
-            agents.append("music")
 
         # Reflection for meaningful session depth
         if not held_back and eos.session_depth >= 0.3:

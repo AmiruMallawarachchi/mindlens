@@ -296,26 +296,24 @@ class TestOrchestratorAgentRouting:
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
         assert "mindfulness" in agents
 
-    def test_music_for_distress(self) -> None:
-        """Music once the conversation is under way — not on turn one."""
-        eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=3)
-        agents = Orchestrator._select_agents(eos, crisis_flag=False)
-        assert "music" in agents
-
-    def test_music_held_back_on_the_opening_turn(self) -> None:
-        """Music was the one agent with no opening-turn gate, and
-        is_receptive_to("music") defaults true — so the very first reply in
-        every conversation offered a track before asking anything."""
+    def test_specialists_held_back_on_the_opening_turn(self) -> None:
+        """Empathy opens alone: turn one asks what is going on rather than
+        prescribing an exercise before the user has answered anything."""
         eos = EmotionalOperatingState(distress_level=0.5, session_turn_count=0)
         agents = Orchestrator._select_agents(eos, crisis_flag=False)
-        assert "music" not in agents
+        assert "empathy" in agents
+        # Always-runs bookkeeping agents (session_memory_save) are exempt;
+        # what must not appear is a speaking specialist.
+        assert "mindfulness" not in agents
+        assert "distortion" not in agents
+        assert "challenge" not in agents
 
     def test_filler_turn_gets_only_empathy(self) -> None:
         """A short, undistressed turn ("ok thanks") should not summon an
-        exercise or a track, even mid-conversation."""
+        exercise, even mid-conversation."""
         eos = EmotionalOperatingState(distress_level=0.2, session_turn_count=4)
         agents = Orchestrator._select_agents(eos, crisis_flag=False, substantive=False)
-        assert "music" not in agents
+        assert "mindfulness" not in agents
         assert "distortion" not in agents
         assert "empathy" in agents
 

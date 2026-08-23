@@ -21,7 +21,7 @@ The score is read from and written back to `eos.introvert_score`, persisted at
 `eos.social_energy` — that field means how much social capacity the user has
 right now, which is a different quantity that happens to share a scale.
 
-Used by: Routine agent, Music agent, Challenge agent (tone calibration).
+Used by: Routine agent, Challenge agent (tone calibration).
 """
 
 from __future__ import annotations

@@ -37,8 +37,8 @@ class TestResponseAssembler:
         """The wall-of-text bug: every speaking agent writes a complete
         conversational turn, so concatenating all of them produced three
         replies stapled together — an empathy greeting, then a CBT
-        challenge, then a music pitch, at someone who had only said they
-        wanted help. Empathy plus one specialist, no more."""
+        challenge, then another whole reply, at someone who had only said
+        they wanted help. Empathy plus one specialist, no more."""
         outputs = [
             AgentOutput(agent_name="challenge", text="What evidence?"),
             AgentOutput(agent_name="empathy", text="I hear you."),
@@ -62,17 +62,6 @@ class TestResponseAssembler:
         assert "Breathe." in text
         assert "Feelings aren't facts." not in text
 
-    def test_music_text_excluded_from_prose(self, assembler: ResponseAssembler) -> None:
-        """Music's text is what the music card renders as its message, so
-        including it in the prose showed the same sentence twice."""
-        outputs = [
-            AgentOutput(agent_name="empathy", text="I hear you."),
-            AgentOutput(agent_name="music", text="Try slow ambient."),
-        ]
-        text = assembler.assemble(outputs, user_name="Ravi")
-        assert "I hear you." in text
-        assert "Try slow ambient." not in text
-
     def test_specialist_speaks_when_empathy_absent(
         self, assembler: ResponseAssembler
     ) -> None:
@@ -87,13 +76,13 @@ class TestResponseAssembler:
     ) -> None:
         """groq_client now falls back to stub text on an empty completion, so
         this path should be rare — but agents can still legitimately return
-        empty text (a card-only agent, or one held back by the specialist
-        cap), and the assembler must not crash or produce a blank reply if
-        every one of them did. This is the backstop, not the primary
-        defence; groq_client.chat is."""
+        empty text (a Groq call whose content came back ""), and the
+        assembler must not crash or produce a blank reply if every one of
+        them did. This is the backstop, not the primary defence;
+        groq_client.chat is."""
         outputs = [
             AgentOutput(agent_name="empathy", text=""),
-            AgentOutput(agent_name="music", text="Try slow ambient."),
+            AgentOutput(agent_name="mindfulness", text="   "),
         ]
         text = assembler.assemble(outputs, user_name="Ravi")
         assert text.strip() != ""

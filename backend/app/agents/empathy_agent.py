@@ -222,7 +222,7 @@ class EmpathyAgent(BaseAgent):
             f"3. If they've mentioned someone and it's relevant — reference them by name.\n"
             f"4. Connect emotional support to practical outcomes when appropriate.\n"
             f"5. End on your follow-up question. Do NOT also list options.\n"
-            f"   Never recite a fixed menu like 'music, breathing, journaling,\n"
+            f"   Never recite a fixed menu like 'breathing, journaling,\n"
             f"   or just talking'. If they ask what you can do, say it in your\n"
             f"   own words, once — not as a stock line every turn.\n"
             f"6. Keep it to 3-5 sentences MAX.\n"

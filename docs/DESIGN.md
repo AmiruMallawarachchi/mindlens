@@ -26,7 +26,7 @@ The mockups are single-file HTML with inline styles. **Do not port them literall
 2. §2 emotion field → `lib/emotion.ts` (replace existing palette, keep the classifier-folding logic).
 3. §3 day/night grading → `ThemeProvider` + `localStorage` key `ml-grade`.
 4. §5 chat shell + §6 message anatomy → `components/chat/*`.
-5. §7 intervention players → `components/chat/breathe-card.tsx`, `music-card.tsx`.
+5. §7 intervention players → `components/chat/breathe-card.tsx`.
 6. §8 Nimbus → `components/nimbus.tsx`.
 7. §9 marketing site → `app/(marketing)/page.tsx`.
 
@@ -201,38 +201,39 @@ neutral tokens : 700ms ease
 Three columns in a 12px-gutter flex row, each a 22px-radius glass panel (`--panel` + `blur(24px) saturate(1.2)` + `1px var(--hairline)`), on the ambient field. Full viewport height, `overflow: hidden` on the shell; only the message list and inspector scroll.
 
 ```
-┌──────────┬────────────────────────────────┬─────────────┐
-│ Sidebar  │ Header                         │ Music panel │
-│ 262px    ├────────────────────────────────┤ 336px       │
-│          │ Message list (scroll)          │  companion  │
-│  logo    │   max-width 760px, centred     │  track card │
-│  new     │   trail · reply · options      │  privacy    │
-│  nav     ├────────────────────────────────┤             │
-│  history │ ▼ scroll-to-bottom (42px band) │  (mounted   │
-│  privacy ├────────────────────────────────┤   only when │
-│  legal   │ composer                       │   a track   │
-└──────────┴────────────────────────────────┴─  exists)  ─┘
+┌──────────┬────────────────────────────────┐
+│ Sidebar  │ Header                         │
+│ 262px    ├────────────────────────────────┤
+│          │ Message list (scroll)          │
+│  logo    │   max-width 760px, centred     │
+│  new     │   trail · reply · options      │
+│  nav     ├────────────────────────────────┤
+│  history │ ▼ scroll-to-bottom (42px band) │
+│  privacy ├────────────────────────────────┤
+│  legal   │ composer                       │
+└──────────┴────────────────────────────────┘
 ```
 
-**The right column is a music panel, not a permanent inspector.** It is
-mounted only when the turn produced a track, and its header toggle is
-rendered only alongside one — a toggle for an empty panel is a control that
-does nothing. What it used to hold is gone or moved:
+**There is no right-hand column.** Chat is two columns. The rail that used to
+sit there is gone entirely, along with everything it held:
 
-- **The field grid is deleted.** §5.3 already described it as a demo
-  affordance rather than a mood logger, and open item #4 required it be gated
-  or converted before production. Tapping it repainted the room but changed
-  nothing the model believed.
+- **The field grid is deleted.** It was described as a demo affordance rather
+  than a mood logger, and open item #4 required it be gated or converted
+  before production. Tapping it repainted the room but changed nothing the
+  model believed.
 - **Today's weather moved to Progress**, which already fetches the same mood
   logs for its 7-day chart.
 - **What we worked on is deleted.** It mapped agents through a 13-entry label
   table that silently dropped any agent missing from it and listed six —
   cbt, dbt, act, mi, narrative, planning — that are not agents and never run.
   The reasoning trail reports the real per-turn list instead.
+- **The music panel is deleted**, with the music feature itself — see
+  `SYSTEM.md` §12 for why it was scoped out.
+- **The companion** moved into the sidebar, which is a stable home that
+  cannot collide with the transcript.
 
-**Breakpoints**: music panel hides `≤980px`; sidebar hides `≤780px`. Both are
-progressive disclosure, not content loss — the sidebar behind a drawer, the
-panel's content still reachable in the turn that produced it.
+**Breakpoints**: sidebar hides `≤780px` behind a drawer — progressive
+disclosure, not content loss.
 
 ### 5.1 Sidebar (250px)
 
@@ -242,18 +243,7 @@ Session titles are model-generated short phrases in the user's own register ("Tw
 
 ### 5.2 Header
 
-Mono eyebrow `THE ROOM IS LISTENING` (`--faint`, nowrap) over the session title in Newsreader 23px/300, truncating. Right side: connection pill (mono 10px, 7px green dot, `#52d6bb` when live), day/night toggle, inspector toggle. Title block needs `min-width: 150px` so it never collapses.
-
-### 5.3 Music panel (336px)
-
-1. **Companion hero** — 92px stage in an 18px-radius card with a
-   `color-mix(--e1 13%)` gradient wash. Caption in Newsreader 15.5px:
-   *"{name} is holding {state} with you"*, state italic in
-   `color-mix(in oklab, var(--e1) 75%, var(--ink))`.
-2. **The track** — the music card (§7.2), with real `<audio>` playback of the
-   30-second preview. Rendered here and *only* here; it used to also appear
-   inline in the turn, which showed the same card twice.
-3. Privacy note, pinned bottom.
+Mono eyebrow `THE ROOM IS LISTENING` (`--faint`, nowrap) over the session title in Newsreader 23px/300, truncating. Right side: connection pill (mono 10px, 7px green dot, `#52d6bb` when live), day/night toggle. Title block needs `min-width: 150px` so it never collapses.
 
 ---
 
@@ -351,14 +341,6 @@ Anatomy top → bottom: glass chip `STRESS RELIEF` + live elapsed timer in mono 
 
 Timing is authoritative: **inhale 4s, hold 7s, exhale 8s**, driven by a 1s interval, cycle counter increments on return to phase 0. The circle/ring variant scales to `1` on inhale/hold and `0.62` on exhale over the phase duration.
 
-### 7.2 Music
-
-`--panel-strong` card, hairline. 70px album tile with the emotion gradient and a soft bloom · plain music-note glyph in `--e1` (no third-party branding — tracks come from iTunes search, not a connected account) + mono `BECAUSE YOU'RE {STATE}` · title in Newsreader 21px/300 · 42-bar waveform (decorative), played bars `--e1`, remaining `color-mix(in oklab, var(--ink) 16%, transparent)` · transport: 44px gradient play/pause, real playback of the track's 30s preview when one exists, "Open on Apple Music" when it doesn't, an honest "No preview available" when neither does.
-
-Playlists are chosen by emotion state, and the reason is stated. Never "Recommended for you".
-
----
-
 ## 8. Nimbus
 
 Nimbus is MindLens's companion presence. Not a mascot, not an avatar, not a logo — **a soft presence that wears the feeling.**
@@ -447,7 +429,5 @@ Do not: introduce a brand colour outside the emotion field · use emoji as UI ·
 2. Crisis helpline numbers are unverified placeholders; resolve by locale before any public deploy.
 3. Docs cards link to a GitHub profile, not the repo files.
 4. ~~Inspector's field grid must be gated or converted~~ — **done**: the grid
-   is deleted and the rail is a music panel (§5.3).
-5. Mobile bottom sheet for the music panel is unspecified; below 980px the
-   track is simply not shown.
-6. `frontend/src/app/tokens.css` still holds the superseded dark-glass palette — migrate and delete.
+   is deleted, along with the whole right-hand rail.
+5. `frontend/src/app/tokens.css` still holds the superseded dark-glass palette — migrate and delete.

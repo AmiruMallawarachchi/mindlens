@@ -37,7 +37,6 @@ If you discover a security vulnerability, please report it responsibly:
 ### Data Protection
 - PII stripped before every model call
 - AES-256 encryption at rest (MongoDB Atlas)
-- Fernet encryption for sensitive fields (Spotify tokens)
 - HTTPS everywhere + WSS for WebSocket
 
 ### Input Security

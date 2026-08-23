@@ -216,7 +216,6 @@ export function useMindLensClient() {
             agentsUsed: frame.agents_used,
             degraded: frame.degraded,
             memoryRecalled: frame.memory_recalled ?? [],
-            music: frame.music ?? null,
           telemetry: frame.telemetry,
           safety: frame.safety,
           options: frame.options ?? null,

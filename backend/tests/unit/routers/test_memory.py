@@ -54,7 +54,6 @@ def sample_memory_doc() -> dict[str, Any]:
             "effective_coping": ["breathing", "music"],
         },
         "preferences": {
-            "music_genres": ["lofi", "classical"],
             "mindfulness_style": "box breathing",
             "introvert_score": 0.7,
             "preferred_modality": "CBT",

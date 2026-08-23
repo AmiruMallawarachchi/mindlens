@@ -378,7 +378,6 @@ def _is_protected_route(path: str) -> bool:
         "/api/v1/admin",
         "/api/v1/memory",
         "/api/v1/checkins",
-        "/api/v1/spotify",
         "/ws",
     )
     return path.startswith(protected_prefixes)

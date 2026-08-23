@@ -99,15 +99,11 @@ export function AssistantTurn({
   }, [message, reading]);
 
   // Inline cards appear only when the turn genuinely warrants them: the
-  // breathe player when a breathing-adjacent agent ran, the music player
-  // when the backend sent a real payload.
+  // breathe player when a breathing-adjacent agent ran.
   const offersBreathing = useMemo(() => {
     const agents = (message.agentsUsed ?? []).map((a) => a.replace(/_agent$/, ""));
     return agents.includes("mindfulness") || agents.includes("dbt");
   }, [message.agentsUsed]);
-  // Music is not rendered inline any more — the right rail is the music
-  // panel and holds the newest track. Rendering it in both places showed the
-  // same card twice on the turn that produced it.
   const hasCards = offersBreathing;
 
   // The "asking" state — the companion tilts and a "?" blooms. Only once the

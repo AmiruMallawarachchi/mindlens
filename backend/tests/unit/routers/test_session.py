@@ -90,7 +90,6 @@ def sample_session_doc() -> dict[str, Any]:
         "key_facts": [],
         "agents_used": [],
         "primary_modality": None,
-        "music_played": [],
         "check_in_scheduled": False,
         "updated_at": datetime.datetime.now(datetime.UTC),
     }

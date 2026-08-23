@@ -30,7 +30,7 @@
 7. [Datasets](#7-datasets)
 8. [Training methodology and measured results](#8-training-methodology-and-measured-results)
 9. [The Emotional Operating System (EOS)](#9-the-emotional-operating-system-eos)
-10. [The agent system — all fourteen](#10-the-agent-system--all-fourteen)
+10. [The agent system — all thirteen](#10-the-agent-system--all-thirteen)
 11. [Response assembly and validation](#11-response-assembly-and-validation)
 12. [RAG — retrieval-augmented generation](#12-rag--retrieval-augmented-generation)
 13. [The two-layer memory system](#13-the-two-layer-memory-system)
@@ -121,12 +121,12 @@ relevant · 3–5 sentences maximum · pure validation with no advice at all whe
 distress ≥ 0.8.
 
 There is a documented bug-and-fix here worth citing in the report: the prompt
-originally handed the model the literal sentence *"music, breathing,
+originally handed the model the literal sentence *"breathing,
 journaling, or just talking — what do you need?"* and instructed it to end
 every reply that way. The model complied word for word on every turn,
 including to a user who had only said they wanted help. Rule 5 in
 `empathy_agent.py` now forbids reciting any menu; structured options are
-generated per-turn instead (§10.15).
+generated per-turn instead (§10.16).
 
 ---
 
@@ -156,7 +156,6 @@ Requirements came from four sources, in descending authority:
 | FR-7 | Route to specialised therapy agents by state | `orchestrator._select_agents` |
 | FR-8 | Remember people, topics and coping strategies; show them; let them be deleted | `session_memory_save.py`, `core/memory_recall.py`, `routers/memory.py`, `memory-page.tsx` |
 | FR-9 | Show the user what the system actually did this turn | `lib/reasoning.ts`, `pipeline-trace.tsx`, `telemetry` payload |
-| FR-10 | Recommend real, playable music | `music_agent.py` (iTunes Search API) |
 | FR-11 | Journal with a daily prompt and full CRUD | `routers/journal.py`, `journal-page.tsx` |
 | FR-12 | Progress view: mood trend + weekly insight | `routers/dashboard.py`, `progress-page.tsx` |
 | FR-13 | Proactive check-ins between sessions | `checkin_scheduler.py`, `checkin_agent.py`, `pending_checkins` |
@@ -246,7 +245,6 @@ one is enforced in code:
 |---|---|---|
 | Groq | All therapy-response generation | API key |
 | Hugging Face Hub | Hosts all five model repos | Read token |
-| Apple iTunes Search API | Real, playable 30-second music previews | **None** |
 | MongoDB Atlas | Production persistence | Connection string |
 | Vercel | Frontend hosting | — |
 | ngrok | Exposes the local backend (models load in-process) | Free account + authtoken |
@@ -308,7 +306,7 @@ runtime is custom asyncio, and the report must not claim otherwise.
    ChromaDB MMR (fetch 20) → cross-encoder rerank → age boost → top 5
                                         ▼
   ══════════════ LAYER 5 : AGENT ORCHESTRATION ═══════════════════════════
-   14 agents registered · N selected by EOS · run concurrently
+   13 agents registered · N selected by EOS · run concurrently
                                         ▼
   ══════════════ LAYER 6 : RESPONSE ASSEMBLY ═════════════════════════════
    priority sort → empathy + at most ONE specialist → validate → stream
@@ -422,7 +420,7 @@ def turn_is_substantive(user_text: str, distress_level: float) -> bool:
 `opening_turn = (session_turn_count == 0 and distress_level < 0.7)`.
 
 Both gates exist because the pipeline used to answer *"hi"* with a grounding
-exercise, a CBT challenge and a music track simultaneously.
+exercise and a CBT challenge simultaneously.
 
 **Distress overriding word count is deliberate and load-bearing.**
 *"i cant anymore"* is three words and is the most important turn in the
@@ -575,7 +573,7 @@ When either layer fires:
 | Rule | Enforcement |
 |---|---|
 | Do not call Groq | `crisis_flag` short-circuits `_select_agents` to `["crisis"]`; `CrisisAgent` has `llm_tier="none"`, `max_tokens=0` |
-| Do not run empathy / mindfulness / music / challenge | Same |
+| Do not run empathy / mindfulness / challenge | Same |
 | Do not retrieve RAG | `rag_status = "skipped_crisis"`, chunks = `[]` |
 | Do not apply user style preferences | `recall_for_turn` results are not merged into the EOS in crisis |
 | Use approved templates only | `CRISIS_TEMPLATES["moderate" \| "severe"]`, selected at distress ≥ 0.85 |
@@ -1298,7 +1296,7 @@ bug.
 
 **Intervention receptiveness** (`Receptiveness`, all 0–1)
 
-music 0.5 · journaling 0.5 · challenge 0.3 · breathing 0.5 · routine 0.4 ·
+journaling 0.5 · challenge 0.3 · breathing 0.5 · routine 0.4 ·
 practical 0.6 · grounding 0.5 · social_support 0.5.
 `is_receptive_to(x)` returns `value >= 0.5`.
 
@@ -1311,7 +1309,7 @@ practical 0.6 · grounding 0.5 · social_support 0.5.
 | `crisis_escalating` | bool |
 
 **Routing flags** (synchronised from the selected agent list)
-`run_distortion`, `run_challenge`, `run_music`, `run_routine`,
+`run_distortion`, `run_challenge`, `run_routine`,
 `run_journaling`, `run_mindfulness`.
 
 **Metadata**
@@ -1362,9 +1360,9 @@ would poison the progress chart.
 
 ---
 
-## 10. The agent system — all fourteen
+## 10. The agent system — all thirteen
 
-Source: `backend/app/agents/`. Fourteen agents are registered in
+Source: `backend/app/agents/`. Thirteen agents are registered in
 `Orchestrator._init_registry()`. Agents **never decide safety** — safety is
 already decided before any of them run.
 
@@ -1378,7 +1376,6 @@ Two gates run before this table (§4.2):
 | Crisis detected | `crisis` **only** — nothing else runs |
 | Every safe turn | `empathy`, `session_memory_save` |
 | `not held_back` and (distress > 0.5 or core ∈ {anxiety, fear, nervousness}) | `mindfulness` |
-| `not held_back` and (distress > 0.4 or receptive to music) | `music` |
 | `not held_back` and `session_depth >= 0.3` | `reflection` |
 | `not held_back` and trust ≥ 0.6 and stability ≥ 0.5 and not in crisis | `challenge` |
 | `not held_back` and modality == CBT | `distortion` |
@@ -1507,62 +1504,7 @@ block · maximum 6 items per day.
 Exactly three structured CBT questions; question 3 personalises using the
 people graph.
 
-### 10.11 `music` — a real, playable intervention
-
-| Property | Value |
-|---|---|
-| LLM tier | 8B (message wrapping only) |
-| Trigger | distress > 0.4 **or** receptive to music |
-| Source | **Apple iTunes Search API** — `https://itunes.apple.com/search`, unauthenticated GET |
-
-**Why not Spotify.** The original design used Spotify OAuth with the
-`/recommendations` endpoint. It could not be finished: that endpoint was
-withdrawn for new apps in November 2024, and since February/March 2026
-Spotify's Web API requires the **developer's own account** to hold an active
-Premium subscription. iTunes search needs none of that and returns a real
-30-second preview MP3 the client plays directly — something the Spotify path
-never reached, since it only ever linked out. The abandoned `spotify-mcp/`
-directory remains in the repo as an empty shell.
-
-**Emotion → search-term mapping.** Every one of the 28 GoEmotions labels the
-classifier can emit has a mapping. This was a real bug fix worth citing: the
-map originally listed 12 moods, only 7 of which the classifier ever produces,
-so 21 labels fell through to a `"chill lo-fi"` default. iTunes returns a
-deterministic result set for a fixed query and the agent always played the
-first hit — which is why **every reply offered "Coffee Break — Lo-Fi Chill
-Cafe" no matter what the user said.**
-
-A second, subtler fix: mood terms are capped at one or two words. Three-word
-moods looked more precise but matched almost nothing — `"acoustic reflective
-mellow"` returned literally zero results, so that emotion silently fell
-through to the static fallback on every single turn. **Every query in the map
-was checked against the live API for a usable result count rather than
-assumed to work.**
-
-Representative mappings (grouped by what the music needs to *do*):
-
-| Group | Emotions | Genre | Mood |
-|---|---|---|---|
-| Settle | anxiety, nervousness, fear, panic | ambient | calm peaceful |
-| Settle | stress | ambient | relaxing calm |
-| Settle | burnout | ambient | nature sounds rest |
-| Sit with | sadness, disappointment | acoustic | melancholy / reflective |
-| Sit with | grief, remorse | piano | reflective |
-| Steady | anger, annoyance, disgust, disapproval | instrumental | grounding / steady |
-| Lift | joy, excitement, amusement | pop | upbeat / energetic / playful |
-| Lift | optimism, pride, admiration, approval | indie | hopeful / uplifting / warm |
-| Tender | love, desire | soul | warm romantic / smooth |
-| Tender | caring | acoustic | warm tender |
-| Flat | neutral | lofi | chill study |
-
-**Fallback:** if iTunes itself is unreachable, a small static table names a
-real track and artist (e.g. *Weightless* — Marconi Union for anxiety) and
-**never fabricates a link**.
-
-**Assembly rule:** music's text is what the music card renders, so it is
-excluded from the prose reply — including it printed the same sentence twice.
-
-### 10.12 `checkin` — proactive follow-up
+### 10.11 `checkin` — proactive follow-up
 
 | Property | Value |
 |---|---|
@@ -1573,7 +1515,7 @@ excluded from the prose reply — including it printed the same sentence twice.
 Recalls something specific from the last session, asks how they are now, and
 is forbidden from opening with *"How are you?"*. 2–3 sentences maximum.
 
-### 10.13 `checkin_scheduler` — when to come back (no LLM)
+### 10.12 `checkin_scheduler` — when to come back (no LLM)
 
 Distress sets urgency:
 
@@ -1588,7 +1530,7 @@ EOS so a check-in lands at a sensible hour, not just after a sensible delay.
 The agent returns scheduling metadata only; the chat router's
 `_save_pending_checkin` writes the `pending_checkins` document.
 
-### 10.14 `progress` — weekly insight
+### 10.13 `progress` — weekly insight
 
 | Property | Value |
 |---|---|
@@ -1603,7 +1545,7 @@ Encouraging, data-backed, specific. `GET /api/v1/dashboard/insight` requires
 `progress_insights` between regenerations rather than spending an LLM call on
 every dashboard visit.
 
-### 10.15 `personality` — standing disposition (no LLM)
+### 10.14 `personality` — standing disposition (no LLM)
 
 Pure rule-based scoring of `introvert_score`, 0.0 introvert → 1.0 extrovert,
 starting at 0.5.
@@ -1618,10 +1560,10 @@ a party would overwrite a disposition built over weeks."* At α = 0.2 one turn
 moves the score by at most 0.01, so a genuine shift has to be said repeatedly
 before it takes hold.
 
-Read by routine, music and challenge for tone calibration. Persisted at
+Read by routine and challenge for tone calibration. Persisted at
 `preferences.introvert_score`.
 
-### 10.16 `session_memory_save` — the memory write path (no LLM)
+### 10.15 `session_memory_save` — the memory write path (no LLM)
 
 Persists the turn and does the extraction behind the Memory page's promise
 that mentioning a person or a hard topic makes it show up there. Before this
@@ -1675,7 +1617,7 @@ Honours `memory_depth == "nothing"` by not extracting at all — *"a user who
 asked Mindlens not to draw on memory shouldn't have new memory quietly
 building up behind the scenes either."*
 
-### 10.17 `question_options` — tappable answers (not an agent, a post-step)
+### 10.16 `question_options` — tappable answers (not an agent, a post-step)
 
 When a reply ends on a question, a Groq call turns it into 2–4 short answers
 plus a free-text escape, rendered as buttons.
@@ -1706,7 +1648,7 @@ Source: `backend/app/agents/response_assembler.py`,
 AGENT_PRIORITY = {
     "crisis": 0,       "empathy": 1,      "mindfulness": 2,
     "reflection": 3,   "distortion": 4,   "challenge": 5,
-    "routine": 6,      "journaling": 7,   "music": 8,
+    "routine": 6,      "journaling": 7,
     "checkin": 9,      "progress": 10,    "personality": 11,
 }
 ```
@@ -1724,7 +1666,7 @@ MAX_SPECIALIST_VOICES = 1
 
 Every speaking agent writes a *complete* conversational turn. With no cap,
 the assembler stapled three or four whole replies together — an empathy
-greeting, then a CBT challenge, then a music pitch — at someone who had only
+greeting, then a CBT challenge, then a third whole reply — at someone who had only
 said they wanted help. It read like a committee rather than one person.
 
 The other agents **still run**; their metadata drives the reasoning trail and
@@ -1735,7 +1677,6 @@ who wins the single slot.
 
 | Agent | Why |
 |---|---|
-| `music` | Its text *is* what the music card renders — including it printed the same sentence twice |
 | `personality`, `checkin_scheduler`, `session_memory_save` | Bookkeeping; they return empty text by design |
 
 ### 11.4 The disclaimer decision
@@ -1817,7 +1758,6 @@ ordinary one otherwise.
 | A classifier returns nothing | `predict_all` maps it to `[]`, `model:<name>` degradation recorded; crisis specifically logs at ERROR |
 | Cross-encoder reranker fails | MMR order served as-is, `rag:reranker` degradation recorded |
 | RAG store unreachable | `rag_status = "failed"`, chunks `[]`, agents continue without context |
-| iTunes unreachable | Static fallback names a real track, never a fabricated link |
 | An agent raises | `asyncio.gather(return_exceptions=True)` logs it; the other agents still assemble |
 | MongoDB unreachable | Retry, then a safe 503 from `/ready` |
 | WebSocket streaming fails | User turn is already saved; an explicit error frame is sent |
@@ -2155,7 +2095,7 @@ appearing in Memory, where the user can edit or delete it.
       "effective_coping":  ["going for a walk", "listening to music"]
   },
   "preferences": {
-      "music_genres": [], "mindfulness_style": "",
+      "mindfulness_style": "",
       "preferred_modality": "CBT",
       "checkin_preferred_time": "evening",
       "tone_preference": "balanced",
@@ -2218,7 +2158,7 @@ worth quoting in the report:
   Mindlens inferred it from things said in past sessions. Applying it under
   "nothing" would be drawing on remembered material while telling the user we
   aren't.
-- **`nothing` also stops new extraction**, not just recall (§10.16).
+- **`nothing` also stops new extraction**, not just recall (§10.15).
 
 A real bug fixed here: the `key_details` branch originally omitted
 `personality` and `custom_instructions`, so choosing the *middle* depth
@@ -2229,7 +2169,7 @@ silently discarded instructions that the *strictest* depth honoured.
 | Writer | What it writes | When |
 |---|---|---|
 | `routers/onboarding.py` | Seeds the whole document: profile, people graph from onboarding, default preferences, empty patterns, first milestone | Once, at onboarding completion (`upsert=True`, `$setOnInsert` for immutable fields) |
-| `session_memory_save` | People, trigger topics, effective coping | Every turn, heuristically (§10.16) |
+| `session_memory_save` | People, trigger topics, effective coping | Every turn, heuristically (§10.15) |
 | `chat.py::_save_introvert_score` | `preferences.introvert_score` | Every turn `personality` runs |
 | `routers/memory.py` | Any field the user edits | On demand |
 
@@ -2460,7 +2400,7 @@ anything to read.
 | `thinking_update` | `agents_active[]`, `eos`, `memory_recalled[]`, `telemetry`, `safety`, `degraded[]` |
 | `stream_chunk` | `chunk`, `index` |
 | `stream_end` | — |
-| `response` | `text`, `agents_used[]`, `eos_snapshot`, `music`, `crisis_flag`, `resources[]`, `degraded[]`, `memory_recalled[]`, `telemetry`, `safety`, `options` |
+| `response` | `text`, `agents_used[]`, `eos_snapshot`, `crisis_flag`, `resources[]`, `degraded[]`, `memory_recalled[]`, `telemetry`, `safety`, `options` |
 | `crisis_response` | `text`, `crisis_flag: true`, `resources[]`, `session_paused` |
 | `checkin` | `text`, `from_session` |
 | `error` | `detail` |
@@ -2963,7 +2903,7 @@ Personality is skippable (*"not everyone sees themselves in a 10-item
 list"*); tone is not, because `empathy_agent` branches on it every turn, so
 it defaults rather than being skippable.
 
-**Chat** — three columns: sidebar 262 px / conversation / music rail 336 px.
+**Chat** — two columns: sidebar 262 px / conversation.
 The rail is hidden below 981 px; the sidebar becomes a hamburger drawer below
 780 px. The header carries a mono eyebrow, the session title in Newsreader
 and a plain status pill — `DESIGN.md` §4.1 **explicitly forbids naming the
@@ -3006,9 +2946,7 @@ item, so new entries land in the same commit as the section they open."*
 | `live-stage-trail.tsx` | The in-flight version, driven by `stage_update` frames |
 | `pipeline-trace.tsx` | The mechanical view — Task/Tool primitives |
 | `crisis-banner.tsx` | `CrisisPanel` — resources as contact rows |
-| `music-card.tsx` | Track list, playback, seek |
 | `breathe-card.tsx` | The 4·7·8 player |
-| `inspector.tsx` | The right rail — **music only** |
 
 ### 19.8 The reasoning trail — four honest steps
 
@@ -3022,7 +2960,7 @@ finding).
 > implying work that didn't happen — a wellbeing product that narrates
 > reasoning it didn't do is worse than one that stays quiet."*
 
-The agent-phrase table maps the **fourteen agents the registry actually
+The agent-phrase table maps the **thirteen agents the registry actually
 registers** to first-person phrases:
 
 | Agent | Phrase |
@@ -3035,7 +2973,6 @@ registers** to first-person phrases:
 | distortion | "check the shape of the thinking" |
 | routine | "look for one small next step" |
 | journaling | "offer something to write about" |
-| music | "offer something to listen to" |
 | checkin | "come back to what you said last time" |
 | progress | "look at how this compares to before" |
 | personality, checkin_scheduler, session_memory_save | `null` — bookkeeping, excluded as noise |
@@ -3396,7 +3333,6 @@ roughly **2.5–3.5 GB resident** and load in-process.
                                               ├─► MongoDB Atlas
                                               ├─► Groq API
                                               ├─► Hugging Face Hub
-                                              └─► iTunes Search API
 ```
 
 **This is an accepted, documented limitation, not an oversight:** the demo
@@ -3508,9 +3444,7 @@ real, measured limit, not a hedge. **The report should carry all of these.**
 |---|---|
 | L15 | Text only — no voice pipeline in this release |
 | L16 | English generation only; non-English input is handled without crashing but not answered in kind |
-| L17 | Music is 30-second iTunes previews, not full playback |
-| L18 | The Spotify integration was abandoned for documented platform reasons (§10.11); `spotify-mcp/` remains as an empty shell and should be deleted |
-| L19 | Empty directories remain in the repo: `models/`, `rag-ingest/`, `workers/`, `.agents/` |
+| L17 | Empty directories remain in the repo: `models/`, `rag-ingest/`, `workers/`, `.agents/` |
 
 ---
 
@@ -3532,7 +3466,6 @@ graph TB
     CH[("ChromaDB<br/>embedded, on disk")]
     GQ["Groq API<br/>gpt-oss-20b / 120b"]
     HF["Hugging Face Hub<br/>5 model repos"]
-    IT["Apple iTunes Search API<br/>no auth"]
 
     U -->|HTTPS| FE
     FE -->|REST /api/v1| BE
@@ -3565,7 +3498,7 @@ graph TB
         SG["SafetyGate"]
         ML["ModelManager<br/>5 pipelines"]
         RAG["TherapyRetriever"]
-        AG["AgentRegistry<br/>14 agents"]
+        AG["AgentRegistry<br/>13 agents"]
         ASM["ResponseAssembler<br/>+ ResponseValidator"]
         GC["GroqClient"]
         CM["ConnectionManager"]
@@ -3669,8 +3602,6 @@ graph TD
     HB -->|yes| BK
     HB -->|no| G1{"distress > 0.5<br/>OR core in anxiety/fear/nervousness"}
     G1 -->|yes| A1["+ mindfulness"] --> G2
-    G1 -->|no| G2{"distress > 0.4<br/>OR receptive to music"}
-    G2 -->|yes| A2["+ music"] --> G3
     G2 -->|no| G3{"session_depth >= 0.3"}
     G3 -->|yes| A3["+ reflection"] --> G4
     G3 -->|no| G4{"trust >= 0.6 AND<br/>stability >= 0.5 AND<br/>not in crisis"}
@@ -3749,7 +3680,7 @@ sequenceDiagram
         CH->>WS: stream_chunk
     end
     CH->>WS: stream_end
-    CH->>WS: response (+ music, options, telemetry, safety)
+    CH->>WS: response (+ options, telemetry, safety)
     WS-->>FE: frames
     FE-->>U: streamed reply + trail + trace
 
@@ -3961,9 +3892,8 @@ erDiagram
 graph TD
     O["AgentOutput[] from all agents that ran"] --> C{"in_crisis?"}
     C -->|yes| CX["take crisis output only<br/>+ CRISIS_RESOURCES"] --> V
-    C -->|no| S["sort by AGENT_PRIORITY<br/>crisis 0 · empathy 1 · mindfulness 2 ·<br/>reflection 3 · distortion 4 · challenge 5 ·<br/>routine 6 · journaling 7 · music 8 ·<br/>checkin 9 · progress 10 · personality 11"]
+    C -->|no| S["sort by AGENT_PRIORITY<br/>crisis 0 · empathy 1 · mindfulness 2 ·<br/>reflection 3 · distortion 4 · challenge 5 ·<br/>routine 6 · journaling 7 ·<br/>checkin 8 · progress 9 · personality 10"]
     S --> F1{"text blank?"} -->|yes| SKIP1["skip"]
-    F1 -->|no| F2{"agent in CARD_RENDERED?<br/>music"} -->|yes| SKIP2["skip — the card renders it"]
     F2 -->|no| F3{"agent == empathy?"}
     F3 -->|yes| KEEP["keep"]
     F3 -->|no| F4{"specialists_spoken >= 1?"}
@@ -4060,12 +3990,10 @@ graph TD
     CV --> AT["AssistantTurn"]
     AT --> RT["ReasoningTrail — prose, 4 steps"]
     AT --> PT["PipelineTrace — mechanical"]
-    AT --> MC["MusicCard"]
     AT --> BC["BreatheCard"]
     CS --> LST["LiveStageTrail — stage_update frames"]
     CS --> CP["CrisisPanel"]
     CS --> CO["Composer"]
-    CS --> IN["Inspector — music rail only"]
 
     SM --> SG1["General"]; SM --> SA["Account"]; SM --> SP2["Privacy & data"]
     SM --> SAP["Appearance"]; SM --> SME["Memory"]
@@ -4114,7 +4042,6 @@ graph TB
         AT[("MongoDB Atlas")]
         GQ["Groq"]
         HF["Hugging Face Hub"]
-        IT["iTunes Search"]
     end
 
     U --> FE --> TU --> UV
@@ -4139,7 +4066,6 @@ graph TD
     MC2 -->|yes| ML2["ERROR log — this turn was screened by regex ALONE"]
     X -->|"cross-encoder fails"| R1["serve MMR order · record 'rag:reranker'"]
     X -->|"Chroma unreachable"| R2["chunks = [] · status 'failed'"]
-    X -->|"iTunes unreachable"| MU["static fallback — a real track, NEVER a fake link"]
     X -->|"an agent raises"| AGF["gather logs it · the rest still assemble"]
     X -->|"validator blocks"| VB["safe fallback + logged categories"]
 
@@ -4195,7 +4121,7 @@ mindlens/
 │   │   ├── main.py         app factory, lifespan, /health, /ready
 │   │   ├── config.py       pydantic-settings + production fail-closed
 │   │   ├── db.py           Motor client, indexes, document_id_filter
-│   │   ├── agents/         orchestrator + safety gate + 14 agents
+│   │   ├── agents/         orchestrator + safety gate + 13 agents
 │   │   │   ├── orchestrator.py          776 lines — the pipeline
 │   │   │   ├── safety_gate.py           Layer 0
 │   │   │   ├── crisis_agent.py          zero-LLM templates
@@ -4203,7 +4129,6 @@ mindlens/
 │   │   │   ├── mindfulness_agent.py · reflection_agent.py
 │   │   │   ├── distortion_agent.py  · challenge_agent.py
 │   │   │   ├── routine_agent.py     · journaling_agent.py
-│   │   │   ├── music_agent.py           iTunes Search
 │   │   │   ├── checkin_agent.py     · checkin_scheduler.py
 │   │   │   ├── progress_agent.py    · personality_agent.py
 │   │   │   ├── session_memory_save.py   the memory write path
@@ -4271,8 +4196,7 @@ mindlens/
 
 ### 25.1 Empty directories to clean up before submission
 
-`models/` · `rag-ingest/` · `workers/` · `.agents/` · `spotify-mcp/` (only a
-`__pycache__` remains after the Spotify integration was replaced).
+`models/` · `rag-ingest/` · `workers/` · `.agents/`.
 
 ---
 

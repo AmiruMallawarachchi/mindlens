@@ -38,7 +38,6 @@ const AGENT_TITLES: Record<string, string> = {
   distortion: "distortion",
   routine: "routine",
   journaling: "journaling",
-  music: "music",
   checkin: "checkin",
   progress: "progress",
   personality: "personality",

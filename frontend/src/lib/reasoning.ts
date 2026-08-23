@@ -47,7 +47,6 @@ const AGENT_PHRASES: Record<string, string | null> = {
   distortion: "check the shape of the thinking",
   routine: "look for one small next step",
   journaling: "offer something to write about",
-  music: "offer something to listen to",
   checkin: "come back to what you said last time",
   progress: "look at how this compares to before",
   // Bookkeeping. They run every turn and describing them would be noise.

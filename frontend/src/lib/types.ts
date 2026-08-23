@@ -139,7 +139,6 @@ export interface MemoryPerson {
 }
 
 export interface MemoryPreferences {
-  music_genres?: string[];
   mindfulness_style?: string;
   /** Inferred by PersonalityAgent from what's been said, not typed by the
    * user. `null` clears it — distinct from "not sent" (which leaves the
@@ -223,18 +222,6 @@ export interface CrisisResource {
   note?: string;
 }
 
-/** backend/app/agents/streaming.py::_extract_music_payload. Null when the
- * music agent didn't run this turn — distinct from running with no tracks.
- * Tracks come from Apple's iTunes Search API (music_agent.py) — no user
- * connection step. preview_url is a real, directly-playable 30s clip,
- * present on most but not all tracks; track_url (the Apple Music page) is
- * present whenever preview_url is. */
-export interface MusicPayload {
-  message: string;
-  tracks: Array<{ name?: string; artist?: string; preview_url?: string | null; track_url?: string | null }>;
-  emotion: string | null;
-}
-
 /** Structured follow-up answers offered as buttons under a reply.
  *
  * Deliberately not the canned menu empathy_agent forbids: generated per
@@ -289,8 +276,6 @@ export interface ChatMessage {
   degraded?: string[];
   /** Anything the backend reported recalling for this turn. */
   memoryRecalled?: string[];
-  /** Set when the music agent ran this turn — renders the music player card. */
-  music?: MusicPayload | null;
   /** Still streaming in (stream_chunk frames, before the final "response"). */
   pending?: boolean;
   /** A client- or server-side error rendered inline, not a real turn. */
@@ -326,7 +311,6 @@ export type ServerFrame =
       text: string;
       agents_used: string[];
       eos_snapshot: EosSnapshot;
-      music?: MusicPayload | null;
       crisis_flag: boolean;
       resources?: CrisisResource[];
       degraded?: string[];

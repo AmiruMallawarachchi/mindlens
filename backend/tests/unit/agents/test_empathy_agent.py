@@ -21,7 +21,7 @@ class TestEmpathyAgent:
     def mock_groq(self) -> MagicMock:
         mock = MagicMock()
         mock.chat = AsyncMock(return_value=MagicMock(
-            text="Hey Amiru, it sounds like you're really stressed about the exam. What's making it feel so overwhelming right now?\n\nWhen you're ready: music, breathing, journaling, or just talking — what do you need?",
+            text="Hey Amiru, it sounds like you're really stressed about the exam. What's making it feel so overwhelming right now?\n\nWhen you're ready: breathing, journaling, or just talking — what do you need?",
             model_used="llama-3.1-8b-instant",
             tokens_used=45,
             latency_ms=120.0,

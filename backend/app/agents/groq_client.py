@@ -291,8 +291,6 @@ class GroqClient:
             agent_name = "routine"
         elif "journaling" in system_prompt.lower():
             agent_name = "journaling"
-        elif "music" in system_prompt.lower():
-            agent_name = "music"
         elif "check-in" in system_prompt.lower() or "checkin" in system_prompt.lower():
             agent_name = "checkin"
         elif "progress" in system_prompt.lower():
@@ -336,11 +334,6 @@ class GroqClient:
                 "1. What emotion showed up most strongly today?\n"
                 "2. What moment felt the hardest?\n"
                 "3. What one small thing went okay?"
-            ),
-            "music": (
-                "Music can be a powerful anchor, {name}. "
-                "Try a slow, instrumental playlist with a steady rhythm. "
-                "Even 5 minutes of intentional listening can shift your state."
             ),
             "checkin": (
                 "Hey {name}, just checking in. How are you feeling today? "

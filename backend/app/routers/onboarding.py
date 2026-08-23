@@ -244,7 +244,6 @@ async def submit_onboarding_step(
                     "people": people_graph,
                     "preferences": {
                         "checkin_preferred_time": req.checkin_preferred_time,
-                        "music_genres": [],
                         "mindfulness_style": "",
                         # No introvert_score here — see the matching comment
                         # on the /complete path below for why.
@@ -324,7 +323,6 @@ async def complete_onboarding(
                 "people": people_graph,
                 "preferences": {
                     "checkin_preferred_time": req.checkin_preferred_time,
-                    "music_genres": [],
                     "mindfulness_style": "",
                     # No introvert_score here — memory_recall.py's own
                     # invariant is "None means nothing has been inferred yet,

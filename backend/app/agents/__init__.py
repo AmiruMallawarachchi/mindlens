@@ -22,7 +22,6 @@ from app.agents.empathy_agent import EmpathyAgent
 from app.agents.groq_client import GroqClient, get_groq_client
 from app.agents.journaling_agent import JournalingAgent
 from app.agents.mindfulness_agent import MindfulnessAgent
-from app.agents.music_agent import MusicAgent
 from app.agents.personality_agent import PersonalityAgent
 from app.agents.progress_agent import ProgressAgent
 from app.agents.reflection_agent import ReflectionAgent
@@ -51,7 +50,6 @@ __all__ = [
     "DistortionAgent",
     "RoutineAgent",
     "JournalingAgent",
-    "MusicAgent",
     "CheckInAgent",
     "ProgressAgent",
     "PersonalityAgent",

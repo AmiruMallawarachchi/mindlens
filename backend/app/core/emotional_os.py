@@ -40,7 +40,6 @@ class LLMTier(enum.StrEnum):
 class Receptiveness(BaseModel):
     """User's receptiveness to different interventions (0-1 scale)."""
 
-    music: float = Field(default=0.5, ge=0, le=1)
     journaling: float = Field(default=0.5, ge=0, le=1)
     challenge: float = Field(default=0.3, ge=0, le=1)
     breathing: float = Field(default=0.5, ge=0, le=1)
@@ -236,7 +235,6 @@ class EmotionalOperatingState(BaseModel):
     # --- Legacy Routing Fields (keep for compatibility) ---
     run_distortion: bool = Field(default=False)
     run_challenge: bool = Field(default=False)
-    run_music: bool = Field(default=False)
     run_routine: bool = Field(default=False)
     run_journaling: bool = Field(default=False)
     run_mindfulness: bool = Field(default=False)
@@ -296,10 +294,6 @@ class EmotionalOperatingState(BaseModel):
                 and self.mental_fatigue < 0.8
                 and self.is_receptive_to("journaling")
             ),
-            "music_agent": (
-                self.distress_level >= 0.4
-                or self.is_receptive_to("music")
-            ),
         }
         return routing
 
@@ -338,7 +332,7 @@ def create_calm_eos(session_id: str = "test") -> EmotionalOperatingState:
         session_depth=0.2,
         modality=Modality.MINDFULNESS,
         age_group=AgeGroup.ADULT,
-        receptiveness=Receptiveness(music=0.7, journaling=0.6),
+        receptiveness=Receptiveness(journaling=0.6),
         session_id=session_id,
     )
 
@@ -355,7 +349,7 @@ def create_distressed_eos(session_id: str = "test") -> EmotionalOperatingState:
         session_depth=0.4,
         modality=Modality.CBT,
         age_group=AgeGroup.TEEN,
-        receptiveness=Receptiveness(music=0.8, breathing=0.9, challenge=0.2),
+        receptiveness=Receptiveness(breathing=0.9, challenge=0.2),
         session_id=session_id,
     )
 

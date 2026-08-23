@@ -32,7 +32,6 @@
 | Crisis response | Template-only crisis agent. Zero LLM calls during crisis |
 | RAG | ChromaDB vector retrieval plus MindLens RAG reranker |
 | Memory | MongoDB user profile, session memory, people graph, progress records |
-| Music | iTunes Search API — no login or connection step, static fallback if unreachable |
 | Scheduler | APScheduler inside FastAPI for check-ins. No Redis required |
 | Admin | Separate admin surface for users, health, model status, reports, and sessions |
 | Security | JWT in httpOnly cookies, ownership-scoped MongoDB queries, rate limits everywhere |
@@ -86,7 +85,7 @@ MindLens responses must:
 - Ask for the root cause before giving advice.
 - Normalize emotion without dismissing it.
 - Connect emotional support to practical next steps.
-- Offer choices at the end: music, breathing, journaling, planning, or talking.
+- Offer choices at the end: breathing, journaling, planning, or talking.
 - Stay concise, usually 4-5 sentences.
 - Avoid robotic validation phrases.
 
@@ -105,7 +104,7 @@ MindLens can say:
 - "Let's slow this down and find the real reason first."
 - "Is this fear about failing, disappointing someone, or feeling unprepared?"
 - "We can handle this in pieces."
-- "Do you want music, breathing, journaling, or just to talk for a minute?"
+- "Do you want breathing, journaling, or just to talk for a minute?"
 
 ### 2.2 Age-Adaptive Tone
 
@@ -142,7 +141,6 @@ USER
 Next.js 15 Frontend
   - Sidebar: sessions, new chat, settings
   - Main chat: messages, mode badge, input
-  - Right panel: music only, mounted when a track exists
   - Dashboard: progress, mood, routines, memory
   - Onboarding: profile, age, preferences, goals
   - Admin: health, users, models, reports
@@ -231,7 +229,6 @@ MongoDB Memory + Sessions + Audit Logs
 |---|---|
 | Groq | Therapy response generation |
 | Hugging Face | Hosted model repositories |
-| Apple iTunes Search API | Music track search, no auth required |
 | MongoDB Atlas | Production persistence |
 | Vercel | Frontend deployment target |
 | ngrok | Exposes the backend (models loaded in-process, so it runs on developer hardware, not a hosted platform) — see docs/DEPLOYMENT.md for why |
@@ -253,7 +250,7 @@ health views.
 | Size | Approximately 0.1B parameters |
 | Role | Detect user emotion and emotional tone |
 | Pipeline name | `emotion` |
-| Used by | EOS builder, empathy agent, music agent, mindfulness agent, dashboard |
+| Used by | EOS builder, empathy agent, mindfulness agent, dashboard |
 | Expected output | Emotion label scores |
 | Minimum acceptance | 80% test accuracy before final wiring |
 
@@ -263,7 +260,7 @@ Purpose:
 - Help infer core emotion.
 - Drive intervention selection.
 - Feed progress charts.
-- Adjust music, journaling, and mindfulness choices.
+- Adjust journaling and mindfulness choices.
 
 ### 5.2 Model 2 - Mental Health Classifier
 
@@ -402,7 +399,7 @@ EOS fields:
 | `alliance_score` | Relationship strength with system |
 | `session_depth` | Depth of current session |
 | `mental_fatigue` | Fatigue/burnout signal |
-| `receptiveness` | Openness to music, breathing, journaling, challenge, routine |
+| `receptiveness` | Openness to breathing, journaling, challenge, routine |
 | `age_group` | teen or adult |
 | `people_graph` | Important people in the user's life |
 | `llm_tier` | fast or deep |
@@ -439,7 +436,6 @@ decided before they run.
 | `challenge_agent` | Gentle Socratic challenge when safe |
 | `routine_agent` | Builds small practical routines |
 | `journaling_agent` | Offers reflective prompts |
-| `music_agent` | Recommends real, playable tracks via iTunes search |
 | `checkin_agent` | Generates proactive follow-up message |
 | `checkin_scheduler` | Schedules future check-ins |
 | `progress_agent` | Weekly progress and insight summaries |
@@ -449,7 +445,7 @@ decided before they run.
 ### 7.2 Agent Routing Rules
 
 Two gates run before the table below. Both exist because the pipeline used to
-answer "hi" with a grounding exercise, a CBT challenge and a music track.
+answer "hi" with a grounding exercise and a CBT challenge.
 
 | Gate | Meaning |
 |---|---|
@@ -466,7 +462,6 @@ pipeline.
 | Crisis detected | `crisis_agent` only |
 | Every safe turn | `empathy_agent`, `session_memory_save`, `personality_agent` |
 | Not held back, distress above 0.5 or anxious/fearful | `mindfulness_agent` |
-| Not held back, music receptive or distress above 0.4 | `music_agent` |
 | Not held back, CBT modality active | `distortion_agent` |
 | Not held back, trust high and stability safe | `challenge_agent` |
 | Not held back, fatigue >= 0.7 | `routine_agent` |
@@ -478,21 +473,19 @@ pipeline.
 ### 7.3 Response Assembly Order
 
 Priority order for whoever speaks: crisis, empathy, mindfulness, reflection,
-distortion, challenge, routine, journaling, music, checkin, progress.
+distortion, challenge, routine, journaling, checkin, progress.
 
 **At most two agents speak per turn: empathy, plus one specialist.**
 
 Every speaking agent writes a *complete* conversational turn, so
 concatenating them all produced three or four whole replies stapled together
-— an empathy greeting, then a CBT challenge, then a music pitch, at someone
+— an empathy greeting, then a CBT challenge, then a third whole reply, at someone
 who had only said they wanted help. The rest still run; their metadata drives
 the reasoning trail. They simply do not get to talk. Priority order decides
 who wins the one slot, so grounding always beats challenging.
 
-Two agents never contribute prose:
+One group never contributes prose:
 
-- **Music** — its text is what the music card renders, so including it in the
-  reply printed the same sentence twice.
 - **Bookkeeping** (`personality`, `checkin_scheduler`, `session_memory_save`)
   — they return empty text by design.
 
@@ -595,7 +588,7 @@ classifier before its probes are checked.
 When crisis is detected:
 
 - Do not call Groq.
-- Do not call empathy/mindfulness/music/challenge agents.
+- Do not call empathy/mindfulness/challenge agents.
 - Do not retrieve RAG therapy context.
 - Do not provide long therapy explanations.
 - Use only approved crisis templates.
@@ -747,37 +740,31 @@ turn"*, which named the wrong component.
 
 ---
 
-## 12. Music System
+## 12. Music System — removed, not implemented
 
-Music is an intervention, not decoration.
+**There is no music feature in MindLens.** No music agent, no track
+recommendations, no audio playback. This section is kept only so the
+numbering of §13 onward stays stable for the code comments that cite it.
 
-Originally designed around Spotify OAuth (user-connected playback and
-personalization). Not shipped: Spotify's Web API has required the
-*developer's own account* to hold an active Premium subscription since
-February/March 2026, on top of the `/recommendations` endpoint this design
-depended on being withdrawn for new apps in November 2024. Rebuilt on
-Apple's iTunes Search API instead — no auth, no account connection, no
-personal subscription required by anyone.
+It was scoped out rather than shipped, for reasons that were structural
+rather than a matter of remaining effort:
 
-### 12.1 How it works
+- **Spotify was never viable.** Its Web API has required the *developer's
+  own account* to hold an active Premium subscription since
+  February/March 2026, and the `/recommendations` endpoint the original
+  design depended on was withdrawn for new apps in November 2024.
+- **The iTunes Search API fallback could only ever return a 30-second
+  preview clip**, not a track. A "music therapy" intervention that plays
+  thirty seconds and stops is not the intervention it claims to be, and
+  §24's rule against shipping a control that overstates what it does
+  applies to features as much as to settings.
+- It was **outside the original project proposal** — an addition, not a
+  requirement, so removing it costs no scoped deliverable.
 
-| Path | Description |
-|---|---|
-| iTunes search | Emotion maps to a genre + mood search term (no login, no connection step); returns real tracks with a 30-second preview clip the client plays directly |
-| Static fallback | Used only if iTunes itself is unreachable — names a track and artist, never a fabricated link |
-
-### 12.2 Music Agent Rules
-
-The music agent considers:
-
-- Emotion.
-- Distress.
-- Energy level.
-- User preference.
-- Time of day.
-- Whether the user wants regulation, comfort, focus, or release.
-
-Music must not be suggested during crisis as a substitute for emergency support.
+Removed in full: the agent, its routing, the WebSocket `music` payload,
+the right-hand player panel, the `media-chrome` dependency, and the
+`music_genres` / `music_played` fields that were being written but never
+read. The agent registry went from fourteen agents to thirteen.
 
 ---
 
@@ -813,7 +800,7 @@ Collapsed by default. Shows safe transparency:
 - Emotion/distress summary.
 - Therapy mode.
 - Memory recalled.
-- Music/routine/journaling suggestions.
+- Routine/journaling suggestions.
 
 Do not show raw hidden prompts to normal users.
 
@@ -966,7 +953,6 @@ On FastAPI startup:
 |---|---|
 | Groq down | Template fallback, session continues |
 | MongoDB down | Retry, then safe 503 |
-| iTunes unreachable | Static fallback, no fabricated links |
 | RAG empty | Agents continue without RAG |
 | Model unavailable | Mark unhealthy, use approved fallback only |
 | Scheduler down | Restart or resume on next startup |
@@ -1107,7 +1093,6 @@ MindLens must handle:
 - Deleted account with old token.
 - MongoDB timeout.
 - Groq timeout.
-- iTunes unreachable.
 - RAG empty.
 - Model unavailable.
 
@@ -1142,7 +1127,6 @@ Deliverables:
 - Dashboard.
 - RAG wired.
 - Check-ins.
-- Music recommendations (iTunes search).
 
 ### Phase 3 - Polish And Admin
 

@@ -417,8 +417,8 @@ export function ChatSidebar({
       </div>
 
       {/* The companion's resting place. It used to float over the
-        * conversation on a fixed right-hand pixel offset that assumed the
-        * music rail was always mounted — once that rail became conditional,
+        * conversation on a fixed right-hand pixel offset that assumed a
+        * right-hand rail was always mounted — once that assumption broke,
         * the offset pointed into the middle of the transcript and the
         * companion sat on top of the user's own text while they typed.
         * A stable home in the sidebar cannot collide with anything. */}

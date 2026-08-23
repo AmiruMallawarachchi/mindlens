@@ -41,7 +41,6 @@ class TestEmotionalOperatingStateDefaults:
     def test_default_receptiveness(self) -> None:
         """Default receptiveness has all fields."""
         eos = EmotionalOperatingState()
-        assert eos.receptiveness.music == 0.5
         assert eos.receptiveness.journaling == 0.5
         assert eos.receptiveness.challenge == 0.3
         assert eos.receptiveness.breathing == 0.5
@@ -104,15 +103,15 @@ class TestEmotionalOperatingStateMethods:
         eos = EmotionalOperatingState(crisis_escalating=True)
         assert eos.is_in_crisis() is True
 
-    def test_is_receptive_to_music(self) -> None:
-        """Receptiveness check for music."""
-        eos = EmotionalOperatingState(receptiveness=Receptiveness(music=0.7))
-        assert eos.is_receptive_to("music") is True
+    def test_is_receptive_to_journaling(self) -> None:
+        """Receptiveness check for journaling."""
+        eos = EmotionalOperatingState(receptiveness=Receptiveness(journaling=0.7))
+        assert eos.is_receptive_to("journaling") is True
 
     def test_is_receptive_to_low_value(self) -> None:
         """Low receptiveness returns False."""
-        eos = EmotionalOperatingState(receptiveness=Receptiveness(music=0.3))
-        assert eos.is_receptive_to("music") is False
+        eos = EmotionalOperatingState(receptiveness=Receptiveness(journaling=0.3))
+        assert eos.is_receptive_to("journaling") is False
 
     def test_get_agent_routing_decision(self) -> None:
         """Routing decision includes empathy and safety."""
@@ -128,7 +127,6 @@ class TestReceptiveness:
     def test_default_values(self) -> None:
         """All fields have defaults."""
         r = Receptiveness()
-        assert r.music == 0.5
         assert r.journaling == 0.5
         assert r.challenge == 0.3
         assert r.breathing == 0.5
@@ -139,14 +137,14 @@ class TestReceptiveness:
 
     def test_custom_values(self) -> None:
         """Custom values are accepted."""
-        r = Receptiveness(music=0.9, challenge=0.1)
-        assert r.music == 0.9
+        r = Receptiveness(journaling=0.9, challenge=0.1)
+        assert r.journaling == 0.9
         assert r.challenge == 0.1
 
     def test_bounds(self) -> None:
         """Values must be between 0 and 1."""
         with pytest.raises(ValueError):
-            Receptiveness(music=1.5)
+            Receptiveness(journaling=1.5)
 
 
 class TestPeopleGraph:

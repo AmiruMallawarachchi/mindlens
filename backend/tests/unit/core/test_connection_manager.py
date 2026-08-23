@@ -119,13 +119,11 @@ class TestConnectionManagerBasics:
             text="I hear you.",
             agents_used=["empathy_agent"],
             eos_snapshot={"surface_emotion": "sadness"},
-            music={"tracks": ["Weightless"]},
         )
 
         call_args = ws.send_json.call_args[0][0]
         assert call_args["type"] == "response"
         assert call_args["text"] == "I hear you."
-        assert call_args["music"]["tracks"] == ["Weightless"]
         assert call_args["crisis_flag"] is False
 
     @pytest.mark.asyncio

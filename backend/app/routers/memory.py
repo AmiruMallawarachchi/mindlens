@@ -44,7 +44,6 @@ class PeopleUpdate(BaseModel):
     people: dict[str, dict[str, str]] = Field(..., description="Name -> {role, context, sentiment}")
 
 class PreferencesUpdate(BaseModel):
-    music_genres: list[str] | None = None
     mindfulness_style: str | None = Field(None, max_length=100)
     introvert_score: float | None = Field(None, ge=0.0, le=1.0)
     preferred_modality: str | None = Field(None, max_length=50)

@@ -219,7 +219,7 @@ export function ProgressPage() {
         </div>
       </section>
 
-      {/* Moved here from the chat's right rail, which is a music panel now.
+      {/* Moved here from the chat's old right rail, which no longer exists.
         * It reuses the mood logs this page already fetched rather than
         * issuing a second request for the same data. */}
       <section>

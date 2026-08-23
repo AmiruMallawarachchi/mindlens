@@ -46,7 +46,7 @@ _PROMPT = (
     "- Write them in the person's voice, as answers they would give — not "
     "as things the app can do for them.\n"
     "- They must be genuinely different answers, not rewordings.\n"
-    "- Never list app features (music, journaling, breathing). This is about "
+    "- Never list app features (journaling, breathing). This is about "
     "what they might say next, not a menu of tools.\n"
     "- If the question has no small set of sensible answers, return "
     "{\"options\": []}. That is a good outcome, not a failure."

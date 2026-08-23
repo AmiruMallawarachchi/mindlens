@@ -179,7 +179,6 @@ async def create_session(
         "key_facts": [],
         "agents_used": [],
         "primary_modality": None,
-        "music_played": [],
         "check_in_scheduled": False,
         "pinned": False,
         "updated_at": now,
