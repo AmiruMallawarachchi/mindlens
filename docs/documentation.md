@@ -249,7 +249,7 @@ one is enforced in code:
 | Apple iTunes Search API | Real, playable 30-second music previews | **None** |
 | MongoDB Atlas | Production persistence | Connection string |
 | Vercel | Frontend hosting | — |
-| Cloudflare Tunnel | Exposes the local backend (models load in-process) | — |
+| ngrok | Exposes the local backend (models load in-process) | Free account + authtoken |
 
 ### 3.2 A note on LangChain / LangGraph
 
@@ -283,7 +283,7 @@ runtime is custom asyncio, and the report must not claim otherwise.
                                         │ HTTPS + WSS
                                         ▼
                         ┌───────────────────────────────────┐
-                        │  FastAPI (via Cloudflare Tunnel)  │
+                        │  FastAPI (via ngrok Tunnel)       │
                         │  CORS → Auth MW → Rate limit →    │
                         │  Request ID → Security headers    │
                         └───────────────┬───────────────────┘
@@ -3385,13 +3385,13 @@ flow-verifier pass found`.
 
 ### 22.1 What is actually live
 
-**A local backend + a Cloudflare quick tunnel + Vercel.** The backend runs on
+**A local backend + an ngrok tunnel + Vercel.** The backend runs on
 a developer machine, not a hosted platform, because the five models want
 roughly **2.5–3.5 GB resident** and load in-process.
 
 ```text
- Vercel (Next.js)  ──HTTPS/WSS──►  *.trycloudflare.com  ──►  127.0.0.1:8000
-                                                              (uvicorn)
+ Vercel (Next.js)  ──HTTPS/WSS──►  *.ngrok-free.dev  ──►  127.0.0.1:8000
+                                                            (uvicorn)
                                               │
                                               ├─► MongoDB Atlas
                                               ├─► Groq API
@@ -3401,14 +3401,24 @@ roughly **2.5–3.5 GB resident** and load in-process.
 
 **This is an accepted, documented limitation, not an oversight:** the demo
 depends on that machine being on and connected. First boot takes ~15–20 s
-(five models + the RAG index).
+(five models + the RAG index). Unlike Cloudflare's quick tunnels (used
+earlier in this project), ngrok requires a one-time free account and
+authtoken (`ngrok config add-authtoken`).
 
 **The operational catch, documented as the single most common failure mode:**
-a quick tunnel hands out a new random hostname on every restart. The new host
+the free tier hands out a new random hostname on every restart. The new host
 must be written into Vercel's `NEXT_PUBLIC_API_BASE_URL` **and redeployed** —
 `NEXT_PUBLIC_*` variables are baked into the bundle at build time, so saving
 the value alone does nothing. Otherwise the login screen shows *"Couldn't
 reach Mindlens. It may be down"*, which looks exactly like a real outage.
+
+**A second, less obvious failure mode:** ngrok's free tier serves an HTML
+interstitial ("you are about to visit...") instead of the real response to
+any request it fingerprints as a browser — silent in `curl` (which doesn't
+trigger it) but breaks every fetch from the deployed frontend. The fix is
+sending an `ngrok-skip-browser-warning` header on every request
+(`frontend/src/lib/api.ts` does this); dropping it reintroduces this exact
+failure.
 
 ### 22.2 Documented alternatives that are not used
 
@@ -3482,7 +3492,7 @@ real, measured limit, not a hedge. **The report should carry all of these.**
 | # | Limitation | Detail |
 |---|---|---|
 | L11 | **The five models want ~2.5–3.5 GB resident, in float32** | `PRELOAD_MODELS=true` moves that cost to startup so no user waits on it, but does not reduce it. Genuinely shrinking it means dropping torch from the inference path entirely, which is not done here |
-| L12 | **The live deployment depends on one machine** | Local backend + Cloudflare quick tunnel. A tunnel restart invalidates the hostname and requires a Vercel env-var change *and* a redeploy |
+| L12 | **The live deployment depends on one machine** | Local backend + ngrok tunnel. A tunnel restart invalidates the hostname and requires a Vercel env-var change *and* a redeploy |
 | L13 | **No user study has been run** | `SYSTEM.md` §21 defines the criteria (empathy ≥ 4.0/5, felt personalised ≥ 80 %, PHQ-9 change over 3 sessions). The evaluation instrument exists; the study is future work |
 | L14 | **Admin surface is endpoints only** | `/admin/system` and `/admin/models` exist; the full admin dashboard UI described in `SYSTEM.md` §13.4 was descoped |
 
@@ -4084,8 +4094,8 @@ graph TB
     subgraph Vercel
         FE["Next.js 16 build<br/>NEXT_PUBLIC_API_BASE_URL baked in at build time"]
     end
-    subgraph CF["Cloudflare"]
-        TU["quick tunnel<br/>random *.trycloudflare.com<br/>NEW HOSTNAME ON EVERY RESTART"]
+    subgraph NG["ngrok"]
+        TU["tunnel<br/>random *.ngrok-free.dev<br/>NEW HOSTNAME ON EVERY RESTART"]
     end
     subgraph Dev["Developer machine"]
         UV["uvicorn 127.0.0.1:8000"]

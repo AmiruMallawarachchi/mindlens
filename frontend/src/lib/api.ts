@@ -92,6 +92,7 @@ async function refreshAccessToken(): Promise<boolean> {
     refreshInFlight = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      headers: { "ngrok-skip-browser-warning": "true" },
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -116,6 +117,11 @@ async function request<T>(
   const { auth = true, _retried = false, ...rest } = init;
   const headers = new Headers(rest.headers);
   headers.set("Content-Type", "application/json");
+  // Free ngrok tunnels serve an HTML "you're about to visit..." interstitial
+  // to anything that looks like a browser request, in place of the real
+  // response — this header opts the request out of it. A no-op against any
+  // non-ngrok backend, so it's safe to always send.
+  headers.set("ngrok-skip-browser-warning", "true");
   if (auth) {
     const token = getAccessToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);

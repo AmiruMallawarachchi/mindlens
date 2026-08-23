@@ -1,21 +1,22 @@
 # Deploying MindLens
 
-**What's actually live right now: a local backend + a Cloudflare Tunnel +
-Vercel.** That's the section below titled "Backend: local + Cloudflare
-Tunnel (the current live setup)" — read that one first. The Hugging Face
+**What's actually live right now: a local backend + an ngrok Tunnel +
+Vercel.** That's the section below titled "Backend: local + ngrok Tunnel
+(the current live setup)" — read that one first. The Hugging Face
 Docker Space section further down is a real, documented, $0 alternative
 that was designed but never deployed; it's kept for if the tunnel approach
 stops being good enough, the same way `render.yaml` is kept as a documented
 alternative nobody currently runs. Don't follow the HF steps expecting them
 to match what's live — they don't yet.
 
-## Backend: local + Cloudflare Tunnel (the current live setup)
+## Backend: local + ngrok Tunnel (the current live setup)
 
 The backend runs on a developer machine, not a hosted platform, exposed to
-the internet through a Cloudflare quick tunnel. $0, no card, no signup — but
-it means **the demo depends on that machine being on and connected**. This
-is an accepted, deliberate limitation, not an oversight: see
-`SYSTEM.md`'s external-services table.
+the internet through an ngrok tunnel. Free, but it means **the demo depends
+on that machine being on and connected**, and (unlike Cloudflare's quick
+tunnels, which this project used earlier) ngrok requires a one-time free
+account and authtoken. This is an accepted, deliberate limitation, not an
+oversight: see `SYSTEM.md`'s external-services table.
 
 ### Start the backend
 
@@ -37,15 +38,28 @@ rather than trusting the reload flag.
 
 ### Start the tunnel
 
+One-time setup: create a free account at
+[dashboard.ngrok.com/signup](https://dashboard.ngrok.com/signup), copy the
+authtoken from
+[dashboard.ngrok.com/get-started/your-authtoken](https://dashboard.ngrok.com/get-started/your-authtoken),
+then:
+
 ```bash
-cloudflared tunnel --url http://localhost:8000
+ngrok config add-authtoken <your-token>
+ngrok http 8000
 ```
 
-This is a **quick tunnel** — no `cloudflared login`, no named-tunnel config
-file exists in this setup (confirmed: no `~/.cloudflared` directory). That
-means every restart of `cloudflared` hands out a brand new random
-`https://<random-words>.trycloudflare.com` hostname. The old one stops
-working the moment the process exits, even if you restart it seconds later.
+The free tier hands out a random `https://<random-words>.ngrok-free.dev`
+hostname that **changes every time `ngrok` restarts** — same trade-off
+`cloudflared` had. A local inspector for every request that passed through
+is at `http://127.0.0.1:4040` while the tunnel is running.
+
+On Windows, Defender has been observed quarantining `ngrok.exe` — either
+the winget-installed binary or the one `ngrok update` downloads in place —
+as a false positive. If `ngrok` suddenly stops launching, check **Windows
+Security → Protection history** for a "Threat quarantined"/"Threat
+blocked" entry naming `ngrok.exe` and restore it; it does not reappear
+after a clean restore.
 
 ### After every tunnel restart: update Vercel
 
@@ -54,13 +68,22 @@ will show "Couldn't reach Mindlens. It may be down" on the login screen —
 this is the single most common failure mode of this setup, and it looks
 exactly like a real outage when it's actually just a stale URL.
 
-1. Copy the `https://*.trycloudflare.com` URL `cloudflared` printed on startup.
-2. Vercel dashboard → the Mindlens project → **Settings → Environment
-   Variables** → edit `NEXT_PUBLIC_API_BASE_URL` to the new URL.
+1. Copy the `https://*.ngrok-free.dev` URL `ngrok` printed on startup (or
+   read it from `http://127.0.0.1:4040/api/tunnels`).
+2. `vercel env rm NEXT_PUBLIC_API_BASE_URL production` (it must already
+   exist to remove), then `vercel env add NEXT_PUBLIC_API_BASE_URL
+   production` — answer **no** to "Store as sensitive?" (Vercel rejects
+   sensitive storage for `NEXT_PUBLIC_*` vars in Production/Preview) and
+   paste the new URL as the value. The dashboard's **Settings →
+   Environment Variables** works the same way if you'd rather not use the
+   CLI.
 3. **Redeploy is required**, not optional — `NEXT_PUBLIC_*` variables are
    baked into the JavaScript bundle at build time, so saving the new value
-   alone does nothing until the next build picks it up. Deployments tab →
-   latest deployment → **⋯ → Redeploy**.
+   alone does nothing until the next build picks it up:
+   `vercel --prod` from the repo root (the Vercel project's Root Directory
+   is `frontend`, so `vercel` must run from the repo root where `.vercel/`
+   is linked, not from inside `frontend/`), or Deployments tab → latest
+   deployment → **⋯ → Redeploy** in the dashboard.
 
 `CORS_ORIGINS` in `backend/.env` already includes the Vercel production
 origin, so no backend-side change is needed when the tunnel URL changes —
@@ -71,15 +94,25 @@ only the Vercel env var and the redeploy.
 In order of likelihood:
 
 1. **The tunnel isn't running, or was restarted since the last deploy.**
-   Check for a `cloudflared` process; if absent or if its logged URL doesn't
+   Check for an `ngrok` process; if absent or if its logged URL doesn't
    match what's in Vercel's `NEXT_PUBLIC_API_BASE_URL`, that's the cause —
    follow "After every tunnel restart" above.
 2. **The backend isn't running.** `curl http://127.0.0.1:8000/health`
    locally; a tunnel forwarding to a dead port fails the same way.
 3. **Vercel env var was updated but not redeployed.** The bundle still has
    the old URL baked in until a fresh build runs.
-4. **The machine slept or lost network.** Free quick tunnels don't survive
-   either; both the backend and `cloudflared` need restarting.
+4. **The machine slept or lost network.** Free tunnels don't survive
+   either; both the backend and `ngrok` need restarting.
+5. **ngrok's free-tier browser interstitial.** ngrok serves an HTML "you
+   are about to visit..." warning page — not the real JSON response — to
+   any request it fingerprints as coming from a browser, unless that
+   request carries an `ngrok-skip-browser-warning` header. This is silent:
+   `curl` without a browser `User-Agent` sails through and looks fine,
+   while the actual deployed frontend gets HTML back and fails to parse
+   it as JSON. `frontend/src/lib/api.ts` sends this header on every
+   request specifically to prevent this; if a future request path bypasses
+   `request()` (a raw `fetch` added elsewhere), it needs the same header
+   or it will hit this exact failure again.
 
 ## Backend on a Hugging Face Docker Space
 

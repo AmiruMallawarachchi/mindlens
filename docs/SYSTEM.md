@@ -234,7 +234,7 @@ MongoDB Memory + Sessions + Audit Logs
 | Apple iTunes Search API | Music track search, no auth required |
 | MongoDB Atlas | Production persistence |
 | Vercel | Frontend deployment target |
-| Cloudflare Tunnel | Exposes the backend (models loaded in-process, so it runs on developer hardware, not a hosted platform) — see docs/DEPLOYMENT.md for why |
+| ngrok | Exposes the backend (models loaded in-process, so it runs on developer hardware, not a hosted platform) — see docs/DEPLOYMENT.md for why |
 
 ---
 
