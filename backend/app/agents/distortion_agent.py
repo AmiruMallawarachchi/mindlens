@@ -108,9 +108,9 @@ EXPLANATIONS: dict[str, list[str]] = {
         "The difficult part is doing all the talking there. What else was in it?",
         "That keeps returning to one detail. What's around it?",
     ],
-    "none": [
-        "No clear thinking pattern detected. That's okay — sometimes feelings are just feelings.",
-    ],
+    # No "none" entry on purpose: when the classifier finds no pattern there
+    # is nothing to observe, so the agent stays silent rather than narrating
+    # the null result. See DistortionAgent.run.
 }
 
 class DistortionAgent(BaseAgent):
@@ -196,5 +196,11 @@ class DistortionAgent(BaseAgent):
         perspective?" — reply after reply after reply. The observation may be
         sound each time; saying it in the same seventeen words is what makes
         it stop landing as noticing and start landing as a tic.
+
+        Returns "" for a label with no phrasings — "none", or any label the
+        classifier emits that this table doesn't cover. Silence is the right
+        output there: inventing an observation for a pattern we can't name
+        would be asserting something the model didn't find.
         """
-        return random.choice(EXPLANATIONS.get(label, EXPLANATIONS["none"]))
+        phrasings = EXPLANATIONS.get(label)
+        return random.choice(phrasings) if phrasings else ""

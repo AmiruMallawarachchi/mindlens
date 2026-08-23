@@ -41,3 +41,33 @@ class TestDistortionAgent:
 
     def test_max_tokens(self, agent: DistortionAgent) -> None:
         assert agent.max_tokens == 0
+
+    @pytest.mark.asyncio
+    async def test_no_pattern_says_nothing(
+        self, agent: DistortionAgent, stable_agent_context: EmotionalOperatingState
+    ) -> None:
+        """A "none" finding must produce no spoken text.
+
+        It used to return "No clear thinking pattern detected. That's okay —
+        sometimes feelings are just feelings.", which the assembler then
+        stapled onto empathy's reply — so telling Mindlens about two people
+        you love came back with a flat clinical sentence about an absent
+        thinking pattern. The label still travels in metadata for the
+        challenge agent and the UI badge; only the prose is withheld.
+        """
+        stable_agent_context.user_text = (
+            "i have a boy friend call hasanka and my moms name is Rehana"
+        )
+        stable_agent_context.eos.distortion_label = None
+        result = await agent.run(stable_agent_context)
+        assert result.metadata["distortion_label"] == "none"
+        assert result.text == ""
+
+    def test_unknown_label_says_nothing_rather_than_raising(
+        self, agent: DistortionAgent
+    ) -> None:
+        """A label with no phrasings must not KeyError or invent an
+        observation — the table is not guaranteed to cover every class the
+        classifier can emit."""
+        assert agent._build_explanation("some_unmapped_label", "text") == ""
+        assert agent._build_explanation("none", "text") == ""
