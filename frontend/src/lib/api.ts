@@ -82,7 +82,7 @@ export class ApiError extends Error {
  */
 let refreshInFlight: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<boolean> {
   if (!refreshInFlight) {
     // Same reasoning as request()'s timeout: an unreachable backend must
     // not hang this silently for a minute — every caller of request() is

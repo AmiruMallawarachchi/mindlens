@@ -34,11 +34,26 @@ export class MindLensSocket {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private closedByClient = false;
+  /** True once a handshake has succeeded at least once on the current token.
+   * A close *before* any open is how a rejected handshake presents to the
+   * browser, which is the signal that the token — not the network — is the
+   * problem. */
+  private openedSinceLastAttempt = false;
+  private refreshing = false;
 
   constructor(
     private readonly sessionId: string,
-    private readonly token: string,
+    /** Read fresh on every attempt, never captured. Access tokens expire
+     * after `jwt_expire_minutes` (15 by default); holding the string from
+     * construction meant that once it aged out, every reconnect re-sent the
+     * same dead token and the server rejected the handshake forever, so
+     * chat stayed down until a manual page reload. */
+    private readonly getToken: () => string | null,
     private readonly handlers: MindLensSocketHandlers,
+    /** Exchanges the httpOnly refresh cookie for a new access token.
+     * Returns false when the refresh token itself has expired, which is a
+     * genuine "sign in again", not something retrying can fix. */
+    private readonly refreshToken: () => Promise<boolean>,
   ) {}
 
   connect(): void {
@@ -49,12 +64,20 @@ export class MindLensSocket {
   private open(): void {
     this.setStatus(this.reconnectAttempt > 0 ? "reconnecting" : "connecting");
 
+    const token = this.getToken();
+    if (!token) {
+      this.setStatus("closed");
+      return;
+    }
+
+    this.openedSinceLastAttempt = false;
     const url = `${wsBaseUrl()}/ws/chat/${this.sessionId}`;
-    const socket = new WebSocket(url, [`mindlens.jwt.${this.token}`]);
+    const socket = new WebSocket(url, [`mindlens.jwt.${token}`]);
     this.ws = socket;
 
     socket.onopen = () => {
       this.reconnectAttempt = 0;
+      this.openedSinceLastAttempt = true;
       this.setStatus("open");
     };
 
@@ -82,6 +105,31 @@ export class MindLensSocket {
         return;
       }
       this.setStatus("reconnecting");
+      // A close with no preceding open is a rejected handshake. The server
+      // answers an expired token with an HTTP 403 during the upgrade rather
+      // than a 4001 close frame, so TERMINAL_CLOSE_CODES above never catches
+      // it — without this branch the socket just retried the same expired
+      // token until the user reloaded the page.
+      if (!this.openedSinceLastAttempt && !this.refreshing) {
+        this.refreshing = true;
+        this.refreshToken()
+          .then((ok) => {
+            this.refreshing = false;
+            if (this.closedByClient) return;
+            if (!ok) {
+              // The refresh token is gone too — retrying cannot fix this.
+              this.setStatus("closed");
+              return;
+            }
+            this.reconnectAttempt = 0;
+            this.open();
+          })
+          .catch(() => {
+            this.refreshing = false;
+            if (!this.closedByClient) this.scheduleReconnect();
+          });
+        return;
+      }
       this.scheduleReconnect();
     };
 

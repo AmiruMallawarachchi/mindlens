@@ -14,6 +14,7 @@ import {
   login as apiLogin,
   logoutLocal,
   pinSession as apiPinSession,
+  refreshAccessToken,
   renameSession as apiRenameSession,
   register as apiRegister,
   updateMe,
@@ -416,12 +417,16 @@ export function useMindLensClient() {
       }
       if (cancelled) return;
 
-      const token = getAccessToken();
-      if (!token) return;
-      const socket = new MindLensSocket(targetId, token, {
-        onFrame: handleFrame,
-        onStatusChange: setConnectionStatus,
-      });
+      if (!getAccessToken()) return;
+      const socket = new MindLensSocket(
+        targetId,
+        getAccessToken,
+        {
+          onFrame: handleFrame,
+          onStatusChange: setConnectionStatus,
+        },
+        refreshAccessToken,
+      );
       socketRef.current = socket;
       socket.connect();
     })().catch((err) => {
