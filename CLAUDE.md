@@ -24,6 +24,15 @@ cd backend && ../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 -
 cd frontend && npm run dev
 ```
 
+PowerShell (`;` instead of `&&`):
+
+```powershell
+# backend
+cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# frontend
+cd frontend; npm run dev
+```
+
 `--reload` does **not** reliably fire on this Windows setup. If backend
 behaviour doesn't match the source, restart the process before debugging the
 code.
