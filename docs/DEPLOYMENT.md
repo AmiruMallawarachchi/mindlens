@@ -49,10 +49,17 @@ ngrok config add-authtoken <your-token>
 ngrok http 8000
 ```
 
-The free tier hands out a random `https://<random-words>.ngrok-free.dev`
-hostname that **changes every time `ngrok` restarts** — same trade-off
-`cloudflared` had. A local inspector for every request that passed through
-is at `http://127.0.0.1:4040` while the tunnel is running.
+Unlike Cloudflare's quick tunnels (used earlier in this project), a free
+ngrok account is issued one **permanent "dev domain"** — confirmed by
+killing and restarting the agent repeatedly and observing the identical
+hostname come back every time, with no `--domain` flag needed. This
+project's dev domain is `playroom-operative-ninth.ngrok-free.dev`, visible
+under **dashboard.ngrok.com/domains** ("yours forever," not accruing
+endpoint hours). Practically: `NEXT_PUBLIC_API_BASE_URL` on Vercel only
+needs setting **once**, not after every restart — see the note at the end
+of this subsection for the one scenario where it would need to change
+again. A local inspector for every request that passed through is at
+`http://127.0.0.1:4040` while the tunnel is running.
 
 On Windows, Defender has been observed quarantining `ngrok.exe` — either
 the winget-installed binary or the one `ngrok update` downloads in place —
@@ -61,15 +68,18 @@ Security → Protection history** for a "Threat quarantined"/"Threat
 blocked" entry naming `ngrok.exe` and restore it; it does not reappear
 after a clean restore.
 
-### After every tunnel restart: update Vercel
+### If the dev domain ever has to change
 
-The new hostname has to be pushed into the frontend, or `mindlens-theta.vercel.app`
-will show "Couldn't reach Mindlens. It may be down" on the login screen —
-this is the single most common failure mode of this setup, and it looks
-exactly like a real outage when it's actually just a stale URL.
+This should be rare — the domain in `NEXT_PUBLIC_API_BASE_URL` and in
+`backend/.env`'s `CORS_ORIGINS` only needs updating if the dev domain is
+deleted from the ngrok dashboard, the ngrok account changes, or a different
+domain is deliberately reserved. If that happens,
+`mindlens-theta.vercel.app` will show "Couldn't reach Mindlens. It may be
+down" on the login screen — this looks exactly like a real outage when
+it's actually just a stale URL.
 
-1. Copy the `https://*.ngrok-free.dev` URL `ngrok` printed on startup (or
-   read it from `http://127.0.0.1:4040/api/tunnels`).
+1. Copy the new `https://*.ngrok-free.dev` URL `ngrok` printed on startup
+   (or read it from `http://127.0.0.1:4040/api/tunnels`).
 2. `vercel env rm NEXT_PUBLIC_API_BASE_URL production` (it must already
    exist to remove), then `vercel env add NEXT_PUBLIC_API_BASE_URL
    production` — answer **no** to "Store as sensitive?" (Vercel rejects
@@ -84,19 +94,17 @@ exactly like a real outage when it's actually just a stale URL.
    is `frontend`, so `vercel` must run from the repo root where `.vercel/`
    is linked, not from inside `frontend/`), or Deployments tab → latest
    deployment → **⋯ → Redeploy** in the dashboard.
-
-`CORS_ORIGINS` in `backend/.env` already includes the Vercel production
-origin, so no backend-side change is needed when the tunnel URL changes —
-only the Vercel env var and the redeploy.
+4. Update `CORS_ORIGINS` in `backend/.env` if it references the old
+   hostname anywhere (it currently doesn't need to — CORS is keyed on the
+   *frontend's* origin, not the tunnel's).
 
 ### Troubleshooting: "Couldn't reach Mindlens" on the login screen
 
 In order of likelihood:
 
-1. **The tunnel isn't running, or was restarted since the last deploy.**
-   Check for an `ngrok` process; if absent or if its logged URL doesn't
-   match what's in Vercel's `NEXT_PUBLIC_API_BASE_URL`, that's the cause —
-   follow "After every tunnel restart" above.
+1. **The tunnel isn't running.** Check for an `ngrok` process — if it's
+   gone, `ngrok http 8000` (no flags needed) brings back the same
+   permanent dev domain automatically.
 2. **The backend isn't running.** `curl http://127.0.0.1:8000/health`
    locally; a tunnel forwarding to a dead port fails the same way.
 3. **Vercel env var was updated but not redeployed.** The bundle still has

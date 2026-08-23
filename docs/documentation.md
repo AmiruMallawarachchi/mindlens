@@ -3403,14 +3403,20 @@ roughly **2.5–3.5 GB resident** and load in-process.
 depends on that machine being on and connected. First boot takes ~15–20 s
 (five models + the RAG index). Unlike Cloudflare's quick tunnels (used
 earlier in this project), ngrok requires a one-time free account and
-authtoken (`ngrok config add-authtoken`).
-
-**The operational catch, documented as the single most common failure mode:**
-the free tier hands out a new random hostname on every restart. The new host
-must be written into Vercel's `NEXT_PUBLIC_API_BASE_URL` **and redeployed** —
-`NEXT_PUBLIC_*` variables are baked into the bundle at build time, so saving
-the value alone does nothing. Otherwise the login screen shows *"Couldn't
-reach Mindlens. It may be down"*, which looks exactly like a real outage.
+authtoken (`ngrok config add-authtoken`) — in exchange, a free account gets
+one **permanent "dev domain"** rather than a new random hostname per
+restart, confirmed by repeatedly killing and restarting the agent and
+observing the identical hostname return with no flags needed. This
+project's is `playroom-operative-ninth.ngrok-free.dev`. Practically:
+`NEXT_PUBLIC_API_BASE_URL` on Vercel was set once and does not need
+touching again on ordinary restarts — only if the dev domain itself is
+ever deleted or the account changes. If that ever happens, the new host
+must be written into Vercel's `NEXT_PUBLIC_API_BASE_URL` **and
+redeployed** — `NEXT_PUBLIC_*` variables are baked into the bundle at
+build time, so saving the value alone does nothing. Until then, an
+unreachable backend showing *"Couldn't reach Mindlens. It may be down"*
+means the tunnel or backend process itself isn't running, not a stale
+URL.
 
 **A second, less obvious failure mode:** ngrok's free tier serves an HTML
 interstitial ("you are about to visit...") instead of the real response to
@@ -3492,7 +3498,7 @@ real, measured limit, not a hedge. **The report should carry all of these.**
 | # | Limitation | Detail |
 |---|---|---|
 | L11 | **The five models want ~2.5–3.5 GB resident, in float32** | `PRELOAD_MODELS=true` moves that cost to startup so no user waits on it, but does not reduce it. Genuinely shrinking it means dropping torch from the inference path entirely, which is not done here |
-| L12 | **The live deployment depends on one machine** | Local backend + ngrok tunnel. A tunnel restart invalidates the hostname and requires a Vercel env-var change *and* a redeploy |
+| L12 | **The live deployment depends on one machine** | Local backend + ngrok tunnel (permanent dev domain, survives restarts). If that machine is off, disconnected, or Windows Defender quarantines `ngrok.exe`, the deployed frontend can't reach the backend regardless of the hostname being stable |
 | L13 | **No user study has been run** | `SYSTEM.md` §21 defines the criteria (empathy ≥ 4.0/5, felt personalised ≥ 80 %, PHQ-9 change over 3 sessions). The evaluation instrument exists; the study is future work |
 | L14 | **Admin surface is endpoints only** | `/admin/system` and `/admin/models` exist; the full admin dashboard UI described in `SYSTEM.md` §13.4 was descoped |
 
@@ -4095,7 +4101,7 @@ graph TB
         FE["Next.js 16 build<br/>NEXT_PUBLIC_API_BASE_URL baked in at build time"]
     end
     subgraph NG["ngrok"]
-        TU["tunnel<br/>random *.ngrok-free.dev<br/>NEW HOSTNAME ON EVERY RESTART"]
+        TU["tunnel<br/>permanent dev domain *.ngrok-free.dev<br/>SAME HOSTNAME ACROSS RESTARTS"]
     end
     subgraph Dev["Developer machine"]
         UV["uvicorn 127.0.0.1:8000"]
