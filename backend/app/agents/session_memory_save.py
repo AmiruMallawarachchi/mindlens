@@ -30,11 +30,17 @@ from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
 # A small set of relationship words a person is plausibly introduced with.
 # Kept narrow on purpose — this is the only thing standing between "my
 # roommate Alex" and treating any capitalised word as a person.
+# Longer forms first: the alternation is ordered, so "mother" must precede
+# "mom" or "my mother Rehana" matches "mom" and leaves a stray "her".
+# "mum"/"mummy" are here because this app's users are Sri Lankan, where the
+# British spelling is the common one — listing only "mom" meant "my mum's
+# name is Rehana" recorded nobody.
 _RELATIONS = (
-    "mom|mother|dad|father|sister|brother|best friend|friend|partner|"
-    "boyfriend|girlfriend|husband|wife|colleague|coworker|boss|teacher|"
-    "roommate|therapist|cousin|aunt|uncle|grandmother|grandfather|"
-    "grandma|grandpa|son|daughter|manager|supervisor"
+    "grandmother|grandfather|girlfriend|boyfriend|supervisor|colleague|"
+    "therapist|roommate|coworker|daughter|partner|brother|husband|teacher|"
+    "manager|grandma|grandpa|mother|sister|cousin|mummy|father|"
+    "best friend|friend|uncle|aunt|boss|wife|son|mommy|daddy|papa|"
+    "mom|mum|dad"
 )
 # "my sister Amaya" / "My best friend, Alex" — "my"/the relation word are
 # matched case-insensitively (scoped inline flag, Python 3.11+) since "My"
@@ -46,8 +52,36 @@ _RELATIONS = (
 # and the Memory page listed a title as a person.
 _NAME = r"[A-Z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
 
+# The connector between the relation and the name. Only bare adjacency
+# ("my sister Amaya"), an explicit naming verb ("my boyfriend called
+# Hasanka"), or an explicit "name is" ("my mum's name is Rehana") count.
+#
+# A bare "is" is deliberately NOT accepted. "my mum is Rehana" would be a
+# real hit, but "my mum is Sri Lankan" / "my dad is Buddhist" are the same
+# shape, and a capitalised word after "is" is far more often a nationality,
+# faith or adjective than a name — which would file one as a person and
+# then replay it into every future prompt as "You've mentioned Sri Lankan
+# before". Missing a name costs one un-saved fact the user can add in
+# Memory; inventing one is a write that persists and quietly corrupts
+# recall, so the asymmetry decides it.
+_CONNECTOR = (
+    r"\s*,?"  # "my sister Amaya" / "my best friend, Alex"
+    r"|\s+(?:called|named)"  # "my boyfriend called Hasanka"
+    r"|'?s?\s+name\s+is"  # "my mum's name is Rehana" / "my mums name is Rehana"
+)
+
 _RE_PERSON_FORWARD = re.compile(
-    rf"\b(?i:my ({_RELATIONS}))\s*,?\s+({_NAME})\b"
+    rf"\b(?i:my\s+({_RELATIONS})(?:{_CONNECTOR}))\s+({_NAME})\b"
+)
+
+# "I have a boyfriend called Hasanka" — the indefinite article is just as
+# common as "my" when someone introduces a person for the first time, which
+# is exactly the turn this needs to catch. Restricted to the explicit
+# naming connectors: "a friend called Alex" is unambiguous, whereas bare
+# adjacency after "a" ("a sister Amaya") is not idiomatic and would only
+# widen the false-positive surface for no real gain.
+_RE_PERSON_ARTICLE = re.compile(
+    rf"\b(?i:an?\s+({_RELATIONS})(?:\s+(?:called|named)|'?s?\s+name\s+is))\s+({_NAME})\b"
 )
 # "Amaya, my sister" / "Alex my best friend"
 _RE_PERSON_REVERSE = re.compile(
@@ -98,17 +132,44 @@ def _normalize_name(name: str) -> str:
     return " ".join(w[:1].upper() + w[1:].lower() for w in name.split())
 
 
-def _extract_person(text_lower: str, text: str) -> tuple[str, str] | None:
-    """Return (relation, name) for the first plausible new person mentioned,
-    or None. Checked against `memory.people` by the caller before writing —
-    this function only proposes, it never knows what's already on file."""
-    match = _RE_PERSON_FORWARD.search(text)
-    if match:
-        return match.group(1).lower(), _normalize_name(match.group(2))
-    match = _RE_PERSON_REVERSE.search(text)
-    if match:
-        return match.group(2).lower(), _normalize_name(match.group(1))
-    return None
+# One turn introducing more than a handful of people is far more likely to
+# be pasted text or an attempt to bulk-write the graph than a real
+# introduction, so the write is bounded rather than unbounded.
+_MAX_PEOPLE_PER_TURN = 3
+
+
+def _extract_people(text: str) -> list[tuple[str, str]]:
+    """Return every (relation, name) plausibly introduced in this message.
+
+    Deliberately not just the first: "I have a boyfriend called Hasanka and
+    my mum's name is Rehana" is one ordinary sentence introducing two
+    people, and returning only one silently dropped the other — the user
+    had said "remember those people" and half of them were never written.
+
+    Order is preserved and names are de-duplicated case-insensitively, so a
+    message that says a name twice writes it once. Checked against
+    `memory.people` by the caller before writing — this only proposes, it
+    never knows what is already on file.
+    """
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(relation: str, name: str) -> None:
+        normalized = _normalize_name(name)
+        key = normalized.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        found.append((relation.lower(), normalized))
+
+    for match in _RE_PERSON_FORWARD.finditer(text):
+        add(match.group(1), match.group(2))
+    for match in _RE_PERSON_ARTICLE.finditer(text):
+        add(match.group(1), match.group(2))
+    for match in _RE_PERSON_REVERSE.finditer(text):
+        add(match.group(2), match.group(1))
+
+    return found[:_MAX_PEOPLE_PER_TURN]
 
 
 def _extract_topic(text_lower: str, distress_level: float, is_negative: bool) -> str | None:
@@ -170,10 +231,16 @@ class SessionMemorySave(BaseAgent):
             # never leaves the server: it only ever becomes a key in this
             # user's own people graph.
             raw = ctx.raw_user_text
-            person = _extract_person(raw.lower(), raw)
-            if person:
-                extracted["person_relation"] = person[0]
-                extracted["person_name"] = person[1]
+            people = _extract_people(raw)
+            if people:
+                extracted["people"] = [
+                    {"name": name, "relation": relation} for relation, name in people
+                ]
+                # The single-person keys stay for the journaling prompt and
+                # any consumer written against the old shape; `people` is
+                # the complete list.
+                extracted["person_relation"] = people[0][0]
+                extracted["person_name"] = people[0][1]
 
             is_negative = ctx.eos.valence == "negative"
             topic = _extract_topic(text_lower, ctx.eos.distress_level, is_negative)

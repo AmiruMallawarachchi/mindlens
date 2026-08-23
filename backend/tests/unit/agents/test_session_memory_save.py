@@ -83,6 +83,71 @@ class TestMemoryExtraction:
         assert result.metadata["extracted"]["person_name"] == "Amaya"
 
     @pytest.mark.asyncio
+    async def test_extracts_every_person_in_one_message(
+        self, agent: SessionMemorySave
+    ) -> None:
+        """One sentence naming two people must save both.
+
+        A user who wrote "i have a boyfriend called Hasanka and my mum's
+        name is Rehana" and then "remember those people" got neither
+        stored: the relation had to sit directly against the name, so
+        "called"/"name is" both missed, and even once matched only the
+        first person was returned.
+        """
+        ctx = self._ctx(
+            "i have a boyfriend called Hasanka and my mum's name is Rehana, "
+            "remember those people"
+        )
+        result = await agent.run(ctx)
+        people = result.metadata["extracted"]["people"]
+        assert {p["name"] for p in people} == {"Hasanka", "Rehana"}
+        assert {p["relation"] for p in people} == {"boyfriend", "mum"}
+
+    @pytest.mark.parametrize(
+        ("text", "relation", "name"),
+        [
+            ("my boyfriend called Hasanka", "boyfriend", "Hasanka"),
+            ("my boyfriend named Hasanka", "boyfriend", "Hasanka"),
+            ("my mum's name is Rehana", "mum", "Rehana"),
+            ("my moms name is Rehana", "mom", "Rehana"),
+            ("I have a friend called Alex", "friend", "Alex"),
+            # "mother" must win over "mom" in the alternation, or this
+            # stores the relation as "mom" and leaves a stray "her".
+            ("my mother Rehana", "mother", "Rehana"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_natural_introduction_phrasings(
+        self, agent: SessionMemorySave, text: str, relation: str, name: str
+    ) -> None:
+        """Only bare adjacency ("my sister Amaya") used to match, so the
+        ordinary ways people introduce someone all recorded nobody."""
+        result = await agent.run(self._ctx(text))
+        extracted = result.metadata["extracted"]
+        assert extracted["person_name"] == name
+        assert extracted["person_relation"] == relation
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "my mum is Sri Lankan",
+            "my dad is Buddhist",
+            "my sister is Australian",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_bare_is_does_not_invent_a_person(
+        self, agent: SessionMemorySave, text: str
+    ) -> None:
+        """A bare "is" is not accepted as a naming connector. It would catch
+        "my mum is Rehana", but these have the identical shape — and a bad
+        write here persists and is replayed into every future prompt, while
+        a missed name only costs one fact the user can add in Memory."""
+        result = await agent.run(self._ctx(text))
+        assert "people" not in result.metadata["extracted"]
+        assert "person_name" not in result.metadata["extracted"]
+
+    @pytest.mark.asyncio
     async def test_extracts_a_person_reverse_order(self, agent: SessionMemorySave) -> None:
         ctx = self._ctx("Amaya, my sister, called me today")
         result = await agent.run(ctx)

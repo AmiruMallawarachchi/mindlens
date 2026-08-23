@@ -490,6 +490,74 @@ class TestSaveExtractedMemory:
         assert set_update["$set"]["people.Amaya"]["role"] == "sister"
 
     @pytest.mark.asyncio
+    async def test_every_person_from_one_turn_is_written(self) -> None:
+        """A turn naming two people must write both.
+
+        The writer only ever read `person_name`, so "my boyfriend called
+        Hasanka and my mum's name is Rehana" persisted one of them and
+        silently dropped the other.
+        """
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(
+            db,
+            "u1",
+            self._result(
+                {
+                    "people": [
+                        {"name": "Hasanka", "relation": "boyfriend"},
+                        {"name": "Rehana", "relation": "mum"},
+                    ]
+                }
+            ),
+        )
+
+        # 1 ensure-doc call + one conditional set per person.
+        assert db.user_memory.update_one.await_count == 3
+        roles = {
+            key: value
+            for call in db.user_memory.update_one.await_args_list[1:]
+            for key, value in call.args[1]["$set"].items()
+            if key.startswith("people.")
+        }
+        assert roles["people.Hasanka"]["role"] == "boyfriend"
+        assert roles["people.Rehana"]["role"] == "mum"
+        # Each write stays conditional on the name not already being on file.
+        for call in db.user_memory.update_one.await_args_list[1:]:
+            assert "$exists" in str(call.args[0])
+            assert "upsert" not in call.kwargs
+
+    @pytest.mark.asyncio
+    async def test_person_name_with_a_dot_is_skipped_not_crashed(self) -> None:
+        """A dot is not legal in a Mongo field path. Writing it raises and
+        would take every other person in the same turn down with it, so the
+        offending name is skipped and the rest still land."""
+        from app.routers.chat import _save_extracted_memory
+
+        db = self._db()
+        await _save_extracted_memory(
+            db,
+            "u1",
+            self._result(
+                {
+                    "people": [
+                        {"name": "Dr. Perera", "relation": "supervisor"},
+                        {"name": "Rehana", "relation": "mum"},
+                    ]
+                }
+            ),
+        )
+
+        keys = [
+            key
+            for call in db.user_memory.update_one.await_args_list[1:]
+            for key in call.args[1]["$set"]
+            if key.startswith("people.")
+        ]
+        assert keys == ["people.Rehana"]
+
+    @pytest.mark.asyncio
     async def test_trigger_topic_and_coping_use_add_to_set(self) -> None:
         from app.routers.chat import _save_extracted_memory
 

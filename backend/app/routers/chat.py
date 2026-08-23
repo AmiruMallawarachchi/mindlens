@@ -653,22 +653,42 @@ async def _save_extracted_memory(
 
         now = datetime.datetime.now(datetime.UTC)
 
-        person_name = extracted.get("person_name")
-        if person_name:
-            await _ensure_user_memory_doc(db, user_id, now)
-            await db.user_memory.update_one(
-                {"user_id": user_id, f"people.{person_name}": {"$exists": False}},
+        # Every person the turn introduced, not just the first: one sentence
+        # can name two ("my boyfriend called Hasanka and my mum's name is
+        # Rehana") and dropping the rest broke the Memory page's promise for
+        # exactly the turns where the user was deliberately listing people.
+        # Falls back to the single-person keys so an older payload shape
+        # still writes.
+        people = extracted.get("people")
+        if not people and extracted.get("person_name"):
+            people = [
                 {
-                    "$set": {
-                        f"people.{person_name}": {
-                            "role": extracted.get("person_relation", ""),
-                            "context": "",
-                            "sentiment": "neutral",
-                        },
-                        "updated_at": now,
-                    }
-                },
-            )
+                    "name": extracted["person_name"],
+                    "relation": extracted.get("person_relation", ""),
+                }
+            ]
+        if people:
+            await _ensure_user_memory_doc(db, user_id, now)
+            for person in people:
+                person_name = person.get("name")
+                # A dot or a leading $ in a key is not a legal Mongo field
+                # path; a name carrying one would make the whole update
+                # fail, taking the other people in the same turn with it.
+                if not person_name or "." in person_name or person_name.startswith("$"):
+                    continue
+                await db.user_memory.update_one(
+                    {"user_id": user_id, f"people.{person_name}": {"$exists": False}},
+                    {
+                        "$set": {
+                            f"people.{person_name}": {
+                                "role": person.get("relation", ""),
+                                "context": "",
+                                "sentiment": "neutral",
+                            },
+                            "updated_at": now,
+                        }
+                    },
+                )
 
         add_to_set: dict[str, Any] = {}
         topic = extracted.get("trigger_topic")
