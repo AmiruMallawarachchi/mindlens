@@ -68,7 +68,19 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-CSRF-Token",
+            "X-Request-ID",
+            # Not a real auth/content header — it exists only so the
+            # frontend can bypass ngrok's free-tier browser interstitial
+            # (see frontend/src/lib/api.ts). Harmless against any backend
+            # host that isn't ngrok; without it in this allowlist, the
+            # browser's CORS preflight is rejected with 400 before the
+            # real request is ever sent.
+            "ngrok-skip-browser-warning",
+        ],
     )
     application.add_middleware(MindLensAuthMiddleware)
 
