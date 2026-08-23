@@ -41,7 +41,13 @@ export function OnboardingFlow({
   onComplete: (input: OnboardingInput) => void;
 }) {
   const [step, setStep] = useState(0);
-  const [nickname, setNickname] = useState(user.nickname || user.name);
+  // Starts empty, not pre-filled with the account name — a field whose
+  // real value is already the user's own name reads as "nothing to change
+  // here" rather than as an invitation to type an actual nickname. The
+  // backend already falls back to the account name when this is left
+  // empty (OnboardingCompleteRequest: nickname or name), so an empty
+  // start is honest end to end, not just on screen.
+  const [nickname, setNickname] = useState(user.nickname ?? "");
   const [personName, setPersonName] = useState("");
   const [personRole, setPersonRole] = useState("");
   const [personContext, setPersonContext] = useState("");
@@ -119,7 +125,11 @@ export function OnboardingFlow({
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder={user.name}
+              // A generic illustrative example, not user.name — echoing the
+              // account's own registered name back as a "placeholder" read
+              // as the field being pre-filled with nothing to change,
+              // rather than as an example of what to type.
+              placeholder="What your friends call you"
               maxLength={100}
               autoFocus
               className="rounded-[99px] px-4 py-3 text-[15px] outline-none"
