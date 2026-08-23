@@ -62,25 +62,30 @@ export function OnboardingFlow({
     "How direct should Mindlens be",
     "When should we check in",
   ];
-  const canAdvance =
-    step === 0 ? nickname.trim().length > 0 : step === 1 ? personName.trim().length > 0 : true;
-
   const next = () => {
     if (step < steps.length - 1) {
       setStep((s) => s + 1);
       return;
     }
+    const trimmedName = personName.trim();
     onComplete({
       name: user.name,
       age: user.age,
-      nickname: nickname.trim(),
-      people: [
-        {
-          name: personName.trim(),
-          role: personRole.trim() || "someone close to you",
-          context: personContext.trim() || undefined,
-        },
-      ],
+      // Empty means "not given" rather than a nickname of "" — the backend
+      // falls back to the account name (`req.nickname or req.name`).
+      nickname: nickname.trim() || undefined,
+      // Only send a person when one was actually named. Sending an entry
+      // with an empty name would write a nameless node into the people
+      // graph that the user never asked for and would then find in Memory.
+      people: trimmedName
+        ? [
+            {
+              name: trimmedName,
+              role: personRole.trim() || "someone close to you",
+              context: personContext.trim() || undefined,
+            },
+          ]
+        : [],
       checkin_preferred_time: checkin,
       personality: personality || undefined,
       tone_preference: tone,
@@ -110,7 +115,7 @@ export function OnboardingFlow({
 
         {step === 0 && (
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>Nickname</span>
+            <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>Nickname (optional)</span>
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
@@ -126,10 +131,10 @@ export function OnboardingFlow({
         {step === 1 && (
           <div className="flex flex-col gap-3">
             <p className="text-[12.5px]" style={{ color: "var(--ml-muted)" }}>
-              One person Mindlens should know about — a friend, family member, anyone who comes up often. You can add more later in Memory.
+              One person Mindlens should know about — a friend, family member, anyone who comes up often. Skip it if you&rsquo;d rather not; you can add people any time in Memory.
             </p>
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>Name</span>
+              <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>Name (optional)</span>
               <input
                 value={personName}
                 onChange={(e) => setPersonName(e.target.value)}
@@ -245,7 +250,7 @@ export function OnboardingFlow({
           <button
             type="button"
             onClick={next}
-            disabled={!canAdvance || busy}
+            disabled={busy}
             className="inline-flex items-center gap-2 rounded-[99px] px-5 py-2.5 text-[13px] font-medium disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, var(--e1), var(--e2))", color: "#fffdf8" }}
           >

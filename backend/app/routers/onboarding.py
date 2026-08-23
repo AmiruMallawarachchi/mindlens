@@ -51,8 +51,12 @@ class OnboardingStep3(BaseModel):
     age: int = Field(..., ge=13, le=100)
 
 class OnboardingStep4(BaseModel):
-    """Step 4: People (up to 2)"""
-    people: list[dict[str, str]] = Field(..., min_length=1, max_length=2)
+    """Step 4: People (optional, up to 2)"""
+    # min_length=0: naming someone is optional. Requiring it made the whole
+    # onboarding un-skippable, and a user with nobody they want to name (or
+    # who simply doesn't want to yet) could not get past the step. People can
+    # be added any time from Memory instead.
+    people: list[dict[str, str]] = Field(..., min_length=0, max_length=2)
     # Each: {"name": "Ravi", "role": "best friend", "context": "also doing same exam"}
 
 class OnboardingStep5(BaseModel):
@@ -64,7 +68,8 @@ class OnboardingCompleteRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     age: int = Field(..., ge=13, le=100)
-    people: list[dict[str, str]] = Field(..., min_length=1, max_length=2)
+    # Optional — see OnboardingStep4 for why.
+    people: list[dict[str, str]] = Field(..., min_length=0, max_length=2)
     checkin_preferred_time: str = Field(..., pattern="^(morning|evening|whenever)$")
     # Both optional and both already fully wired (memory.py's PreferencesUpdate,
     # memory_recall.py, empathy_agent.py) — surfaced here so the very first
