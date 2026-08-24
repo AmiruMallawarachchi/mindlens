@@ -18,6 +18,23 @@ tunnels, which this project used earlier) ngrok requires a one-time free
 account and authtoken. This is an accepted, deliberate limitation, not an
 oversight: see `SYSTEM.md`'s external-services table.
 
+### Start MongoDB first
+
+The backend needs a running MongoDB before it will boot at all — it
+fails closed rather than starting half-connected. Locally this is the
+Windows `MongoDB` service, and **it does not reliably survive a sleep or
+a machine restart** even though its start type is `Automatic` — this has
+been observed to require a manual restart more than once in a single
+day. Starting it needs an **elevated** PowerShell (a non-admin shell
+fails with "Cannot open MongoDB service"):
+
+```powershell
+Start-Service MongoDB
+```
+
+Confirm it actually took before moving on — `Get-Service MongoDB` should
+show `Running`, not `Stopped`.
+
 ### Start the backend
 
 ```bash
@@ -29,8 +46,16 @@ First boot takes ~15–20s (five ML models + the RAG index). Confirm it's
 actually healthy before doing anything else:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
 ```
+
+`/health` only proves the process is up; `/ready` is the one that
+actually checked MongoDB and all five models — use that one, not
+`/health`, when confirming the backend is genuinely usable. If MongoDB
+isn't running yet, the backend does not boot at all — `connect_db`
+raises during startup and uvicorn exits with a `ServerSelectionTimeoutError`
+traceback naming `localhost:27017`. That traceback is the tell: it means
+"start Mongo and restart the backend," not a code problem to chase.
 
 `--reload` does not reliably pick up code changes on this Windows setup —
 after editing backend code, stop the process (Ctrl+C) and start it again
@@ -293,3 +318,11 @@ handshake on the same list (`chat.py`).
    and deletable.
 6. Check Space logs for request IDs and confirm no connection strings,
    tokens, or the JWT secrets are present anywhere in them.
+7. `https://mindlens-theta.vercel.app/admin` — a standalone, unlinked ops
+   dashboard (model status, DB connectivity, environment/release). Its own
+   sign-in, a separate short-lived token from the normal login — see
+   `backend/scripts/make_admin.py` for how an account becomes an admin.
+   Deliberately shows no user data. Confirm all five models read `ready`
+   here too; this is the page that would have caught this project's
+   silent all-classifiers-failing bug at a glance instead of it surfacing
+   as generic replies with no obvious cause.

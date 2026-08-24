@@ -17,6 +17,17 @@ because of that.
 
 ## Running it
 
+MongoDB first, in an **elevated** PowerShell — a normal shell fails with
+"Cannot open MongoDB service." It does not reliably survive a sleep or
+restart despite being set to start automatically, so check this before
+assuming a backend failure is a code bug:
+
+```powershell
+Start-Service MongoDB
+```
+
+Then, normal (non-admin) shells:
+
 ```bash
 # backend
 cd backend && ../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -35,7 +46,20 @@ cd frontend; npm run dev
 
 `--reload` does **not** reliably fire on this Windows setup. If backend
 behaviour doesn't match the source, restart the process before debugging the
-code.
+code. Confirm the backend is genuinely healthy with `curl
+http://127.0.0.1:8000/ready`, not `/health` — `/ready` is the one that
+actually checks MongoDB and all five models; `/health` only proves the
+process is up. If MongoDB wasn't running when the backend started, it fails
+to boot at all with a `ServerSelectionTimeoutError` naming `localhost:27017`
+— start Mongo and restart the backend, that traceback is not a code problem.
+
+The deployed frontend at `mindlens-theta.vercel.app` talks to this same
+local backend through a permanent ngrok tunnel — no separate deployed
+backend exists. See `docs/DEPLOYMENT.md` for the tunnel setup and the
+`vercel --prod` redeploy workflow (must run from the repo root, not
+`frontend/`). An ops-only admin dashboard lives at `/admin`, unlinked from
+the product — `docs/DEPLOYMENT.md`'s Release check section and
+`backend/scripts/make_admin.py`.
 
 `frontend/.env.local` has `NEXT_PUBLIC_PREVIEW_AUTH`. `1` bypasses login with
 fixtures for UI work; it must be `0` to test anything real. It must never be
