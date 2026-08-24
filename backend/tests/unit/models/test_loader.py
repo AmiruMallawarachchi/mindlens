@@ -356,3 +356,59 @@ class TestCrisisTokenizerMismatchFix:
             "input_ids",
             "attention_mask",
         ]
+
+
+class TestWarmupProvesInferenceNotJustLoading:
+    """Loading a pipeline is not evidence that it can run.
+
+    A transformers/tokenizers version mismatch loads all five models
+    cleanly and then raises on every `pipeline(text)` call. predict_all
+    gathers with return_exceptions=True, so those failures were swallowed
+    into empty score dicts: distress computed to 0.0 on every turn and the
+    crisis classifier contributed nothing, while /ready still returned 200.
+    warmup_all now runs one throwaway prediction per model so that becomes
+    a boot failure instead of a silent degradation.
+    """
+
+    @pytest.mark.asyncio
+    async def test_warmup_fails_when_a_model_loads_but_cannot_infer(self) -> None:
+        mgr = ModelManager()
+
+        async def raises_dtype_typeerror(_text: str) -> list:
+            raise TypeError(
+                "_batch_encode_plus() got an unexpected keyword argument 'dtype'"
+            )
+
+        with (
+            # Loading succeeds for every model.
+            patch.object(type(mgr), "emotion", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "crisis", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "mental_health", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "distortion", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "rag_reranker", property(lambda s: MagicMock())),
+            patch.object(mgr, "rerank", return_value=[0.0]),
+            # ...but inference does not.
+            patch.object(mgr, "predict_emotion", raises_dtype_typeerror),
+            patch.object(mgr, "predict_crisis", return_value=[]),
+            patch.object(mgr, "predict_mental_health", return_value=[]),
+            patch.object(mgr, "predict_distortion", return_value=[]),
+        ):
+            with pytest.raises(RuntimeError, match="cannot run inference"):
+                await mgr.warmup_all()
+
+    @pytest.mark.asyncio
+    async def test_warmup_passes_when_inference_works(self) -> None:
+        mgr = ModelManager()
+        with (
+            patch.object(type(mgr), "emotion", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "crisis", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "mental_health", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "distortion", property(lambda s: MagicMock())),
+            patch.object(type(mgr), "rag_reranker", property(lambda s: MagicMock())),
+            patch.object(mgr, "rerank", return_value=[0.0]),
+            patch.object(mgr, "predict_emotion", return_value=[]),
+            patch.object(mgr, "predict_crisis", return_value=[]),
+            patch.object(mgr, "predict_mental_health", return_value=[]),
+            patch.object(mgr, "predict_distortion", return_value=[]),
+        ):
+            assert await mgr.warmup_all() is not None

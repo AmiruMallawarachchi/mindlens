@@ -91,15 +91,24 @@ class JournalingAgent(BaseAgent):
 
     def _build_system_prompt_v3(self, ctx: AgentContext) -> str:
         """SYSTEM.md §5.10: 3 structured questions, #3 uses people_graph."""
-        name = ctx.user_name or "friend"
+        # First name only. ctx.user_name carries whatever the account holds,
+        # which for a full name produced "Here's a quick thought record,
+        # Amiru Mallawarachchi:" — nobody addresses a friend by their full
+        # name, and it read as a mail merge.
+        name = (ctx.user_name or "friend").split()[0]
 
-        # Question 3 personalization: pick someone from people_graph
+        # Question 3 personalization: pick someone from people_graph.
+        #
+        # The relationship word used to be interpolated as a bare subject
+        # ("...if {person_relationship} felt the same way?"), which rendered
+        # as "What would you say to Sasanka if Boyfriend felt the same way?"
+        # — a capitalised relationship standing in for a pronoun. The CBT
+        # move here is "advise a friend as you'd advise yourself", so the
+        # pronoun is what belongs there; the relationship is not needed in
+        # the sentence at all.
         person_name = "a friend"
-        person_relationship = "someone close to you"
         if ctx.eos.people_graph:
-            person = ctx.eos.people_graph[0]
-            person_name = person.name
-            person_relationship = person.relationship
+            person_name = ctx.eos.people_graph[0].name
 
         return (
             f"You are MindLens — a warm, emotionally intelligent wellbeing coach.\n"
@@ -113,7 +122,7 @@ class JournalingAgent(BaseAgent):
             f"3. Use {name}'s name in the first line (e.g., 'Here's a quick thought record, {name}:').\n"
             f"4. Question 1: 'What exactly happened? (just the facts)'\n"
             f"5. Question 2: 'What was the first thought that came into your head?'\n"
-            f"6. Question 3: 'What would you say to {person_name} if {person_relationship} felt the same way?'\n"
+            f"6. Question 3: 'What would you say to {person_name} if they felt the same way?'\n"
             f"7. Make them feel open, not like homework. No bullet points, no numbered lists.\n"
             f"8. Never diagnose.\n"
             f"\nRespond ONLY with the 3 questions. No intro, no outro.\n"

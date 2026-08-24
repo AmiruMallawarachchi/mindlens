@@ -128,6 +128,45 @@ class TestMemoryExtraction:
         assert extracted["person_relation"] == relation
 
     @pytest.mark.parametrize(
+        ("text", "name"),
+        [
+            ("my mums name is rehana", "Rehana"),
+            ("i have a boyfriend called hasanka", "Hasanka"),
+            ("my best friend named alex", "Alex"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_lowercase_names_are_stored_when_explicitly_declared(
+        self, agent: SessionMemorySave, text: str, name: str
+    ) -> None:
+        """People type their own lives in lowercase. Requiring a capital
+        taught the user they had to punctuate correctly to be heard. After
+        "called"/"name is" the sentence has already declared a name is
+        coming, so case carries no information there — it is only load-
+        bearing for bare adjacency ("my sister Amaya")."""
+        result = await agent.run(self._ctx(text))
+        assert result.metadata["extracted"]["person_name"] == name
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "my sister called me",
+            "my mum called me today",
+            "my friend called and said hi",
+            "my brother called us back",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_called_me_does_not_store_a_person_named_me(
+        self, agent: SessionMemorySave, text: str
+    ) -> None:
+        """Accepting lowercase after "called" makes "my sister called me"
+        look exactly like "my sister called alex" — so the pronouns and
+        common adverbs that actually follow "called" are excluded."""
+        result = await agent.run(self._ctx(text))
+        assert "person_name" not in result.metadata["extracted"]
+
+    @pytest.mark.parametrize(
         "text",
         [
             "my mum is Sri Lankan",

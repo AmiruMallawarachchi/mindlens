@@ -324,8 +324,28 @@ class ModelManager:
                 output[name] = result
         return output
 
+    # Any short, harmless string. Only used to prove a loaded pipeline can
+    # actually run — the prediction itself is discarded.
+    _SMOKE_TEXT = "hello"
+
     async def warmup_all(self) -> dict[str, dict[str, Any]]:
-        """Load all configured models before accepting traffic."""
+        """Load all configured models AND prove each one can run inference.
+
+        Constructing a pipeline is not evidence that it works. A
+        transformers/tokenizers version mismatch loads all five models
+        cleanly and then raises on every single `pipeline(text)` call
+        (`_batch_encode_plus() got an unexpected keyword argument
+        'dtype'`). Because `predict_all` gathers with
+        `return_exceptions=True`, each of those failures was swallowed into
+        an empty score dict: emotion, mental-health and distortion all
+        returned nothing, distress computed to 0.0 on every turn, and the
+        crisis classifier — layer 2 of a safety gate that is supposed to be
+        two layers — contributed nothing while the app reported itself
+        healthy and `/ready` returned 200.
+
+        Running one throwaway prediction per model at startup converts that
+        from a silent, weeks-long degradation into a boot failure.
+        """
         accessors = (
             self.emotion,
             self.crisis,
@@ -340,6 +360,32 @@ class ModelManager:
         failures = [result for result in results if isinstance(result, BaseException)]
         if failures:
             raise RuntimeError(f"Failed to load {len(failures)} configured model(s)")
+
+        smoke: list[tuple[str, Any]] = [
+            ("emotion", self.predict_emotion(self._SMOKE_TEXT)),
+            ("crisis", self.predict_crisis(self._SMOKE_TEXT)),
+            ("mental_health", self.predict_mental_health(self._SMOKE_TEXT)),
+            ("distortion", self.predict_distortion(self._SMOKE_TEXT)),
+            (
+                "rag_reranker",
+                asyncio.to_thread(self.rerank, self._SMOKE_TEXT, [self._SMOKE_TEXT]),
+            ),
+        ]
+        smoke_results = await asyncio.gather(
+            *(coro for _, coro in smoke), return_exceptions=True
+        )
+        broken = [
+            f"{name} ({type(result).__name__}: {result})"
+            for (name, _), result in zip(smoke, smoke_results, strict=True)
+            if isinstance(result, BaseException)
+        ]
+        if broken:
+            raise RuntimeError(
+                "Model(s) loaded but cannot run inference: "
+                + "; ".join(broken)
+                + ". This usually means the installed transformers/tokenizers "
+                "versions do not match requirements.txt."
+            )
         return self.health_status()
 
     def health_status(self) -> dict[str, dict[str, Any]]:

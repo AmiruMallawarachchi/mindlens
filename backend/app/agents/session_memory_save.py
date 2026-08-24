@@ -52,6 +52,22 @@ _RELATIONS = (
 # and the Memory page listed a title as a person.
 _NAME = r"[A-Z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
 
+# The same shape but case-insensitive, for use ONLY after a phrase that has
+# already declared a name is coming ("called x", "name is x"). People type
+# their own lives in lowercase — "my mums name is rehana" — and refusing to
+# store that taught the user they had to capitalise to be heard, which is
+# not a rule a wellbeing app gets to impose. Bare adjacency still requires
+# the capital: in "my sister said", "said" is a lowercase word directly
+# after the relation and is indistinguishable from a lowercase name.
+_NAME_ANY_CASE = r"[A-Za-z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
+
+# Words that follow "called"/"name is" often enough to be worth excluding —
+# without these, "my sister called me" stores a person named "me".
+_NOT_A_NAME = (
+    "me|us|him|her|them|you|it|today|yesterday|tonight|earlier|again|back|"
+    "and|but|so|because|when|while|about|after|before|now|just|also"
+)
+
 # The connector between the relation and the name. Only bare adjacency
 # ("my sister Amaya"), an explicit naming verb ("my boyfriend called
 # Hasanka"), or an explicit "name is" ("my mum's name is Rehana") count.
@@ -64,14 +80,14 @@ _NAME = r"[A-Z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
 # before". Missing a name costs one un-saved fact the user can add in
 # Memory; inventing one is a write that persists and quietly corrupts
 # recall, so the asymmetry decides it.
-_CONNECTOR = (
-    r"\s*,?"  # "my sister Amaya" / "my best friend, Alex"
-    r"|\s+(?:called|named)"  # "my boyfriend called Hasanka"
-    r"|'?s?\s+name\s+is"  # "my mum's name is Rehana" / "my mums name is Rehana"
-)
+_DECLARED = rf"(?:\s+(?:called|named)|'?s?\s+name\s+is)\s+(?!(?i:{_NOT_A_NAME})\b)"
 
 _RE_PERSON_FORWARD = re.compile(
-    rf"\b(?i:my\s+({_RELATIONS})(?:{_CONNECTOR}))\s+({_NAME})\b"
+    rf"\b(?i:my\s+({_RELATIONS}))\s*,?\s+({_NAME})\b"
+)
+# Same, but the name was explicitly declared, so case is not required.
+_RE_PERSON_DECLARED = re.compile(
+    rf"\b(?i:my\s+({_RELATIONS})){_DECLARED}({_NAME_ANY_CASE})\b"
 )
 
 # "I have a boyfriend called Hasanka" — the indefinite article is just as
@@ -81,7 +97,7 @@ _RE_PERSON_FORWARD = re.compile(
 # adjacency after "a" ("a sister Amaya") is not idiomatic and would only
 # widen the false-positive surface for no real gain.
 _RE_PERSON_ARTICLE = re.compile(
-    rf"\b(?i:an?\s+({_RELATIONS})(?:\s+(?:called|named)|'?s?\s+name\s+is))\s+({_NAME})\b"
+    rf"\b(?i:an?\s+({_RELATIONS})){_DECLARED}({_NAME_ANY_CASE})\b"
 )
 # "Amaya, my sister" / "Alex my best friend"
 _RE_PERSON_REVERSE = re.compile(
@@ -162,9 +178,14 @@ def _extract_people(text: str) -> list[tuple[str, str]]:
         seen.add(key)
         found.append((relation.lower(), normalized))
 
-    for match in _RE_PERSON_FORWARD.finditer(text):
+    # Declared forms first: "my mum's name is rehana" also matches the
+    # bare-adjacency pattern against nothing useful, and running the
+    # explicit one first means the lowercase name wins its slot.
+    for match in _RE_PERSON_DECLARED.finditer(text):
         add(match.group(1), match.group(2))
     for match in _RE_PERSON_ARTICLE.finditer(text):
+        add(match.group(1), match.group(2))
+    for match in _RE_PERSON_FORWARD.finditer(text):
         add(match.group(1), match.group(2))
     for match in _RE_PERSON_REVERSE.finditer(text):
         add(match.group(2), match.group(1))
