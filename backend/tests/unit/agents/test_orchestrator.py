@@ -786,3 +786,31 @@ class TestStageCallback:
         orchestrator.models = mock_model_manager
         result = await orchestrator.run_full_pipeline("hi", user_name="TestUser")
         assert "assembled_text" in result
+
+
+class TestMindfulnessIsNotEveryTurn:
+    """Once the classifiers were fixed and began returning real labels, an
+    unconditional anxiety trigger meant a guided breathing exercise on
+    nearly every turn — the same script instead of the app getting to know
+    the person. A mild anxious reading no longer summons one; genuine
+    distress still always does."""
+
+    def test_mild_anxiety_alone_does_not_trigger_an_exercise(self) -> None:
+        eos = EmotionalOperatingState(
+            core_emotion="anxiety", distress_level=0.2, session_turn_count=3
+        )
+        assert "mindfulness" not in Orchestrator._select_agents(eos, crisis_flag=False)
+
+    def test_warm_anxiety_does_trigger(self) -> None:
+        eos = EmotionalOperatingState(
+            core_emotion="anxiety", distress_level=0.45, session_turn_count=3
+        )
+        assert "mindfulness" in Orchestrator._select_agents(eos, crisis_flag=False)
+
+    def test_high_distress_always_triggers_regardless_of_label(self) -> None:
+        """The safety arm is untouched: whatever the emotion label says,
+        someone in real distress still gets grounded."""
+        eos = EmotionalOperatingState(
+            core_emotion="sadness", distress_level=0.8, session_turn_count=3
+        )
+        assert "mindfulness" in Orchestrator._select_agents(eos, crisis_flag=False)

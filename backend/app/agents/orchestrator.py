@@ -722,10 +722,24 @@ class Orchestrator:
         # wants an exercise in response to "ok thanks".
         held_back = opening_turn or not substantive
 
-        # Safety-critical: mindfulness for high distress or anxiety
+        # Safety-critical: mindfulness for high distress, or for anxious
+        # emotions that are actually running warm.
+        #
+        # The emotion arm used to be unconditional — any turn the classifier
+        # labelled anxiety/fear/nervousness got a breathing exercise,
+        # however mild, and mentioning an exam in passing was enough. Once
+        # the classifiers were fixed and started returning real labels, that
+        # meant an exercise on nearly every turn: the same guided script
+        # again and again in place of the app getting to know the person.
+        # Requiring a moderate distress floor alongside the label keeps the
+        # exercise for the turns that warrant one, while the high-distress
+        # arm above is untouched so genuine distress still always grounds.
         if not held_back and (
             eos.distress_level > 0.5
-            or eos.core_emotion in {"anxiety", "fear", "nervousness"}
+            or (
+                eos.core_emotion in {"anxiety", "fear", "nervousness"}
+                and eos.distress_level > 0.35
+            )
         ):
             agents.append("mindfulness")
 

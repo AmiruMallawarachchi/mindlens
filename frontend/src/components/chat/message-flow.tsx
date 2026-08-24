@@ -146,7 +146,18 @@ export function AssistantTurn({
           * by default, so the default reading experience is unchanged. */}
         {!isStreaming && steps.length > 0 && <PipelineTrace message={message} />}
 
-        <p className="ml-display m-0 text-[19.5px] leading-[1.6]" style={{ color: "var(--ml-ink)", textWrap: "pretty" }}>
+        {/* whitespace-pre-line, because the reply genuinely carries
+          * structure and HTML was throwing all of it away. The assembler
+          * joins empathy and the specialist with "\n\n", and a guided
+          * exercise arrives as one step per line — collapsed to single
+          * spaces, that rendered as an unreadable wall with "1. ... 2. ...
+          * 3." running inline mid-sentence. Only newlines are honoured;
+          * runs of spaces still collapse, so this cannot be used to inject
+          * layout from message text. */}
+        <p
+          className="ml-display m-0 whitespace-pre-line text-[19.5px] leading-[1.6]"
+          style={{ color: "var(--ml-ink)", textWrap: "pretty" }}
+        >
           {message.text}
           {isStreaming && (
             <span
