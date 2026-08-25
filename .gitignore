@@ -77,3 +77,6 @@ notebooks/**/*.ipynb
 # training/ — kept locally for reference, not worth 6.5MB in the repo.
 artifacts/
 .vercel
+
+# Local ngrok binary (downloaded, not source; see README)
+tools/

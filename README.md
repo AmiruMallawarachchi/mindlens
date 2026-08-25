@@ -75,7 +75,7 @@ flag.
 you're working purely on `localhost:3000`.
 
 ```powershell
-ngrok http 8000
+D:\AI Projects\mindlens\tools\ngrok.exe http 8000
 ```
 
 Leave it running in its own window. The deployed frontend reaches your
@@ -83,6 +83,24 @@ laptop's backend *through* this tunnel — if it isn't running, that site
 shows "Couldn't reach Mindlens. It may be down" no matter how healthy the
 backend is. The hostname is permanent, so this needs no reconfiguration
 between runs.
+
+**Why `tools\ngrok.exe` and not just `ngrok`:** Windows Defender
+repeatedly quarantines the ngrok binary as a false positive — it did so
+four times over three days, each time silently deleting it so the next
+`ngrok http 8000` failed with "not recognized as the name of a cmdlet"
+and the deployed site went dark for no visible reason. The binary now
+lives in `tools/` (gitignored, not source) with a **Defender exclusion on
+that one folder**, which is what actually stops the recurrence:
+
+```powershell
+# once, in an ADMIN PowerShell
+Add-MpPreference -ExclusionPath "D:\AI Projects\mindlens\tools"
+```
+
+Installing via `winget` is not recommended: it ships an ngrok old enough
+that ngrok's own servers reject it (`ERR_NGROK_121`), and `ngrok update`
+then downloads a binary Defender immediately quarantines. Downloading
+straight from `bin.equinox.io` into `tools/` avoids both problems.
 
 ### 4. Frontend (local dev only)
 

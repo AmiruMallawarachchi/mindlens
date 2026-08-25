@@ -35,7 +35,10 @@ cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --p
 # 2. tunnel — REQUIRED for the deployed site at mindlens-theta.vercel.app.
 #    Without it that site shows "Couldn't reach Mindlens" no matter how
 #    healthy the backend is. Not needed if you only use localhost:3000.
-ngrok http 8000
+#    Uses tools\ngrok.exe, not a PATH `ngrok`: Defender kept quarantining
+#    the winget copy, so it lives in tools/ with a Defender exclusion.
+#    See README "The ngrok tunnel" if it ever goes missing again.
+D:\AI Projects\mindlens\tools\ngrok.exe http 8000
 
 # 3. frontend (only for local dev; the Vercel deploy doesn't need this)
 cd frontend; npm run dev

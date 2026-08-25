@@ -77,7 +77,15 @@ try {
     $ngrokUp = [bool]$tunnelUrl
 } catch {}
 if ($tunnelUrl) { $ngrokDetail = $tunnelUrl } else { $ngrokDetail = "no local ngrok agent on :4040" }
-Report $ngrokUp "ngrok tunnel" $ngrokDetail "ngrok http 8000      (only needed for mindlens-theta.vercel.app)"
+Report $ngrokUp "ngrok tunnel" $ngrokDetail "D:\AI Projects\mindlens\tools\ngrok.exe http 8000   (only needed for the Vercel site)"
+
+# Defender has repeatedly quarantined the ngrok binary as a false positive,
+# which presents as "not recognized as the name of a cmdlet" rather than
+# anything mentioning antivirus. Check the file still exists at all.
+$ngrokPath = "D:\AI Projects\mindlens\tools\ngrok.exe"
+if (-not $ngrokUp) {
+    Report (Test-Path $ngrokPath) "ngrok binary present" $ngrokPath "Defender likely quarantined it - see README 'The ngrok tunnel'"
+}
 
 # 5. The whole path the deployed site actually uses. Everything above can
 #    pass while this still fails, so it is checked end to end rather than
