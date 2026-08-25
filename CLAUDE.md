@@ -26,23 +26,35 @@ assuming a backend failure is a code bug:
 Start-Service MongoDB
 ```
 
-Then, normal (non-admin) shells:
+Then, normal (non-admin) shells — **one per process, all three left running**:
+
+```powershell
+# 1. backend
+cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 2. tunnel — REQUIRED for the deployed site at mindlens-theta.vercel.app.
+#    Without it that site shows "Couldn't reach Mindlens" no matter how
+#    healthy the backend is. Not needed if you only use localhost:3000.
+ngrok http 8000
+
+# 3. frontend (only for local dev; the Vercel deploy doesn't need this)
+cd frontend; npm run dev
+```
+
+bash (`&&` instead of `;`):
 
 ```bash
-# backend
 cd backend && ../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-# frontend
+ngrok http 8000
 cd frontend && npm run dev
 ```
 
-PowerShell (`;` instead of `&&`):
+**Which URL needs what:**
 
-```powershell
-# backend
-cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-# frontend
-cd frontend; npm run dev
-```
+| Using | Needs Mongo | Needs backend | Needs ngrok | Needs `npm run dev` |
+|---|---|---|---|---|
+| `localhost:3000` | yes | yes | no | yes |
+| `mindlens-theta.vercel.app` | yes | yes | **yes** | no |
 
 `--reload` does **not** reliably fire on this Windows setup. If backend
 behaviour doesn't match the source, restart the process before debugging the

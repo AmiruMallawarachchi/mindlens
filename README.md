@@ -69,9 +69,24 @@ fire on this Windows setup — if backend behaviour doesn't match the source
 after an edit, stop the process and start it again rather than trusting the
 flag.
 
-### 3. Frontend
+### 3. The ngrok tunnel — required for the deployed site
 
-Requires Node 20+.
+**Only needed if you're using `mindlens-theta.vercel.app`.** Skip it if
+you're working purely on `localhost:3000`.
+
+```powershell
+ngrok http 8000
+```
+
+Leave it running in its own window. The deployed frontend reaches your
+laptop's backend *through* this tunnel — if it isn't running, that site
+shows "Couldn't reach Mindlens. It may be down" no matter how healthy the
+backend is. The hostname is permanent, so this needs no reconfiguration
+between runs.
+
+### 4. Frontend (local dev only)
+
+Requires Node 20+. Not needed if you're using the deployed Vercel site.
 
 ```powershell
 cd frontend
@@ -85,6 +100,16 @@ The client listens on `http://localhost:3000`. `/` is the marketing page; the
 product lives at `/app`. See `frontend/src/lib/preview.ts` for a way to render
 the chat UI without a running backend during frontend-only work — never enable
 `NEXT_PUBLIC_PREVIEW_AUTH` outside local dev (it bypasses auth entirely).
+
+### What each entry point actually needs
+
+| Using | MongoDB | Backend | ngrok | `npm run dev` |
+|---|---|---|---|---|
+| `localhost:3000` | yes | yes | no | yes |
+| `mindlens-theta.vercel.app` | yes | yes | **yes** | no |
+
+Most "it was working yesterday" failures are one of these four not running —
+check all four before looking at code.
 
 ## The Vercel deployment
 
