@@ -17,6 +17,13 @@ because of that.
 
 ## Running it
 
+Fast path: `powershell -ExecutionPolicy Bypass -File .\start-stack.ps1` from
+the repo root launches all three processes below in their own windows
+(elevating only for MongoDB, and only if it isn't already running), then
+runs `check-stack.ps1` to confirm everything came up. The manual steps
+below are what it runs, and are still the way to isolate which piece broke
+if the combined script doesn't come up clean.
+
 MongoDB first, in an **elevated** PowerShell — a normal shell fails with
 "Cannot open MongoDB service." It does not reliably survive a sleep or
 restart despite being set to start automatically, so check this before
@@ -38,7 +45,10 @@ cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --p
 #    Uses tools\ngrok.exe, not a PATH `ngrok`: Defender kept quarantining
 #    the winget copy, so it lives in tools/ with a Defender exclusion.
 #    See README "The ngrok tunnel" if it ever goes missing again.
-D:\AI Projects\mindlens\tools\ngrok.exe http 8000
+#    --url pins the reserved dev domain explicitly rather than relying on
+#    it coming back automatically — same URL every restart either way, but
+#    explicit survives a second domain ever being reserved on this account.
+D:\AI Projects\mindlens\tools\ngrok.exe http 8000 --url=https://playroom-operative-ninth.ngrok-free.dev
 
 # 3. frontend (only for local dev; the Vercel deploy doesn't need this)
 cd frontend; npm run dev
@@ -48,7 +58,7 @@ bash (`&&` instead of `;`):
 
 ```bash
 cd backend && ../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-ngrok http 8000
+ngrok http 8000 --url=https://playroom-operative-ninth.ngrok-free.dev
 cd frontend && npm run dev
 ```
 

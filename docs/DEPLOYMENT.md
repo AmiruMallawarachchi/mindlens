@@ -18,6 +18,22 @@ tunnels, which this project used earlier) ngrok requires a one-time free
 account and authtoken. This is an accepted, deliberate limitation, not an
 oversight: see `SYSTEM.md`'s external-services table.
 
+### Quick start
+
+`start-stack.ps1` at the repo root launches all three processes — backend,
+ngrok (pinned to the reserved dev domain), frontend — each in its own
+window, then runs `check-stack.ps1` to confirm they came up:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-stack.ps1
+```
+
+MongoDB needs an elevated shell (below); the script elevates only that one
+step with a single UAC prompt if the service isn't already running. Use the
+manual steps below when something in the combined script fails and you need
+to isolate which piece — the troubleshooting subsection at the end of this
+section also still applies either way.
+
 ### Start MongoDB first
 
 The backend needs a running MongoDB before it will boot at all — it
@@ -71,20 +87,27 @@ then:
 
 ```bash
 ngrok config add-authtoken <your-token>
-ngrok http 8000
+ngrok http 8000 --url=https://playroom-operative-ninth.ngrok-free.dev
 ```
 
 Unlike Cloudflare's quick tunnels (used earlier in this project), a free
-ngrok account is issued one **permanent "dev domain"** — confirmed by
-killing and restarting the agent repeatedly and observing the identical
-hostname come back every time, with no `--domain` flag needed. This
-project's dev domain is `playroom-operative-ninth.ngrok-free.dev`, visible
-under **dashboard.ngrok.com/domains** ("yours forever," not accruing
-endpoint hours). Practically: `NEXT_PUBLIC_API_BASE_URL` on Vercel only
-needs setting **once**, not after every restart — see the note at the end
-of this subsection for the one scenario where it would need to change
-again. A local inspector for every request that passed through is at
+ngrok account is issued one **permanent "dev domain"**. This project's dev
+domain is `playroom-operative-ninth.ngrok-free.dev`, visible under
+**dashboard.ngrok.com/domains** ("yours forever," not accruing endpoint
+hours). Practically: `NEXT_PUBLIC_API_BASE_URL` on Vercel only needs
+setting **once**, not after every restart — see the note at the end of this
+subsection for the one scenario where it would need to change again. A
+local inspector for every request that passed through is at
 `http://127.0.0.1:4040` while the tunnel is running.
+
+An early version of this doc relied on the domain coming back automatically
+with no flag — true for a free account with only one reserved domain, but
+implicit. `--url` (verified end-to-end: tunnel up, `/ready` reachable
+through it with all five models and `rag.chunks: 67`; `--domain` does the
+same thing but ngrok now flags it deprecated) pins it explicitly so nothing
+changes if a second domain is ever reserved on this account.
+`start-stack.ps1` at the repo root already passes this flag — see "Quick
+start" above.
 
 On Windows, Defender has been observed quarantining `ngrok.exe` — either
 the winget-installed binary or the one `ngrok update` downloads in place —
