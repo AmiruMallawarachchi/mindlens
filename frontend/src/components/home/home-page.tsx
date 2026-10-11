@@ -748,7 +748,7 @@ export function HomePage() {
             style={{ borderTop: "1px solid var(--ml-hairline)" }}
           >
             <p className="m-0 font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.13em]" style={{ color: "var(--ml-faint)" }}>
-              A final-year project by Amiru Mallawa Arachchi · Cardiff Metropolitan University · 2026
+              A final-year project by Amiru Mallawarachchi · Cardiff Metropolitan University · 2026
             </p>
           </div>
         </div>
