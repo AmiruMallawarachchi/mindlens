@@ -72,7 +72,7 @@ export function PipelineTrace({ message }: { message: ChatMessage }) {
         <PipelineTool
           name="safety_gate"
           state={safety?.is_crisis ? "output-error" : "output-available"}
-          input={{ layers: ["regex", "mindlens-crisis"] }}
+          input={{ layers: ["regex", "hosted_assessment"] }}
           output={
             safety?.is_crisis
               ? `CRISIS — ${safety.layer_triggered ?? "unknown"} layer triggered${

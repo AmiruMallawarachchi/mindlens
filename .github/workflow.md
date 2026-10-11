@@ -1,9 +1,7 @@
 # MindLens Git Workflow
 
-> **Project:** MindLens — Multi-Agent Agentic AI for Mental Health  
-> **Developer:** Amiru Umavin Mallawa Arachchi  
-> **Deadline:** August 11, 2026  
-> **Current Date:** June 6, 2026  
+> **Project:** MindLens V2 — Hosted LangGraph Multi-Agent Chat
+> **Branching Model:** Git Flow (simplified for solo development)
 > **Branching Model:** Git Flow (simplified for solo developer)  
 
 ---

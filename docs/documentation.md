@@ -1,4 +1,6 @@
-# Mindlens — Complete Project Documentation
+# Mindlens — Complete Project Documentation (legacy V1 reference)
+
+> **V2 notice:** This document describes the historical local-model implementation. The current public architecture is [README.md](../README.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [V2_HOSTED_DEPLOYMENT.md](V2_HOSTED_DEPLOYMENT.md). References below to ChromaDB, five local models, and custom orchestration are retained for historical context and are not the deployed V2 runtime.
 
 > **Purpose of this file.** This is the single, exhaustive reference for the
 > Mindlens final-year project: what it is, why it exists, how every part
@@ -54,10 +56,7 @@
 | Attribute | Value |
 |---|---|
 | Product | **Mindlens** — a personalised, multi-agent AI wellbeing companion |
-| Student | Amiru Umavin Mallawa Arachchi |
-| Student number | CL/BSCSD/33/82 · Cardiff no. st20311878 |
-| Institution | Cardiff Metropolitan University / ICBT Campus, Colombo, Sri Lanka |
-| Programme | BSc (Hons) Software Engineering — Final Year Project |
+| Project | MindLens |
 | GitHub | github.com/AmiruMallawarachchi/mindlens |
 | Model host | huggingface.co/AmiruMallawarachchi |
 | Version | 0.4.0 (`pyproject.toml`, `main.py`) |

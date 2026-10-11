@@ -1,4 +1,6 @@
-# Mindlens
+# Mindlens V2
+
+> Current architecture: hosted LangGraph, Groq, Pinecone, MongoDB Atlas, and metadata-only Langfuse. See `README.md` and `docs/ARCHITECTURE.md` before using the historical notes below.
 
 A wellbeing companion that reads the feeling underneath what someone writes,
 remembers what matters, and helps them build tools to steady themselves.
@@ -9,11 +11,11 @@ because of that.
 
 ## Stack
 
-- **Frontend** — Next.js 15 (App Router, Turbopack), React 19, TypeScript,
+- **Frontend** — Next.js 16 (App Router, Turbopack), React 19, TypeScript,
   Tailwind. `/` is the marketing site, `/app` is the product.
 - **Backend** — FastAPI, Motor/MongoDB Atlas, JWT in httpOnly cookies.
-- **Agents** — a fixed safety gate, then five small models, then a team of
-  therapy-modality agents. Groq for generation.
+- **Agents** — a deterministic safety gate followed by a bounded LangGraph
+  workflow. Groq provides hosted assessment and response generation.
 
 ## Running it
 
@@ -39,7 +41,7 @@ Then, normal (non-admin) shells — **one per process, all three left running**:
 # 1. backend
 cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
-# 2. tunnel — REQUIRED for the deployed site at mindlens-theta.vercel.app.
+# 2. tunnel — only required for the legacy frontend-only demo, not V2 Render.
 #    Without it that site shows "Couldn't reach Mindlens" no matter how
 #    healthy the backend is. Not needed if you only use localhost:3000.
 #    Uses tools\ngrok.exe, not a PATH `ngrok`: Defender kept quarantining

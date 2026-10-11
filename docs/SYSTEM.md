@@ -1,8 +1,11 @@
-# MindLens - SYSTEM.md
-## Version: 1.0 | Final Baseline Architecture | Generated: 2026-07-03
-## Author: Amiru Umavin Mallawa Arachchi | Cardiff Metropolitan University / ICBT Campus
+# MindLens - SYSTEM.md (legacy V1 reference)
 
-> This document is the single source of truth for MindLens.
+> **V2 notice:** The deployed direction is now the hosted LangGraph architecture described in [README.md](../README.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [V2_HOSTED_DEPLOYMENT.md](V2_HOSTED_DEPLOYMENT.md). This file preserves historical V1 design decisions and should not be used as the runtime source of truth for models, RAG, or orchestration.
+## Version: 1.0 | Final Baseline Architecture | Generated: 2026-07-03
+## Historical project architecture reference
+
+> This document is a historical V1 reference. The current source of truth is
+> the hosted V2 documentation linked above.
 > It defines the backend, frontend, machine-learning models, safety system,
 > agent behavior, data architecture, testing expectations, deployment strategy,
 > and non-negotiable rules.
@@ -22,15 +25,15 @@
 | Target users | Teen users aged 16-19 and young adults aged 20-30 |
 | Tone | Wise coaching friend: practical, warm, personalized, non-clinical |
 | Release scope | Text-only web app. No voice pipeline in this release |
-| Frontend | Next.js 15, Claude-style three-column layout |
+| Frontend | Next.js 16, Claude-style three-column layout |
 | Backend | FastAPI, async-first, MongoDB, WebSocket chat |
 | Realtime transport | WebSocket for chat and streaming agent activity |
 | LLM provider | Groq only for therapy generation |
 | LLM routing | A smaller/faster Groq model for simple turns, a larger one for emotional or complex turns — see §9 for the current pair; Groq's lineup has changed underneath this once already |
-| ML models | Five MindLens Hugging Face models: emotion, mental health, crisis, RAG reranker, distortion |
+| Hosted inference | Groq structured assessment, specialist generation, and optional review |
 | Safety | Hardwired safety gate runs before every agent and cannot be bypassed |
 | Crisis response | Template-only crisis agent. Zero LLM calls during crisis |
-| RAG | ChromaDB vector retrieval plus MindLens RAG reranker |
+| RAG | Pinecone hosted embeddings and retrieval over the curated corpus |
 | Memory | MongoDB user profile, session memory, people graph, progress records |
 | Scheduler | APScheduler inside FastAPI for check-ins. No Redis required |
 | Admin | Separate admin surface for users, health, model status, reports, and sessions |
@@ -47,14 +50,9 @@ longitudinal wellbeing management.
 
 | Attribute | Value |
 |---|---|
-| Student | Amiru Umavin Mallawa Arachchi |
-| Student number | CL/BSCSD/33/82 |
-| Cardiff number | st20311878 |
-| Institution | Cardiff Metropolitan University / ICBT Campus, Colombo, Sri Lanka |
-| Program | BSc (Hons) Software Engineering - Final Year Project |
-| Deadline | August 11, 2026 |
-| GitHub | github.com/AmiruMallawarachchi |
-| Model host | Hugging Face: AmiruMallawarachchi |
+| Project | MindLens hosted V2 |
+| GitHub | github.com/AmiruMallawarachchi/mindlens |
+| Current runtime | LangGraph + Groq + Pinecone + MongoDB Atlas + Langfuse |
 
 MindLens is **not** a clinical service, diagnostic tool, emergency service, or
 replacement for professional care. It is a personalized wellbeing companion that
@@ -138,7 +136,7 @@ override user preference.
 USER
   |
   v
-Next.js 15 Frontend
+Next.js 16 Frontend
   - Sidebar: sessions, new chat, settings
   - Main chat: messages, mode badge, input
   - Dashboard: progress, mood, routines, memory
@@ -215,7 +213,7 @@ MongoDB Memory + Sessions + Audit Logs
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 |
+| Framework | Next.js 16 |
 | Language | TypeScript |
 | UI | React |
 | Styling | Tailwind CSS |
@@ -290,7 +288,7 @@ The model output must never be shown as a diagnosis. It is an internal signal.
 
 | Field | Value |
 |---|---|
-| Hugging Face ID | `AmiruMallawarachchi/mindlens-crisis` |
+| Hugging Face ID | `AmiruMallawarachchi/mindlens-crisis-v3` (legacy V1 model) |
 | Task | Crisis text classification |
 | Size | Approximately 67M parameters |
 | Role | Detect crisis or self-harm risk |
@@ -343,7 +341,7 @@ User text + EOS
 | Field | Value |
 |---|---|
 | Hugging Face ID | `AmiruMallawarachchi/mindlens-distortion-classifier` |
-| Status | Planned / about to be completed |
+| Status | Published legacy V1 model; not used by hosted V2 runtime |
 | Task | Cognitive distortion classification |
 | Role | Detect distorted thinking patterns |
 | Pipeline name | `distortion` |
@@ -1034,7 +1032,7 @@ Target:
 Target:
 
 - Vercel or Railway.
-- Next.js 15.
+- Next.js 16.
 - Environment-specific backend URL.
 - Secure cookie support.
 
@@ -1153,7 +1151,7 @@ Deliverables:
 4. Crisis response uses approved templates only.
 5. Never diagnose.
 6. Never recommend medication.
-7. Always append the MindLens non-clinical disclaimer.
+7. Keep the non-clinical disclaimer visible in the interface; do not append it to ordinary assistant prose. Crisis responses use the controlled safety presentation.
 8. PII is stripped before model calls.
 
 ### Security

@@ -1,4 +1,6 @@
-# Deploying MindLens
+# Deploying MindLens (legacy V1 reference)
+
+> **V2 notice:** This runbook documents the former local-model/ngrok deployment. The current deployment target is Render + Vercel with Groq, Pinecone, MongoDB Atlas, and Langfuse. Use [V2_HOSTED_DEPLOYMENT.md](V2_HOSTED_DEPLOYMENT.md) for the active runbook.
 
 **What's actually live right now: a local backend + an ngrok Tunnel +
 Vercel.** That's the section below titled "Backend: local + ngrok Tunnel

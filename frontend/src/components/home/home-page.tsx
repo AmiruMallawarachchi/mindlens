@@ -42,7 +42,7 @@ const WARM = {
 
 const NAV_LINKS = [
   { href: "#how", label: "How it works" },
-  { href: "#models", label: "Models" },
+  { href: "#models", label: "Agents" },
   { href: "#emotions", label: "Emotions" },
   { href: "#docs", label: "Docs" },
   { href: "#safety", label: "Safety" },
@@ -57,7 +57,7 @@ const STEPS = [
   {
     num: "02",
     title: "The read",
-    body: "Five small models read the feeling: what's on the surface, what's underneath, how heavy it sits. You always see the read — a weather report, never a diagnosis.",
+    body: "A bounded graph reads the moment, recalls only relevant context, and chooses one careful response path. You see progress without being given a diagnosis.",
   },
   {
     num: "03",
@@ -79,27 +79,22 @@ const STEPS = [
   },
 ];
 
-/** `id` is the real Hugging Face repo each card runs on, not a label.
- * `adopted` marks a public checkpoint someone else trained: the emotion
- * classifier is SamLowe's go_emotions model, and presenting it under the
- * hf.co/AmiruMallawarachchi banner alongside the four fine-tuned here would
- * claim authorship the code doesn't have. Keep these ids in step with
- * `backend/app/config.py`'s *_MODEL_ID settings — if the model swaps, the
- * card is what tells people which one is actually running. */
-const MODELS = [
-  { id: "SamLowe/roberta-base-go_emotions", adopted: true, title: "Emotion classifier", body: "28 emotion classes (GoEmotions), folded into the 12 named states that light the interface." },
-  { id: "AmiruMallawarachchi/mindlens-mh-classifier", adopted: false, title: "Mental-health signal", body: "Screens every message for anxiety, depression and stress signals — quietly, in context, and never shown back to you as a label." },
-  { id: "AmiruMallawarachchi/mindlens-crisis", adopted: false, title: "Crisis detector", body: "Second-layer screening, behind a hardwired keyword gate that runs first on every turn. Either one alone can stop the conversation and switch to templates." },
-  { id: "AmiruMallawarachchi/mindlens-rag-reranker", adopted: false, title: "RAG reranker", body: "Re-orders passages retrieved from a curated therapy corpus so the most relevant guidance wins." },
-  { id: "AmiruMallawarachchi/mindlens-distortion-classifier", adopted: false, title: "Distortion classifier", body: "Looks for thinking traps — catastrophizing, all-or-nothing, mind-reading. The weakest of the five; see its model card for how far to trust it." },
+const AGENTS = [
+  { id: "safety_gate", title: "Safety gate", body: "Deterministic crisis screening runs before any hosted model call and can exit directly to controlled templates." },
+  { id: "assess", title: "Structured assessment", body: "Groq returns a constrained assessment used for routing; it never diagnoses or presents emotional certainty." },
+  { id: "memory_recall", title: "Memory recall", body: "The graph selects relevant preference signals from MongoDB without placing personal memories in the vector index." },
+  { id: "retrieve", title: "Hosted retrieval", body: "Pinecone searches only the curated therapy corpus and remains optional when the service is unavailable." },
+  { id: "specialist", title: "Selected specialist", body: "One route writes the user-facing reply: empathy, mindfulness, journaling, reflection, routine, challenge, or distortion." },
+  { id: "review", title: "Conditional reviewer", body: "Complex or high-distress turns can receive one additional safety review; ordinary turns do not pay that cost." },
+  { id: "finalize", title: "Validation and delivery", body: "Controlled crisis responses and ordinary replies are validated, persisted, streamed, and returned through the existing contract." },
 ];
 
 // href is the actual doc on GitHub, not the profile — each card ends in
 // "Open →", a promise to open *that* file, so the link has to go there.
 const DOCS = [
-  { file: "SYSTEM.md", title: "The single source of truth", body: "Architecture, the five models, agent behavior, safety rules — everything that is non-negotiable, in one file." },
+  { file: "README.md", title: "The public architecture", body: "The hosted V2 architecture, graph boundaries, privacy model, deployment shape, and offline review path." },
   { file: "API.md", title: "HTTP & WebSocket contract", body: "Every endpoint, the streaming chat protocol, and how agent activity reaches the client in real time." },
-  { file: "DEPLOYMENT.md", title: "Hugging Face Space & Vercel runbook", body: "How the backend, the vector store rebuilt fresh on every boot, and the web client ship — and how production fails closed." },
+  { file: "V2_HOSTED_DEPLOYMENT.md", title: "Hosted deployment runbook", body: "How Render, Vercel, Groq, Pinecone, MongoDB Atlas, and Langfuse fit together, including free-tier limitations." },
 ];
 const REPO_URL = "https://github.com/AmiruMallawarachchi/mindlens";
 
@@ -118,7 +113,7 @@ const RULES = [
 ];
 
 const GITHUB_URL = "https://github.com/AmiruMallawarachchi";
-const HF_URL = "https://huggingface.co/AmiruMallawarachchi";
+const ARCHITECTURE_URL = "https://github.com/AmiruMallawarachchi/mindlens/blob/main/docs/ARCHITECTURE.md";
 
 export function HomePage() {
   const { isDay, toggleGrade } = useGrade();
@@ -492,50 +487,40 @@ export function HomePage() {
                 {"/// The read"}
               </p>
               <h2 className="m-0 font-semibold leading-[1.02] tracking-[-.04em]" style={{ fontSize: "clamp(36px,5vw,64px)" }}>
-                Five small models,
+                Seven graph nodes,
                 <br />
-                one careful read
+                one careful response
               </h2>
-              {/* Four were fine-tuned for Mindlens; the emotion classifier is
-                * a public checkpoint. Saying so here is the difference between
-                * "five models" and "five models I trained". */}
               <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-[1.65]" style={{ color: "rgba(247,243,236,.5)" }}>
-                Four fine-tuned for Mindlens. One adopted — the emotion
-                classifier is a public GoEmotions checkpoint, marked below.
+                A bounded LangGraph workflow coordinates deterministic safety,
+                hosted assessment, memory, retrieval, one specialist, and
+                optional review.
               </p>
             </div>
             <a
-              href={HF_URL}
+              href={ARCHITECTURE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-[99px] px-[18px] py-2.5 font-[family-name:var(--font-geist-mono)] text-[11.5px] no-underline"
               style={{ border: "1px solid rgba(247,243,236,.2)", color: "#f7f3ec" }}
             >
-              hf.co/AmiruMallawarachchi ↗
+              read the architecture ↗
             </a>
           </Reveal>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-            {MODELS.map((model, i) => (
-              <Reveal key={model.id} delay={i * 0.05}>
+            {AGENTS.map((agent, i) => (
+              <Reveal key={agent.id} delay={i * 0.05}>
                 <article
                   className="flex h-full min-h-[200px] flex-col gap-3 rounded-[20px] p-5 transition-colors"
                   style={{ border: "1px solid rgba(247,243,236,.12)", background: "rgba(255,252,246,.04)" }}
                 >
                   <span className="size-[10px] rounded-full" style={{ background: "linear-gradient(140deg, var(--e2), var(--e1))" }} />
                   <span className="font-[family-name:var(--font-geist-mono)] text-[11.5px] break-all" style={{ color: "var(--e2)" }}>
-                    {model.id}
+                    {agent.id}
                   </span>
-                  {model.adopted && (
-                    <span
-                      className="w-fit rounded-[99px] px-2 py-0.5 font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[.1em]"
-                      style={{ border: "1px solid rgba(247,243,236,.25)", color: "rgba(247,243,236,.6)" }}
-                    >
-                      adopted, not ours
-                    </span>
-                  )}
-                  <h3 className="m-0 text-[16.5px] font-semibold tracking-[-.015em]">{model.title}</h3>
+                  <h3 className="m-0 text-[16.5px] font-semibold tracking-[-.015em]">{agent.title}</h3>
                   <p className="m-0 text-[12.5px] leading-[1.6]" style={{ color: "rgba(247,243,236,.55)", textWrap: "pretty" }}>
-                    {model.body}
+                    {agent.body}
                   </p>
                 </article>
               </Reveal>
@@ -753,7 +738,7 @@ export function HomePage() {
                   Open source
                 </span>
                 <FooterLink href={GITHUB_URL} external>GitHub</FooterLink>
-                <FooterLink href={HF_URL} external>Hugging Face</FooterLink>
+              <FooterLink href={REPO_URL} external>GitHub</FooterLink>
                 <FooterLink href="#docs">Documentation</FooterLink>
               </Reveal>
             </div>

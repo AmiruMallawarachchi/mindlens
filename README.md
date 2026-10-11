@@ -6,6 +6,10 @@ MindLens is a portfolio-grade full-stack AI system demonstrating how to build a 
 
 MindLens is not medical advice, diagnosis, therapy, or an emergency service.
 
+**Live frontend:** [mindlens-theta.vercel.app](https://mindlens-theta.vercel.app) · **Source:** [GitHub](https://github.com/AmiruMallawarachchi/mindlens)
+
+The frontend may be unavailable while the backend is sleeping or before cloud credentials are configured. The architecture remains reviewable offline through the diagrams, source, and mocked tests below.
+
 ## Why this project is interesting
 
 - Real bounded LangGraph workflow with explicit nodes and conditional edges.
