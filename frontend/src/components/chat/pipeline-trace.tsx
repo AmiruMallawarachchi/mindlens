@@ -122,8 +122,8 @@ export function PipelineTrace({ message }: { message: ChatMessage }) {
                   : "output-denied"
             }
             input={{
-              store: "chromadb",
-              reranker: rag.model ?? "disabled",
+              store: rag.provider ?? "pinecone",
+              reranker: "hosted",
             }}
             output={
               rag.status === "ran"

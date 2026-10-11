@@ -9,16 +9,24 @@ import time
 from collections.abc import Callable
 from typing import Any, cast
 
-import torch
-from transformers import AutoTokenizer, Pipeline, pipeline
+try:  # Legacy compatibility only. V2 never calls this registry.
+    import torch
+    from transformers import AutoTokenizer, Pipeline, pipeline
+except ImportError:  # pragma: no cover - exercised only in hosted deployments
+    torch = None  # type: ignore[assignment]
+    AutoTokenizer = None  # type: ignore[assignment]
+    Pipeline = Any  # type: ignore[misc,assignment]
+    pipeline = None  # type: ignore[assignment]
 
 from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_DEVICE = 0 if torch.cuda.is_available() else -1
-_TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
+_DEVICE = 0 if torch is not None and torch.cuda.is_available() else -1
+_TORCH_DTYPE = (
+    torch.float16 if torch is not None and torch.cuda.is_available() else None
+)
 
 
 def _score_of(item: Any) -> float:
@@ -89,6 +97,8 @@ class ModelManager:
         tokenizer_model_input_names: list[str] | None = None,
         **kwargs: Any,
     ) -> Pipeline:
+        if pipeline is None:
+            raise RuntimeError("Local model inference was removed in MindLens V2; use hosted_graph")
         pipelines: dict[str, Pipeline] = object.__getattribute__(self, "_pipelines")
         if name in pipelines:
             return pipelines[name]

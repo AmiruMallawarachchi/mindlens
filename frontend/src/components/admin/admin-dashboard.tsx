@@ -19,7 +19,7 @@ import { AlertCircle, Loader2, LogOut, RefreshCw, ShieldAlert } from "lucide-rea
 import { MindlensMark } from "@/components/brand/wordmark";
 import { adminLogin, adminLogout, fetchAdminSystem, hasAdminSession } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
-import type { AdminModelHealth, AdminSystemStatus } from "@/lib/types";
+import type { AdminServiceHealth, AdminSystemStatus } from "@/lib/types";
 
 export function AdminDashboard() {
   const [signedIn, setSignedIn] = useState(hasAdminSession);
@@ -258,11 +258,11 @@ function SystemPanel({
             className="rounded-[var(--r-18)] p-5"
             style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline)" }}
           >
-            <p className="ml-eyebrow mb-3">Models</p>
+            <p className="ml-eyebrow mb-3">Hosted services</p>
             <div className="flex flex-col gap-2">
-              {Object.entries(status.models).map(([name, health]) => (
-                <ModelRow key={name} name={name} health={health} />
-              ))}
+              <ServiceRow name="Inference" service={status.inference} />
+              <ServiceRow name="Vector retrieval" service={status.rag} />
+              <ServiceRow name="Langfuse tracing" service={status.observability} />
             </div>
           </div>
         </>
@@ -300,11 +300,11 @@ function Field({
   );
 }
 
-function ModelRow({ name, health }: { name: string; health: AdminModelHealth }) {
+function ServiceRow({ name, service }: { name: string; service: AdminServiceHealth }) {
   // A model that isn't "ready", or has ever errored, is exactly what would
   // have made this week's silent all-classifiers-failing bug visible at a
   // glance instead of showing up as generic replies with no obvious cause.
-  const flagged = health.status !== "ready" || health.error_count > 0;
+  const flagged = !["ready", "configured", "connected"].includes(service.status);
   return (
     <div
       className="flex items-center justify-between rounded-[var(--r-13)] px-3.5 py-2.5"
@@ -316,15 +316,10 @@ function ModelRow({ name, health }: { name: string; health: AdminModelHealth }) 
       <div className="min-w-0">
         <p className="text-[13px]" style={{ color: "var(--ml-ink)" }}>{name}</p>
         <p className="ml-num mt-0.5 truncate text-[11px]" style={{ color: "var(--ml-faint)" }}>
-          {health.model_id}
+          {service.provider}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3 text-right">
-        {health.error_count > 0 && (
-          <span className="text-[11px]" style={{ color: "#e08a8a" }}>
-            {health.error_count} error{health.error_count === 1 ? "" : "s"}
-          </span>
-        )}
         <span
           className="ml-num rounded-[var(--r-pill)] px-2.5 py-1 text-[11px]"
           style={{
@@ -332,7 +327,7 @@ function ModelRow({ name, health }: { name: string; health: AdminModelHealth }) 
             color: flagged ? "#e08a8a" : "#7fd8a8",
           }}
         >
-          {health.status}
+          {service.status}
         </span>
       </div>
     </div>

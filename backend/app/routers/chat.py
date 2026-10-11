@@ -32,7 +32,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.agents.base_agent import AgentContext
 from app.agents.checkin_agent import CheckInAgent
-from app.agents.orchestrator import Orchestrator
+from app.agents.hosted_graph import get_hosted_orchestrator
 from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.core.connection_manager import get_connection_manager
@@ -114,7 +114,7 @@ async def websocket_chat(
         return
 
     # Initialize orchestrator
-    orchestrator = Orchestrator()
+    orchestrator = get_hosted_orchestrator()
 
     # Load user profile for personalization
     user = await db.users.find_one(document_id_filter(user_id))

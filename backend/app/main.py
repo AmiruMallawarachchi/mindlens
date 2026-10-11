@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable
 
@@ -14,9 +13,6 @@ from app.config import settings
 from app.core.connection_manager import get_connection_manager
 from app.db import connect_db, disconnect_db, get_db_client
 from app.middleware import MindLensAuthMiddleware
-from app.models.loader import model_manager
-from app.rag.ingest import ingest_documents
-from app.rag.vector_store import get_vector_store
 from app.routers import (
     account_router,
     auth_router,
@@ -38,14 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Connect required dependencies and optionally warm model state."""
     logger.info("MindLens backend starting up")
     await connect_db()
-    if settings.preload_models:
-        await model_manager.warmup_all()
-        logger.info("Configured models preloaded")
-    if settings.preload_rag:
-        chunk_count = await asyncio.to_thread(ingest_documents)
-        if chunk_count == 0:
-            raise RuntimeError("RAG preload produced no knowledge chunks")
-        logger.info("RAG knowledge ready: %d chunks", chunk_count)
+    logger.info("V2 uses hosted inference and hosted retrieval")
     yield
     logger.info("MindLens backend shutting down")
     await get_connection_manager().shutdown()
@@ -138,22 +127,19 @@ def create_app() -> FastAPI:
             if client is None:
                 raise RuntimeError("Database client not initialized")
             await client.admin.command("ping")
-            models = model_manager.health_status()
-            model_ready = not settings.preload_models or all(
-                item["status"] == "ready" for item in models.values()
-            )
-            rag_status: dict[str, object] = {"status": "lazy"}
-            if settings.preload_rag:
-                rag_count = await asyncio.to_thread(get_vector_store().count)
-                rag_status = {"status": "ready" if rag_count else "empty", "chunks": rag_count}
-                model_ready = model_ready and rag_count > 0
+            model_ready = bool(settings.groq_api_key)
+            rag_status: dict[str, object] = {
+                "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
+                "provider": "pinecone",
+            }
             return JSONResponse(
                 status_code=200 if model_ready else 503,
                 content={
                     "ready": model_ready,
                     "database": "connected",
-                    "models": models,
+                    "inference": {"provider": "groq", "status": "configured" if model_ready else "missing_key"},
                     "rag": rag_status,
+                    "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
                 },
             )
         except Exception:

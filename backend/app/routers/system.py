@@ -11,7 +11,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import settings
 from app.db import get_db
 from app.middleware.auth import require_admin
-from app.models.loader import model_manager
 
 router = APIRouter()
 
@@ -27,13 +26,25 @@ async def system_status(
         "environment": settings.app_env,
         "release": settings.render_git_commit[:12],
         "database": "connected",
-        "models": model_manager.health_status(),
+        "inference": {
+            "provider": "groq",
+            "status": "configured" if settings.groq_api_key else "missing_key",
+        },
+        "rag": {
+            "provider": "pinecone",
+            "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
+        },
+        "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
         "timestamp": datetime.datetime.now(datetime.UTC),
     }
 
 
-@router.get("/models", summary="Get model registry health")
+@router.get("/models", summary="Get hosted AI service health")
 async def model_status(
     _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
-    return {"models": model_manager.health_status()}
+    return {
+        "inference": {"provider": "groq", "status": "configured" if settings.groq_api_key else "missing_key"},
+        "rag": {"provider": "pinecone", "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured"},
+        "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
+    }

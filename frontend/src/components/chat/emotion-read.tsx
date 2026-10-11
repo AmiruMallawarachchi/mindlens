@@ -44,15 +44,6 @@ export function EmotionRead({
         >
           {reading.state.name}
         </span>
-        {reading.confidence !== null && (
-          <span
-            className="ml-num text-[10px]"
-            style={{ color: "var(--ml-faint)" }}
-            title="How confident the emotion model is in this read"
-          >
-            {reading.confidence.toFixed(2)}
-          </span>
-        )}
       </span>
 
       {reading.subs.map((sub) => (

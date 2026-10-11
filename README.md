@@ -1,185 +1,160 @@
-# MindLens
+# MindLens V2
 
-MindLens is a FastAPI backend and web client for privacy-conscious mental-health
-support. The backend combines deterministic crisis screening, isolated ML
-classifiers, retrieval from a curated therapy corpus, and a multi-agent response
-pipeline. It is support software, not a replacement for professional care or
-emergency services.
+> A privacy-conscious hosted LangGraph multi-agent chat system for reflective mental-health support.
 
-## Repository
+MindLens is a portfolio-grade full-stack AI system demonstrating how to build a reliable multi-agent product around a sensitive user experience. It combines a FastAPI API, Next.js chat application, LangGraph orchestration, Groq-hosted models, Pinecone hosted retrieval, MongoDB Atlas persistence, and metadata-only Langfuse observability.
 
-- `backend/app`: API, WebSocket chat, authentication, agents, models, and RAG
-- `backend/scripts`: one-off maintenance scripts — currently just
-  `make_admin.py`, which promotes an already-registered user to admin (see
-  Admin dashboard, below)
-- `backend/tests`: unit and integration coverage
-- `frontend`: web client (deployed separately to Vercel)
-- `render.yaml`: documented Render Blueprint alternative (not the primary
-  deployment — see docs/DEPLOYMENT.md for why)
-- `docs/API.md`: HTTP/WebSocket contract
-- `docs/DEPLOYMENT.md`: the full deployment runbook — what's actually live
-  today (a local backend through an ngrok tunnel + Vercel), the Hugging
-  Face Space alternative that's designed but not deployed, and the release
-  checklist
+MindLens is not medical advice, diagnosis, therapy, or an emergency service.
 
-## Running the full stack locally
+## Why this project is interesting
 
-Three things, started in this order. This is also what the deployed
-frontend at `mindlens-theta.vercel.app` talks to — there is no separate
-hosted backend; see "The Vercel deployment", below.
+- Real bounded LangGraph workflow with explicit nodes and conditional edges.
+- Deterministic crisis protection before any model call.
+- Structured model assessment instead of unconstrained orchestration.
+- One selected specialist per ordinary turn, with an optional reviewer.
+- Hard maximum of three Groq calls on a normal turn.
+- Hosted retrieval over a curated corpus; personal conversations never enter Pinecone.
+- PII anonymization before external model calls.
+- Langfuse traces exclude prompts, responses, user IDs, and session IDs.
+- Stable REST and WebSocket contracts between backend and frontend.
+- Graceful degradation when retrieval, tracing, or hosted inference fails.
+- Credential-free documentation and tests for recruiter review.
 
-### 1. MongoDB
+## Architecture
 
-In an **elevated** PowerShell — a normal shell fails with "Cannot open
-MongoDB service on computer '.'":
-
-```powershell
-Start-Service MongoDB
+```mermaid
+flowchart LR
+    U[User] --> V[Vercel Next.js frontend]
+    V <-->|REST + WebSocket| R[Render FastAPI backend]
+    R --> G[LangGraph supervisor]
+    G --> S[Deterministic safety gate]
+    S -->|crisis| C[Crisis template]
+    S -->|safe| A[Groq assessment]
+    A --> M[MongoDB memory recall]
+    M --> P[Pinecone hosted retrieval]
+    P --> X[Selected specialist]
+    X --> Q{Complex turn?}
+    Q -->|yes| W[Groq reviewer]
+    Q -->|no| F[Validation + persistence]
+    W --> F
+    F --> V
+    R --> DB[(MongoDB Atlas)]
+    G -. metadata only .-> L[Langfuse Cloud]
 ```
 
-This has been observed to **not survive a machine sleep or restart**, even
-with its start type set to `Automatic`. If the backend fails to boot with a
-`ServerSelectionTimeoutError` naming `localhost:27017`, this is why —
-restart Mongo and restart the backend, it isn't a code problem.
+## LangGraph workflow
 
-### 2. Backend
+```mermaid
+flowchart TD
+    START((START)) --> SG[safety_gate]
+    SG -->|crisis| FIN[finalize]
+    SG -->|safe| AS[assess]
+    AS -->|model risk| FIN
+    AS -->|ordinary turn| MR[memory_recall]
+    MR --> RET[retrieve]
+    RET --> SP[specialist]
+    SP -->|review_required| REV[review]
+    SP -->|normal| FIN
+    REV --> FIN
+    FIN --> END((END))
+```
 
-Requires Python 3.11.
+The graph is deliberately bounded. A deterministic crisis match exits before Groq and Pinecone. An ordinary turn uses assessment plus specialist generation. A complex turn may add one reviewer.
+
+## Repository map
+
+```text
+backend/app/agents/hosted_graph.py   LangGraph state, nodes, routing
+backend/app/observability.py         Metadata-only Langfuse tracing
+backend/app/rag/hosted_retriever.py  Pinecone hosted search adapter
+backend/app/routers/chat.py          REST/WebSocket chat entrypoint
+backend/tests/unit/agents/            V2 graph contract tests
+frontend/src/components/chat/         Chat and pipeline UI
+scripts/create_pinecone_index.py      Idempotent index creation
+scripts/ingest_pinecone.py            Curated corpus ingestion
+docs/ARCHITECTURE.md                  Detailed technical architecture
+docs/RECRUITER_DEMO.md                Offline portfolio walkthrough
+docs/V2_HOSTED_DEPLOYMENT.md          Cloud deployment and migration
+render.yaml                            Render backend blueprint
+```
+
+## Recruiter-friendly review path
+
+A reviewer does not need private credentials to understand the system:
+
+1. Read this README and the diagrams.
+2. Read [the architecture document](docs/ARCHITECTURE.md).
+3. Follow [the recruiter demo guide](docs/RECRUITER_DEMO.md).
+4. Inspect [`hosted_graph.py`](backend/app/agents/hosted_graph.py).
+5. Run the mocked graph tests in [`test_hosted_graph.py`](backend/tests/unit/agents/test_hosted_graph.py).
+
+The graph tests mock Groq and Pinecone, so routing, crisis exits, malformed model output, and call limits remain inspectable offline.
+
+## Run locally
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 Copy-Item backend\.env.example backend\.env
-python backend/run.py
+cd backend
+uvicorn app.main:app --reload --port 8000
 ```
 
-The API listens on `http://127.0.0.1:8000`. Interactive docs are at `/docs`
-in development only. First boot takes ~15–20s while five ML models and the
-RAG index load. Confirm it's actually healthy — **`/ready`, not
-`/health`** — before trusting anything downstream:
-
-```powershell
-curl http://127.0.0.1:8000/ready
-```
-
-`/health` only proves the process is up; `/ready` is the one that actually
-checked MongoDB and all five classifiers. `--reload` does **not** reliably
-fire on this Windows setup — if backend behaviour doesn't match the source
-after an edit, stop the process and start it again rather than trusting the
-flag.
-
-### 3. The ngrok tunnel — required for the deployed site
-
-**Only needed if you're using `mindlens-theta.vercel.app`.** Skip it if
-you're working purely on `localhost:3000`.
-
-```powershell
-D:\AI Projects\mindlens\tools\ngrok.exe http 8000
-```
-
-Leave it running in its own window. The deployed frontend reaches your
-laptop's backend *through* this tunnel — if it isn't running, that site
-shows "Couldn't reach Mindlens. It may be down" no matter how healthy the
-backend is. The hostname is permanent, so this needs no reconfiguration
-between runs.
-
-**Why `tools\ngrok.exe` and not just `ngrok`:** Windows Defender
-repeatedly quarantines the ngrok binary as a false positive — it did so
-four times over three days, each time silently deleting it so the next
-`ngrok http 8000` failed with "not recognized as the name of a cmdlet"
-and the deployed site went dark for no visible reason. The binary now
-lives in `tools/` (gitignored, not source) with a **Defender exclusion on
-that one folder**, which is what actually stops the recurrence:
-
-```powershell
-# once, in an ADMIN PowerShell
-Add-MpPreference -ExclusionPath "D:\AI Projects\mindlens\tools"
-```
-
-Installing via `winget` is not recommended: it ships an ngrok old enough
-that ngrok's own servers reject it (`ERR_NGROK_121`), and `ngrok update`
-then downloads a binary Defender immediately quarantines. Downloading
-straight from `bin.equinox.io` into `tools/` avoids both problems.
-
-### 4. Frontend (local dev only)
-
-Requires Node 20+. Not needed if you're using the deployed Vercel site.
+In another terminal:
 
 ```powershell
 cd frontend
 npm install
-Copy-Item .env.local.example .env.local  # set NEXT_PUBLIC_API_BASE_URL if the
-                                          # backend isn't on localhost:8000
+Copy-Item .env.local.example .env.local
 npm run dev
 ```
 
-The client listens on `http://localhost:3000`. `/` is the marketing page; the
-product lives at `/app`. See `frontend/src/lib/preview.ts` for a way to render
-the chat UI without a running backend during frontend-only work — never enable
-`NEXT_PUBLIC_PREVIEW_AUTH` outside local dev (it bypasses auth entirely).
+Open `http://localhost:3000`; the application lives at `/app`. Backend health endpoints are `/health` and `/ready`.
 
-### What each entry point actually needs
-
-| Using | MongoDB | Backend | ngrok | `npm run dev` |
-|---|---|---|---|---|
-| `localhost:3000` | yes | yes | no | yes |
-| `mindlens-theta.vercel.app` | yes | yes | **yes** | no |
-
-Most "it was working yesterday" failures are one of these four not running —
-check all four before looking at code.
-
-## The Vercel deployment
-
-`mindlens-theta.vercel.app` is a **frontend-only** deployment. There is no
-separately hosted backend behind it — it talks to the same local backend
-from step 2 above, reached through a permanent ngrok tunnel
-(`docs/DEPLOYMENT.md` has the full setup). Practically:
-
-- **The deployed site only works while your local backend and the tunnel
-  are both running.** Nobody else can use it if your machine is asleep or
-  disconnected — an accepted, deliberate limitation for a project at this
-  stage, not an oversight.
-- **The tunnel's URL is permanent**, so redeploying is only needed after a
-  *frontend code* change, not after every backend restart.
-- **To redeploy** (push a frontend change live): `vercel --prod` from the
-  **repository root**, not from inside `frontend/` — the Vercel project's
-  configured Root Directory is `frontend`, and the CLI applies that on top
-  of the current directory, so running it from inside `frontend/` looks
-  for `frontend/frontend` and fails.
-- Full detail, including what to do if the tunnel's hostname ever has to
-  change, is in `docs/DEPLOYMENT.md`.
-
-### Admin dashboard
-
-`https://mindlens-theta.vercel.app/admin` (or `localhost:3000/admin`
-locally) — a standalone page, not linked from the product, showing model
-status, database connectivity and environment/release. Nothing else: no
-user list, no conversations, no memory. Its own sign-in and its own
-short-lived token, entirely separate from a normal account login.
-
-No account is an admin by default. Register normally, then promote it:
+## Tests and quality checks
 
 ```powershell
-cd backend
-..\.venv\Scripts\python scripts\make_admin.py you@example.com
-```
-
-## Verification
-
-```powershell
-python -m ruff check backend
-python -m pytest backend/tests --cov=backend/app --cov-report=term-missing
-python -m pip_audit -r requirements.txt
-python -m bandit -q -r backend/app -ll
-python -m detect_secrets scan backend/app backend/.env.example render.yaml
-
+python -m pytest backend/tests/unit/agents/test_hosted_graph.py -q
 cd frontend
 npm run lint
-npm run build
+npx tsc --noEmit
 ```
 
-Production configuration fails closed when secrets, CORS origins, MongoDB, or
-the live LLM provider are missing. Start with
-[backend/.env.example](backend/.env.example) and follow
-[the deployment runbook](docs/DEPLOYMENT.md) before deploying.
+## Deployment architecture
+
+| Layer | Service | Responsibility |
+|---|---|---|
+| Web client | Vercel | Next.js application and chat UI |
+| API | Render | FastAPI, WebSocket, LangGraph runtime |
+| Generation | Groq | Hosted assessment and response generation |
+| Retrieval | Pinecone | Hosted embeddings and corpus search |
+| Persistence | MongoDB Atlas | Accounts, sessions, memories, journals, progress |
+| Observability | Langfuse Cloud | Allowlisted metadata-only traces |
+
+See [V2 hosted deployment](docs/V2_HOSTED_DEPLOYMENT.md) for secrets, Pinecone setup, Atlas migration, Render, Vercel, CORS, and WebSocket configuration. Free tiers can sleep or impose quotas; those constraints are documented rather than hidden.
+
+## Privacy and safety
+
+- Crisis screening occurs before external model calls.
+- Model-detected risk stops specialist generation.
+- Conversation text is anonymized before Groq and Pinecone calls.
+- Conversations and memories are never indexed in Pinecone.
+- Langfuse receives graph/service metadata only.
+- Responses are validated before returning to the client.
+- Failures produce explicit degraded behavior rather than invented emotional certainty.
+- The UI does not display uncalibrated numeric emotion confidence.
+
+## Engineering trade-offs
+
+MindLens uses a small supervisor graph instead of unconstrained agent loops. This improves safety, latency, cost predictability, and debugging. Hosted services replace local model weights, PyTorch, SentenceTransformers, and Chroma in the deployed runtime. The existing product shell and API/WebSocket shapes are preserved to reduce frontend migration risk.
+
+## Status
+
+Implemented: LangGraph runtime, Groq inference, Pinecone adapters and ingestion, Langfuse tracing, Render/Vercel configuration, Atlas migration runbook, recruiter documentation, and V2 graph tests.
+
+Environment-specific: entering provider credentials, creating cloud projects, migrating private MongoDB data, deploying services, and migrating remaining legacy V1 tests that expect local model/Chroma behavior.
+
+## Responsible use
+
+MindLens is a demonstration of software architecture and responsible AI engineering. It must not substitute for qualified mental-health professionals or emergency services.

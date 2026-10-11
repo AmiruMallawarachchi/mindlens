@@ -32,6 +32,14 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     groq_api_key: str = ""
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+    langfuse_enabled: bool = False
+    pinecone_api_key: str = ""
+    pinecone_index_name: str = ""
+    pinecone_embedding_model: str = "llama-text-embed-v2"
+    pinecone_top_k: int = 5
     hf_token: str = ""
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "mindlens"
@@ -175,6 +183,8 @@ class Settings(BaseSettings):
             raise ValueError("USE_OPENAI_STUBS must be false in production")
         if not self.groq_api_key:
             raise ValueError("GROQ_API_KEY is required in production")
+        if not self.pinecone_api_key or not self.pinecone_index_name:
+            raise ValueError("PINECONE_API_KEY and PINECONE_INDEX_NAME are required in production")
         if not self.cors_origins or "*" in self.cors_origins:
             raise ValueError("Production CORS_ORIGINS must contain explicit origins")
         return self

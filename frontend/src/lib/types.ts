@@ -243,6 +243,7 @@ export interface TurnTelemetry {
     /** "ran" | "skipped_trivial" | "skipped_crisis" | "failed" | "provided" */
     status: string;
     chunks: number;
+    provider?: string;
     /** The reranker model that ordered these chunks, named only when it was
      * actually configured to run this turn. */
     model?: string | null;
@@ -252,6 +253,10 @@ export interface TurnTelemetry {
    * signal that one actually shaped the reply. */
   modality?: string | null;
   substantive?: boolean;
+  graph?: {
+    nodes: string[];
+    route: string;
+  };
 }
 
 /** The safety gate's real verdict — computed on every turn and, until now,
@@ -352,13 +357,9 @@ export interface AdminTokenResponse {
  * ModelManager.health_status() in app/models/loader.py. Always exactly the
  * five keys AdminSystemStatus["models"] names; "not_loaded" has no
  * loaded_at/error/last_inference_ms. */
-export interface AdminModelHealth {
-  status: "ready" | "loading" | "not_loaded" | "error";
-  model_id: string;
-  error_count: number;
-  loaded_at?: string;
-  error?: string | null;
-  last_inference_ms?: number;
+export interface AdminServiceHealth {
+  provider: string;
+  status: string;
 }
 
 /** GET /api/v1/admin/system. */
@@ -367,12 +368,8 @@ export interface AdminSystemStatus {
   environment: string;
   release: string;
   database: string;
-  models: {
-    emotion: AdminModelHealth;
-    crisis: AdminModelHealth;
-    mental_health: AdminModelHealth;
-    distortion: AdminModelHealth;
-    rag_reranker: AdminModelHealth;
-  };
+  inference: AdminServiceHealth;
+  rag: AdminServiceHealth;
+  observability: AdminServiceHealth & { enabled: boolean };
   timestamp: string;
 }

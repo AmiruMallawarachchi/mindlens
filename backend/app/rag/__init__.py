@@ -1,17 +1,5 @@
-"""MindLens RAG (Retrieval-Augmented Generation) package.
+"""Hosted retrieval package for MindLens V2."""
 
-Provides ChromaDB vector store, ingestion pipeline, and MMR retriever
-for grounding therapy responses in evidence-based clinical knowledge.
-"""
+from app.rag.hosted_retriever import HostedRetriever, get_hosted_retriever
 
-from app.rag.ingest import ingest_documents
-from app.rag.retriever import TherapyRetriever, get_retriever
-from app.rag.vector_store import TherapyVectorStore, get_vector_store
-
-__all__ = [
-    "TherapyVectorStore",
-    "get_vector_store",
-    "TherapyRetriever",
-    "get_retriever",
-    "ingest_documents",
-]
+__all__ = ["HostedRetriever", "get_hosted_retriever"]
