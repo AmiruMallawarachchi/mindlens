@@ -16,6 +16,8 @@ def _production_settings(**overrides: object) -> Settings:
         "admin_jwt_secret": "admin-secret-with-production-entropy",
         "encryption_key": "fernet-key-supplied-by-deployment",
         "groq_api_key": "provider-key-supplied-by-deployment",
+        "pinecone_api_key": "pinecone-key-supplied-by-deployment",
+        "pinecone_index_name": "mindlens-test-index",
         "cors_origins": ["https://mindlens.example"],
         "use_openai_stubs": False,
     }
