@@ -1,19 +1,4 @@
-"""Unit tests for app.main — health/readiness, security headers, the
-global exception handler.
-
-No test file existed for this module. `/ready` in particular has real
-branching logic (DB down, models not preloaded, models loading, RAG empty)
-that an operator relies on to know whether it's safe to route traffic here
-— an untested readiness probe that always reports healthy is worse than no
-probe at all.
-
-The lifespan context manager (DB connect, model warmup, RAG ingest on
-startup) is deliberately not covered here: exercising it means mocking the
-DB driver, the model loader and the RAG ingester all the way down, which
-turns a unit test into an integration test. Its pieces (connect_db,
-model_manager.warmup_all, ingest_documents) already have their own test
-files; this one covers what main.py itself decides.
-"""
+"""Unit tests for health/readiness, security headers, and error handling."""
 
 from __future__ import annotations
 
@@ -80,22 +65,23 @@ class TestReadinessCheck:
             mock.return_value = fake_client
             yield mock
 
-    async def test_ready_when_db_reachable_and_preload_off(
+    async def test_ready_when_db_and_groq_configured(
         self, client: AsyncClient
     ) -> None:
-        """With preload_models/preload_rag both off (the test default),
-        readiness must not wait on either — a model_ready check gated on a
-        feature that's disabled would report perpetually unready."""
+        """V2 readiness requires MongoDB and configured hosted inference."""
         with (
-            patch("app.main.settings.preload_models", False),
-            patch("app.main.settings.preload_rag", False),
+            patch("app.main.settings.groq_api_key", "test-groq-key"),
+            patch("app.main.settings.pinecone_api_key", "test-pinecone-key"),
+            patch("app.main.settings.pinecone_index_name", "test-index"),
         ):
             response = await client.get("/ready")
         assert response.status_code == 200
         body = response.json()
         assert body["ready"] is True
         assert body["database"] == "connected"
-        assert body["rag"] == {"status": "lazy"}
+        assert body["inference"] == {"provider": "groq", "status": "configured"}
+        assert body["rag"] == {"provider": "pinecone", "status": "configured"}
+        assert body["observability"]["provider"] == "langfuse"
 
     async def test_not_ready_when_db_unreachable(self, client: AsyncClient) -> None:
         with patch("app.main.get_db_client") as mock:
@@ -114,69 +100,37 @@ class TestReadinessCheck:
         assert response.status_code == 503
         assert response.json()["ready"] is False
 
-    async def test_waits_on_models_when_preload_enabled(
-        self, client: AsyncClient
-    ) -> None:
-        """preload_models=true is the production posture (chat.py's
-        history: it was false, made the first real user absorb a 4-way
-        concurrent cold load, and timed out). /ready must gate on every
-        model actually being "ready", not just that the process is up."""
-        with (
-            patch("app.main.settings.preload_models", True),
-            patch("app.main.settings.preload_rag", False),
-            patch("app.main.model_manager.health_status") as health,
-        ):
-            health.return_value = {
-                "emotion": {"status": "loading"},
-                "crisis": {"status": "ready"},
-            }
-            response = await client.get("/ready")
-        assert response.status_code == 503
-        assert response.json()["ready"] is False
-
-    async def test_ready_when_all_preloaded_models_report_ready(
-        self, client: AsyncClient
-    ) -> None:
-        with (
-            patch("app.main.settings.preload_models", True),
-            patch("app.main.settings.preload_rag", False),
-            patch("app.main.model_manager.health_status") as health,
-        ):
-            health.return_value = {
-                "emotion": {"status": "ready"},
-                "crisis": {"status": "ready"},
-            }
-            response = await client.get("/ready")
-        assert response.status_code == 200
-        assert response.json()["ready"] is True
-
-    async def test_rag_empty_is_reported_and_blocks_readiness(
-        self, client: AsyncClient
-    ) -> None:
-        """Zero chunks with RAG preload on means ingestion silently produced
-        nothing — the same failure the startup RuntimeError guards against,
-        but at request time instead of boot time. Must not read as ready."""
-        with (
-            patch("app.main.settings.preload_models", False),
-            patch("app.main.settings.preload_rag", True),
-            patch("app.main.get_vector_store") as store,
-        ):
-            store.return_value.count.return_value = 0
+    async def test_not_ready_when_groq_key_missing(self, client: AsyncClient) -> None:
+        with patch("app.main.settings.groq_api_key", ""):
             response = await client.get("/ready")
         assert response.status_code == 503
         body = response.json()
-        assert body["rag"] == {"status": "empty", "chunks": 0}
+        assert body["ready"] is False
+        assert body["database"] == "connected"
+        assert body["inference"] == {"provider": "groq", "status": "missing_key"}
 
-    async def test_rag_populated_reports_chunk_count(self, client: AsyncClient) -> None:
+    @pytest.mark.parametrize(
+        ("api_key", "index_name"),
+        [("", "test-index"), ("test-pinecone-key", "")],
+    )
+    async def test_pinecone_configuration_is_reported_without_blocking_readiness(
+        self,
+        client: AsyncClient,
+        api_key: str,
+        index_name: str,
+    ) -> None:
+        """Pinecone is fail-soft; /ready reports configuration, not reachability."""
         with (
-            patch("app.main.settings.preload_models", False),
-            patch("app.main.settings.preload_rag", True),
-            patch("app.main.get_vector_store") as store,
+            patch("app.main.settings.groq_api_key", "test-groq-key"),
+            patch("app.main.settings.pinecone_api_key", api_key),
+            patch("app.main.settings.pinecone_index_name", index_name),
         ):
-            store.return_value.count.return_value = 67
             response = await client.get("/ready")
+
         assert response.status_code == 200
-        assert response.json()["rag"] == {"status": "ready", "chunks": 67}
+        body = response.json()
+        assert body["ready"] is True
+        assert body["rag"] == {"provider": "pinecone", "status": "not_configured"}
 
 
 class TestGlobalExceptionHandler:
