@@ -31,7 +31,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.config import settings
 from app.db import document_id_filter, get_db
@@ -56,76 +55,10 @@ security = HTTPBearer(auto_error=False)
 # --- Pydantic Schemas ---
 
 
-class UserRegister(BaseModel):
-    """Request body for user registration."""
-
-    email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
-    name: str = Field(..., min_length=1, max_length=100)
-    age: int = Field(..., ge=13, le=100)
-    nickname: str | None = Field(None, max_length=100)
-
-    @field_validator("password")
-    @classmethod
-    def validate_bcrypt_length(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("Password must not exceed 72 UTF-8 bytes")
-        return value
-
-
-class UserLogin(BaseModel):
-    """Request body for user login."""
-
-    email: EmailStr
-    password: str
-
-
-class TokenResponse(BaseModel):
-    """Response containing JWT access token."""
-
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int  # seconds
-    user_id: str
-    role: str = "user"
-    csrf_token: str
-
-
-class TokenRefreshResponse(BaseModel):
-    """Response after token refresh."""
-
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    csrf_token: str
-
-
-class UserResponse(BaseModel):
-    """Public user profile."""
-
-    id: str
-    email: str
-    name: str
-    nickname: str | None
-    age: int
-    age_group: str
-    role: str
-    onboarding_complete: bool
-    created_at: datetime.datetime
-
-
-class AdminLoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class AdminTokenResponse(BaseModel):
-    """Admin token response."""
-
-    admin_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
+from app.routers.auth_schemas import (
+    AdminLoginRequest, AdminTokenResponse, ProfileUpdate, TokenRefreshResponse,
+    TokenResponse, UserLogin, UserRegister, UserResponse,
+)
 
 # --- Helper Functions ---
 
@@ -296,7 +229,7 @@ async def login(
 
     - Finds user by email
     - Verifies password with bcrypt
-    - Checks login lockout (5 failed attempts → 15 min lockout)
+    - Checks login lockout (5 failed attempts â†’ 15 min lockout)
     - Returns JWT + sets refresh token in httpOnly cookie
     """
     # Check login lockout by email
@@ -383,7 +316,7 @@ async def refresh_token(
 
     - Validates refresh token from cookie
     - Checks blocklist
-    - Issues new access token (and optionally new refresh token — rotation)
+    - Issues new access token (and optionally new refresh token â€” rotation)
     """
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -524,13 +457,6 @@ async def get_me(
     )
 
 
-class ProfileUpdate(BaseModel):
-    """Settings > General. Only what the user is allowed to change about
-    themselves — email, role and onboarding state are deliberately absent."""
-
-    nickname: str | None = Field(None, min_length=1, max_length=60)
-
-
 @router.patch(
     "/me",
     response_model=UserResponse,
@@ -554,7 +480,7 @@ async def update_me(
         {"$set": {**updates, "updated_at": datetime.datetime.now(datetime.UTC)}},
     )
 
-    # Keep the memory doc's mirrored profile in step — memory_recall.py reads
+    # Keep the memory doc's mirrored profile in step â€” memory_recall.py reads
     # the nickname from there when personalising a turn, so letting the two
     # drift would mean the companion greets you by the old name.
     if "nickname" in updates:
