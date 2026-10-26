@@ -19,104 +19,22 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field, field_validator
 from pymongo import ReturnDocument
 
 from app.db import get_db
 from app.middleware.auth import require_user
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from app.routers.session_schemas import (
+    SessionCreateRequest,
+    SessionCreateResponse,
+    SessionDeleteResponse,
+    SessionDetailResponse,
+    SessionListItem,
+    SessionPinRequest,
+    SessionRenameRequest,
+)
+from app.routers.session_service import create_session_record, delete_session_data
 
 router = APIRouter()
-
-
-# --- Pydantic Schemas ---
-
-
-class SessionCreateRequest(BaseModel):
-    """Optional metadata when creating a session."""
-
-    title: str | None = Field(None, max_length=200)
-    context: str | None = Field(None, max_length=500)
-
-
-class SessionCreateResponse(BaseModel):
-    """Response after creating a session."""
-
-    session_id: str
-    user_id: str
-    title: str | None
-    started_at: datetime.datetime
-    status: str
-
-
-class SessionListItem(BaseModel):
-    """Summary of a session for listing."""
-
-    session_id: str
-    title: str | None
-    started_at: datetime.datetime
-    ended_at: datetime.datetime | None
-    status: str
-    turn_count: int
-    primary_modality: str | None
-    pinned: bool = False
-
-
-class SessionDetailResponse(BaseModel):
-    """Full session detail including transcript."""
-
-    session_id: str
-    user_id: str
-    title: str | None
-    started_at: datetime.datetime
-    ended_at: datetime.datetime | None
-    status: str
-    turns: list[dict[str, Any]]
-    eos_timeline: list[dict[str, Any]]
-    agents_used: list[str]
-    primary_modality: str | None
-    pinned: bool = False
-
-
-class SessionPinRequest(BaseModel):
-    """Body for PATCH /{session_id}/pin."""
-
-    pinned: bool
-
-
-class SessionRenameRequest(BaseModel):
-    """Body for PATCH /{session_id}/title."""
-
-    title: str = Field(min_length=1, max_length=200)
-
-    @field_validator("title")
-    @classmethod
-    def _not_blank(cls, value: str) -> str:
-        """A title of spaces would render as an empty sidebar row that still
-        suppresses the date fallback, so it is rejected rather than stored."""
-        cleaned = value.strip()
-        if not cleaned:
-            raise ValueError("Title cannot be blank")
-        return cleaned
-
-
-class SessionDeleteResponse(BaseModel):
-    """Response after permanently deleting a session."""
-
-    session_id: str
-    # Per-collection counts, so the caller can see what was actually removed
-    # rather than trust that something was.
-    deleted: dict[str, int]
-
-
-# --- Helper ---
-
-def _make_session_id() -> str:
-    """Generate a unique session ID."""
-    import uuid
-    return str(uuid.uuid4())
 
 
 # --- Routes ---
@@ -139,62 +57,7 @@ async def create_session(
     Returns the session ID which is used to open the WebSocket.
     """
     user_id = str(current_user["_id"])
-    now = datetime.datetime.now(datetime.UTC)
-
-    # Reuse the most recent empty active session rather than minting another.
-    # The frontend opens a session on every mount (use-mindlens-client.ts),
-    # so without this a reload with nothing sent yet left behind a brand-new,
-    # permanently-empty session document every time — filling the sidebar
-    # with junk and inflating db.sessions.count_documents(), which
-    # dashboard.py's >=7-session gate on the weekly insight reads directly.
-    # Skipped when the caller asked for a specific title/context: that's an
-    # explicit request for a new session, not an incidental reconnect.
-    if not (req and (req.title or req.context)):
-        reusable = await db.sessions.find_one(
-            {"user_id": user_id, "status": "active", "turns": []},
-            sort=[("started_at", -1)],
-        )
-        if reusable:
-            return SessionCreateResponse(
-                session_id=reusable["session_id"],
-                user_id=user_id,
-                title=reusable.get("title"),
-                started_at=reusable["started_at"],
-                status="active",
-            )
-
-    session_id = _make_session_id()
-
-    session_doc = {
-        "session_id": session_id,
-        "user_id": user_id,
-        "title": req.title if req else None,
-        "context": req.context if req else None,
-        "started_at": now,
-        "ended_at": None,
-        "status": "active",
-        "turns": [],
-        "eos_timeline": [],
-        "session_summary": "",
-        "key_facts": [],
-        "agents_used": [],
-        "primary_modality": None,
-        "check_in_scheduled": False,
-        "pinned": False,
-        "updated_at": now,
-    }
-
-    await db.sessions.insert_one(session_doc)
-    logger.info("Session created: %s for user %s", session_id, user_id)
-
-    return SessionCreateResponse(
-        session_id=session_id,
-        user_id=user_id,
-        title=session_doc["title"],
-        started_at=now,
-        status="active",
-    )
-
+    return await create_session_record(req=req, user_id=user_id, db=db)
 
 @router.get(
     "",
@@ -396,26 +259,4 @@ async def delete_session(
     is actually true.
     """
     user_id = str(current_user["_id"])
-
-    session = await db.sessions.find_one({"session_id": session_id, "user_id": user_id})
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    # user_id is in every filter, not just session_id — a guessed id must not
-    # delete somebody else's conversation (rule 6).
-    scope = {"session_id": session_id, "user_id": user_id}
-    session_result = await db.sessions.delete_one(scope)
-    moods_result = await db.mood_logs.delete_many(scope)
-    safety_result = await db.safety_events.delete_many(scope)
-
-    deleted = {
-        "sessions": session_result.deleted_count,
-        "mood_logs": moods_result.deleted_count,
-        "safety_events": safety_result.deleted_count,
-    }
-    logger.info("Session hard-deleted: %s for user %s (%s)", session_id, user_id, deleted)
-
-    return SessionDeleteResponse(session_id=session_id, deleted=deleted)
+    return await delete_session_data(session_id=session_id, user_id=user_id, db=db)
