@@ -21,11 +21,7 @@ Security:
 from __future__ import annotations
 
 import datetime
-import hashlib
-import hmac
-import secrets
 
-import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -63,83 +59,13 @@ from app.routers.auth_schemas import (
 # --- Helper Functions ---
 
 
-def hash_password(password: str) -> str:
-    """Hash a plain password using bcrypt without silent truncation."""
-    password_bytes = password.encode("utf-8")
-    if len(password_bytes) > 72:
-        raise ValueError("Password must not exceed 72 UTF-8 bytes")
-    return bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12)).decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a bcrypt hash."""
-    try:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-        )
-    except (TypeError, ValueError):
-        return False
-
-
-def _audit_ip_hash(ip_address: str) -> str:
-    """Create a stable, non-reversible identifier for login audit correlation."""
-    return hmac.new(
-        settings.jwt_secret_key.encode("utf-8"),
-        ip_address.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
-def _set_auth_cookies(response: Response, token_pair: dict[str, str]) -> str:
-    """Set secure authentication cookies and return the CSRF token."""
-    cookie_options = {
-        "httponly": True,
-        "secure": settings.effective_cookie_secure,
-        "samesite": settings.effective_cookie_samesite,
-        "domain": settings.cookie_domain,
-    }
-    response.set_cookie(
-        key="access_token",
-        value=token_pair["access_token"],
-        max_age=settings.jwt_expire_minutes * 60,
-        path="/",
-        **cookie_options,
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=token_pair["refresh_token"],
-        max_age=settings.jwt_refresh_expire_minutes * 60,
-        path="/api/v1/auth",
-        **cookie_options,
-    )
-    csrf_token = secrets.token_urlsafe(32)
-    response.set_cookie(
-        key="csrf_token",
-        value=csrf_token,
-        httponly=False,
-        secure=settings.effective_cookie_secure,
-        samesite=settings.effective_cookie_samesite,
-        domain=settings.cookie_domain,
-        max_age=settings.jwt_refresh_expire_minutes * 60,
-        path="/",
-    )
-    return csrf_token
-
-
-def _clear_auth_cookies(response: Response) -> None:
-    """Expire all browser authentication state."""
-    common = {
-        "secure": settings.effective_cookie_secure,
-        "samesite": settings.effective_cookie_samesite,
-        "domain": settings.cookie_domain,
-    }
-    response.delete_cookie("access_token", path="/", httponly=True, **common)
-    response.delete_cookie(
-        "refresh_token", path="/api/v1/auth", httponly=True, **common
-    )
-    response.delete_cookie("csrf_token", path="/", httponly=False, **common)
-
-
+from app.routers.auth_helpers import (
+    _audit_ip_hash,
+    _clear_auth_cookies,
+    _set_auth_cookies,
+    hash_password,
+    verify_password,
+)
 # --- Routes ---
 
 
@@ -229,7 +155,7 @@ async def login(
 
     - Finds user by email
     - Verifies password with bcrypt
-    - Checks login lockout (5 failed attempts â†’ 15 min lockout)
+    - Checks login lockout (5 failed attempts Ã¢â€ â€™ 15 min lockout)
     - Returns JWT + sets refresh token in httpOnly cookie
     """
     # Check login lockout by email
@@ -316,7 +242,7 @@ async def refresh_token(
 
     - Validates refresh token from cookie
     - Checks blocklist
-    - Issues new access token (and optionally new refresh token â€” rotation)
+    - Issues new access token (and optionally new refresh token Ã¢â‚¬â€ rotation)
     """
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -480,7 +406,7 @@ async def update_me(
         {"$set": {**updates, "updated_at": datetime.datetime.now(datetime.UTC)}},
     )
 
-    # Keep the memory doc's mirrored profile in step â€” memory_recall.py reads
+    # Keep the memory doc's mirrored profile in step Ã¢â‚¬â€ memory_recall.py reads
     # the nickname from there when personalising a turn, so letting the two
     # drift would mean the companion greets you by the old name.
     if "nickname" in updates:
