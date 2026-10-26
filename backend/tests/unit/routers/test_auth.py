@@ -152,7 +152,7 @@ class TestLogin:
         mock_db.audit_log = MagicMock()
         mock_db.audit_log.insert_one = AsyncMock()
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_user_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
@@ -176,7 +176,7 @@ class TestLogin:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
         mock_db.token_blocklist = MagicMock()
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_user_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
@@ -192,7 +192,7 @@ class TestLogin:
     async def test_login_user_not_found(self, auth_client: Any, mock_db: MagicMock) -> None:
         mock_db.users.find_one = AsyncMock(return_value=None)
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_user_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
@@ -208,7 +208,7 @@ class TestLogin:
     async def test_login_lockout(self, auth_client: Any, mock_db: MagicMock, sample_user_doc: dict) -> None:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_user_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=True)
             mock_store.return_value = store
@@ -226,7 +226,7 @@ class TestLogin:
         mock_db.users.find_one = AsyncMock(return_value=doc)
         mock_db.token_blocklist = MagicMock()
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_user_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
@@ -360,7 +360,7 @@ class TestAdmin:
         mock_db.users.find_one = AsyncMock(return_value=admin_doc)
         mock_db.token_blocklist = MagicMock()
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_admin_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
@@ -381,7 +381,7 @@ class TestAdmin:
         mock_db.users.find_one = AsyncMock(return_value=sample_user_doc)
         mock_db.token_blocklist = MagicMock()
 
-        with patch("app.routers.auth.get_rate_limit_store") as mock_store:
+        with patch("app.routers.auth_admin_routes.get_rate_limit_store") as mock_store:
             store = MagicMock()
             store.is_locked_out = AsyncMock(return_value=False)
             store.record_login_attempt = AsyncMock(return_value=1)
