@@ -6,7 +6,7 @@ MMR-based retriever for therapy knowledge, with cross-encoder reranking.
 Pipeline per query:
 
 1. Build a retrieval query from the EOS state.
-2. MMR search over the vector store for ``fetch_k`` candidates — deliberately
+2. MMR search over the vector store for ``fetch_k`` candidates â€” deliberately
    wider than the ``k`` we return, so the reranker has something to choose
    between. Reranking only the final 5 would waste the model.
 3. Score every ``(query, chunk)`` pair with the fine-tuned cross-encoder
@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 from app.config import settings
 from app.core.emotional_os import EmotionalOperatingState
 from app.rag.vector_store import TherapyVectorStore, get_vector_store
+from app.rag.retriever_query import AGE_KEYWORDS, age_score, build_query, rerank_by_age_group
 from app.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -201,7 +202,7 @@ class TherapyRetriever:
 
         The boost is additive rather than a tie-breaker on purpose. Sorting by
         float relevance first and using the heuristic only to split exact ties
-        would mean it effectively never fires — a control that exists but does
+        would mean it effectively never fires â€” a control that exists but does
         nothing, which is the failure mode CLAUDE.md rule #1 forbids. Being
         additive and bounded, it can reorder genuinely close candidates without
         ever overturning a decisive relevance gap.
@@ -210,7 +211,7 @@ class TherapyRetriever:
         sweeps it and reports the ranking curve.
 
         When the cross-encoder is disabled or has failed every relevance score
-        is 0.0, so the heuristic decides alone — exactly the pre-reranker
+        is 0.0, so the heuristic decides alone â€” exactly the pre-reranker
         behaviour, preserved as the fallback.
         """
         if not documents:
@@ -221,7 +222,7 @@ class TherapyRetriever:
 
         def score(i: int) -> float:
             meta = metadatas[i] if i < len(metadatas) else {}
-            # A flat boost on match, not one scaled by keyword count — one
+            # A flat boost on match, not one scaled by keyword count â€” one
             # knob keeps the T7c sweep interpretable.
             matched = self._age_score(meta, age_group) > 0
             return relevance[i] + (boost if matched else 0.0)
@@ -231,7 +232,7 @@ class TherapyRetriever:
     def _cross_encoder_scores(self, query: str, documents: list[str]) -> list[float]:
         """Relevance score per document from the fine-tuned cross-encoder.
 
-        Returns all-zero scores when reranking is disabled or the model fails —
+        Returns all-zero scores when reranking is disabled or the model fails â€”
         a reranker fault must never fail a chat turn, it just costs us the
         improved ordering. Failures are recorded on the turn's degradation set.
         """
@@ -260,57 +261,15 @@ class TherapyRetriever:
         except Exception:  # pragma: no cover - degradation is best-effort
             pass
 
-    # -----------------------------------------------------------------------
-    # Query construction
-    # -----------------------------------------------------------------------
+    _AGE_KEYWORDS = AGE_KEYWORDS
 
     @staticmethod
     def _build_query(user_text: str, eos: EmotionalOperatingState) -> str:
-        """
-        Build a retrieval query that combines emotion, modality, and user text.
-
-        Per SYSTEM.md §10: "Retrieval query = f'{surface_emotion} {modality} {distortion_label}'"
-        """
-        parts = [
-            eos.surface_emotion,
-            eos.modality.value if eos.modality else "",
-        ]
-        if hasattr(eos, "distortion_label") and eos.distortion_label:
-            parts.append(eos.distortion_label)
-
-        # Add user text keywords (first 30 words) for grounding
-        words = user_text.split()[:30]
-        text_summary = " ".join(words)
-
-        query = " ".join(p for p in parts if p)
-        if text_summary:
-            query += f" {text_summary}"
-        return query.strip()
-
-    # -----------------------------------------------------------------------
-    # Re-ranking
-    # -----------------------------------------------------------------------
-
-    #: Metadata keywords that mark a chunk as written for an age group.
-    _AGE_KEYWORDS = {
-        "teen": ["teen", "adolescent", "school", "exam", "peer", "parent"],
-        "adult": ["adult", "work", "career", "relationship", "partner", "colleague"],
-    }
+        return build_query(user_text, eos)
 
     @classmethod
     def _age_score(cls, meta: dict[str, Any], age_group: str | None) -> int:
-        """How well one chunk's metadata matches the age group.
-
-        A metadata heuristic — keyword counting over tags and category — not a
-        model. It runs *after* the cross-encoder as a tie-breaker.
-        """
-        if not age_group:
-            return 0
-        keywords = cls._AGE_KEYWORDS.get(age_group.lower(), [])
-        if not keywords:
-            return 0
-        text = f"{meta.get('tags', '')} {meta.get('category', '')}".lower()
-        return sum(1 for kw in keywords if kw in text)
+        return age_score(meta, age_group)
 
     def _rerank_by_age_group(
         self,
@@ -318,25 +277,7 @@ class TherapyRetriever:
         metadatas: list[dict[str, Any]],
         age_group: str | None,
     ) -> list[str]:
-        """
-        Order documents by age-group match alone, stable within equal scores.
-
-        A metadata heuristic, not a model — retained for direct use and tests.
-        The live path calls `_ranked_indices`, which applies this only as a
-        tie-breaker behind the cross-encoder.
-        """
-        if not age_group or not self._AGE_KEYWORDS.get(age_group.lower()):
-            return documents
-
-        order = sorted(
-            range(len(documents)),
-            key=lambda i: (
-                -self._age_score(metadatas[i] if i < len(metadatas) else {}, age_group),
-                i,
-            ),
-        )
-        return [documents[i] for i in order]
-
+        return rerank_by_age_group(documents, metadatas, age_group)
 
 # ---------------------------------------------------------------------------
 # Singleton
