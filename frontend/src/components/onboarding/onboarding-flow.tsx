@@ -53,7 +53,7 @@ export function OnboardingFlow({
   const [personContext, setPersonContext] = useState("");
   const [checkin, setCheckin] = useState<CheckinTime>("evening");
   // Both optional — not everyone sees themselves in a 10-item list, and
-  // forcing a pick would mean guessing rather than telling Mindlens
+  // forcing a pick would mean guessing rather than telling MindLens
   // something true. Skipping personality leaves it unset (Settings > General
   // later, or PersonalityAgent infers it from conversation); tone still
   // needs *a* value since empathy_agent branches on it every turn, so it
@@ -65,7 +65,7 @@ export function OnboardingFlow({
     "What should we call you",
     "Who's important to you",
     "What describes you best",
-    "How direct should Mindlens be",
+    "How direct should MindLens be",
     "When should we check in",
   ];
   const next = () => {
@@ -141,7 +141,7 @@ export function OnboardingFlow({
         {step === 1 && (
           <div className="flex flex-col gap-3">
             <p className="text-[12.5px]" style={{ color: "var(--ml-muted)" }}>
-              One person Mindlens should know about — a friend, family member, anyone who comes up often. Skip it if you&rsquo;d rather not; you can add people any time in Memory.
+              One person MindLens should know about — a friend, family member, anyone who comes up often. Skip it if you&rsquo;d rather not; you can add people any time in Memory.
             </p>
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px]" style={{ color: "var(--ml-muted)" }}>Name (optional)</span>

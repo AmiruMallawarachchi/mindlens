@@ -18,7 +18,7 @@ export const STEPS = [
   {
     num: "01",
     title: "The gate",
-    body: "A hardwired safety gate reads every message before anything else. It cannot be bypassed — and in a crisis, Mindlens answers from vetted templates only. No model improvises.",
+    body: "A hardwired safety gate reads every message before anything else. It cannot be bypassed — and in a crisis, MindLens answers from vetted templates only. No model improvises.",
   },
   {
     num: "02",
@@ -28,7 +28,7 @@ export const STEPS = [
   {
     num: "03",
     title: "The recall",
-    body: "Mindlens remembers what you've shared — people, deadlines, wins — and brings back only what this moment actually needs.",
+    body: "MindLens remembers what you've shared — people, deadlines, wins — and brings back only what this moment actually needs.",
   },
   {
     num: "04",
@@ -41,7 +41,7 @@ export const STEPS = [
   {
     num: "05",
     title: "The record",
-    body: "Moods and progress are logged so next week's Mindlens knows what this week's you worked through — and the people and topics it picks up land in Memory, where you can change them.",
+    body: "Moods and progress are logged so next week's MindLens knows what this week's you worked through — and the people and topics it picks up land in Memory, where you can change them.",
   },
 ];
 
@@ -74,8 +74,8 @@ export const RULES = [
   { num: "01", title: "Crisis answers are template-only", body: "Zero LLM calls when it matters most. Every crisis response is written and vetted by humans." },
   { num: "02", title: "The safety gate runs first, every turn", body: "No agent, prompt or feature can skip it. Safety overrides convenience — by design." },
   { num: "03", title: "Your words stay yours", body: "Every database query scoped to you, rate limits everywhere, and never sold or used for advertising. Replies are written by Groq — this turn's message goes to them with emails, phone numbers and ID numbers stripped, though your name and anyone you've mentioned go with it, because that's what makes a reply sound like it knows you." },
-  { num: "04", title: "Memory is visible", body: "Your conversations are saved so next week picks up where this one left off. Anything Mindlens learns from them shows up in Memory first, where you can edit or delete it." },
-  { num: "05", title: "Never a diagnosis", body: "Mindlens names feelings in plain language and shows how sure it is. It never labels you." },
+  { num: "04", title: "Memory is visible", body: "Your conversations are saved so next week picks up where this one left off. Anything MindLens learns from them shows up in Memory first, where you can edit or delete it." },
+  { num: "05", title: "Never a diagnosis", body: "MindLens names feelings in plain language and shows how sure it is. It never labels you." },
 ];
 
 export const GITHUB_URL = "https://github.com/AmiruMallawarachchi";

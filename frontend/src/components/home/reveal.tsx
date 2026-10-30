@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Scroll reveal — the mockup (Mindlens Home.dc.html) uses GSAP+ScrollTrigger
+ * Scroll reveal — the mockup (MindLens Home.dc.html) uses GSAP+ScrollTrigger
  * for its "fade up once, on entering view" sections. motion/react is already
  * a dependency for the whole app (the companion, cards), so this reproduces the
  * same one-time reveal with `whileInView` instead of adding a second

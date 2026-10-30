@@ -67,7 +67,7 @@ export function ChatSidebarFooter({ mood, user, companionId, companionActivity, 
           className="mt-2.5 px-1 text-[10.5px] leading-[1.55]"
           style={{ color: "var(--ml-faint)" }}
         >
-          Mindlens is a wellbeing companion — not emergency or medical care.{" "}
+          MindLens is a wellbeing companion — not emergency or medical care.{" "}
           <a
             href="https://findahelpline.com"
             target="_blank"

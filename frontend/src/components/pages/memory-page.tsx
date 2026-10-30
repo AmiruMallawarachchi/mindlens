@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Memory — design.md §4.2: "You decide what Mindlens remembers". Category
+ * Memory — design.md §4.2: "You decide what MindLens remembers". Category
  * cards backed by the real memory document, each with Forget (delete) —
  * and for people, an inline Edit. Empty states are honest: a category with
  * nothing in it says so, rather than showing placeholder content.
@@ -42,11 +42,11 @@ export function MemoryPage() {
       >
         <ShieldCheck size={16} strokeWidth={1.8} className="mt-0.5 shrink-0" style={{ color: "var(--e1)" }} />
         <p className="text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-          Everything here is visible and editable. Anything Mindlens
+          Everything here is visible and editable. Anything MindLens
           &lsquo;learns&rsquo; about you lands on this page first, where you can
           change or delete it &mdash; your conversations themselves are kept
           separately so it can pick up where you left off. This is not a
-          diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
+          diagnosis; it&rsquo;s just what you&rsquo;ve told MindLens.
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export function MemoryPage() {
             <p className="ml-eyebrow mb-1">Social read</p>
             <p className="text-[12.5px] leading-[1.55]" style={{ color: "var(--ml-muted)" }}>
               Picked up from conversation, not something you told it directly —
-              shapes whether Mindlens suggests solo or social activities. Reads{" "}
+              shapes whether MindLens suggests solo or social activities. Reads{" "}
               {introvertScore < 0.4 ? "more introverted" : introvertScore > 0.6 ? "more extroverted" : "balanced"} right now.
             </p>
           </div>
@@ -190,7 +190,7 @@ export function MemoryPage() {
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addNote()}
-            placeholder="Add a note Mindlens should remember…"
+            placeholder="Add a note MindLens should remember…"
             className="min-w-0 flex-1 rounded-[99px] px-4 py-2 text-[13px] outline-none"
             style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
           />

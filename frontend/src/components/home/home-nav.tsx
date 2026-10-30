@@ -24,7 +24,7 @@ export function HomeNav({navShadow, isDay, toggleGrade}: { navShadow: MotionValu
       >
         <a href="#top" className="flex items-center gap-2">
           <MindlensMark size={22} />
-          <span className="text-[15px] font-semibold tracking-[-.02em]">Mindlens</span>
+          <span className="text-[15px] font-semibold tracking-[-.02em]">MindLens</span>
         </a>
         <div className="hidden gap-4.5 text-[12.5px] sm:flex" style={{ color: "var(--ml-muted)" }}>
           {NAV_LINKS.map((link) => (

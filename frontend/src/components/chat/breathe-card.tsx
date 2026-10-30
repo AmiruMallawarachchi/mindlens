@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Breathe player — ported from the approved mockup (Mindlens Chat.dc.html,
+ * Breathe player — ported from the approved mockup (MindLens Chat.dc.html,
  * "Breathe player"). A gradient panel in the emotion colours with a live
  * waveform, the 4·7·8 phase readout, volume/pace rows, and transport
  * controls. Entirely client-side — the exercise is the content.

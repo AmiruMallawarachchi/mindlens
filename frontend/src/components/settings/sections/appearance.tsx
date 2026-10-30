@@ -5,7 +5,7 @@
  * gets its colour.
  *
  * The companion picker and the emotion swatches used to sit in the app
- * chrome (the Your Mindlens page and the chat inspector). They're
+ * chrome (the Your MindLens page and the chat inspector). They're
  * configuration, not conversation, so they live here now; the inspector
  * keeps only the live read.
  */
@@ -158,7 +158,7 @@ export function AppearanceSection({ client }: { client: MindLensClient }) {
           label="How the room gets its colour"
           description={
             paletteMode === "auto"
-              ? "Auto — the room recolours from what Mindlens reads in each message, crossfading over 1.6s."
+              ? "Auto — the room recolours from what MindLens reads in each message, crossfading over 1.6s."
               : "Manual — the room stays in the palette you pick, whatever the conversation is doing."
           }
           control={

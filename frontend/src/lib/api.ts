@@ -141,14 +141,14 @@ export async function request<T>(
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new ApiError(
         0,
-        "Mindlens is taking too long to respond. It may be waking up — try again in a moment.",
+        "MindLens is taking too long to respond. It may be waking up — try again in a moment.",
       );
     }
     throw new ApiError(
       0,
       typeof navigator !== "undefined" && !navigator.onLine
         ? "You're offline. Check your connection and try again."
-        : "Couldn't reach Mindlens. It may be down — try again in a moment.",
+        : "Couldn't reach MindLens. It may be down — try again in a moment.",
     );
   } finally {
     clearTimeout(timeout);

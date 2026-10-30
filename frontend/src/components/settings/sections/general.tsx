@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Settings > General — who Mindlens thinks you are and how it should talk
+ * Settings > General — who MindLens thinks you are and how it should talk
  * to you. Everything here reaches the empathy agent's system prompt, so
  * nothing on this screen is decoration.
  */
@@ -69,11 +69,11 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
           }
         />
         <Row
-          label="What should Mindlens call you?"
+          label="What should MindLens call you?"
           description="Used when it speaks to you directly."
           control={
             <TextInput
-              ariaLabel="What should Mindlens call you"
+              ariaLabel="What should MindLens call you"
               value={nickname}
               onChange={setNickname}
               maxLength={60}
@@ -95,7 +95,7 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
         />
         <Row
           label="Tone"
-          description="How direct Mindlens should be with you."
+          description="How direct MindLens should be with you."
           control={
             <Select
               ariaLabel="Tone"
@@ -107,7 +107,7 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="Instructions for Mindlens">
+      <SettingsGroup title="Instructions for MindLens">
         <div className="pb-4" style={{ borderBottom: "1px solid var(--ml-hairline)" }}>
           <p className="mb-3 text-[12.5px] leading-[1.55]" style={{ color: "var(--ml-muted)" }}>
             Anything it should keep in mind every time you talk. Not a place for
@@ -119,7 +119,7 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
             onChange={(e) => set("custom_instructions", e.target.value)}
             maxLength={1500}
             rows={5}
-            aria-label="Instructions for Mindlens"
+            aria-label="Instructions for MindLens"
             placeholder="e.g. I'm in my final year and stressed about my viva. Don't tell me to relax — help me make the next move small."
             className="w-full resize-none rounded-[var(--r-13)] px-3.5 py-3 text-[13px] leading-[1.6] outline-none"
             style={{

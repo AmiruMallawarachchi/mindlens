@@ -30,7 +30,7 @@ export default function GlobalError({
             Something went wrong
           </p>
           <h1 style={{ fontSize: 24, fontWeight: 400, marginBottom: 16 }}>
-            Mindlens hit a snag.
+            MindLens hit a snag.
           </h1>
           <button
             type="button"

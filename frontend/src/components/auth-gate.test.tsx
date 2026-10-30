@@ -46,7 +46,7 @@ describe("AuthGate", () => {
       "correct-horse",
     );
     await user.type(screen.getByPlaceholderText("Age"), "27");
-    await user.click(screen.getByRole("button", { name: "Start with Mindlens" }));
+    await user.click(screen.getByRole("button", { name: "Start with MindLens" }));
 
     expect(onRegister).toHaveBeenCalledWith({
       email: "amiru@example.com",

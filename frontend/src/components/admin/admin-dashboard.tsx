@@ -42,7 +42,7 @@ export function AdminDashboard() {
         setSignedIn(false);
         setStatus(null);
       } else {
-        setError(err instanceof ApiError ? err.message : "Couldn't reach Mindlens.");
+        setError(err instanceof ApiError ? err.message : "Couldn't reach MindLens.");
       }
     } finally {
       setLoading(false);

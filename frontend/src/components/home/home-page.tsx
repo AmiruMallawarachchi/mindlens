@@ -2,7 +2,7 @@
 
 /**
  * Home — the marketing/landing page. Ported from the approved mockup
- * (design project "Mindlens UI Mockups" → Mindlens Home.dc.html): warm
+ * (design project "MindLens UI Mockups" → MindLens Home.dc.html): warm
  * paper editorial, animated blob field, a philosophy quote, a 5-step "what
  * happens when you press send" band, a dark Models band, an interactive
  * Emotion lab, a Docs band, and Safety rules.

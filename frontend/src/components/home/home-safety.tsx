@@ -15,14 +15,14 @@ export function HomeSafety({}: Record<string, never>) {
               The non-negotiables
             </h2>
             <p className="m-0 max-w-[420px] text-[14.5px] leading-[1.7]" style={{ color: "var(--ml-muted)", textWrap: "pretty" }}>
-              Mindlens is support software. It is not a clinical service, a diagnostic tool, or an emergency service — and it is built so it can never quietly pretend to be one.
+              MindLens is support software. It is not a clinical service, a diagnostic tool, or an emergency service — and it is built so it can never quietly pretend to be one.
             </p>
             <div
               className="mt-[26px] rounded-[18px] px-[18px] py-4"
               style={{ border: "1px solid color-mix(in oklab, #ff6941 45%, transparent)", background: "color-mix(in oklab, #ff6941 8%, transparent)" }}
             >
               <p className="m-0 text-[13px] leading-[1.65]">
-                <strong className="font-semibold">In immediate danger?</strong> Contact your local emergency services. Mindlens always surfaces real human resources first, before anything else.
+                <strong className="font-semibold">In immediate danger?</strong> Contact your local emergency services. MindLens always surfaces real human resources first, before anything else.
               </p>
             </div>
           </Reveal>

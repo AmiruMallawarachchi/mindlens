@@ -33,7 +33,7 @@ export const PREVIEW_USER: UserProfile = {
  * A short fixture exchange so every piece of message chrome — the emotion
  * read strip, the reasoning trail, the actions row — is visible while
  * styling. Deliberately mundane content; it is a layout fixture, not a
- * sample of what Mindlens should sound like.
+ * sample of what MindLens should sound like.
  */
 export const PREVIEW_MESSAGES: ChatMessage[] = [
   {

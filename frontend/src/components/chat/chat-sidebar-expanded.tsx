@@ -24,7 +24,7 @@ export function ChatSidebarExpanded({ mood, user, sessions, activeSessionId, act
           * Chat nav row below. */}
         <Link
           href="/"
-          aria-label="Mindlens home"
+          aria-label="MindLens home"
           className="min-w-0 flex-1 rounded-[var(--r-10)] transition-opacity hover:opacity-80"
         >
           <Wordmark mood={mood} size={21} className="min-w-0" />

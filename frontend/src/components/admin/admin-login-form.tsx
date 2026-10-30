@@ -20,7 +20,7 @@ export function AdminLoginForm({ onSignedIn }: { onSignedIn: () => void }) {
       await adminLogin(email.trim(), password);
       onSignedIn();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't reach Mindlens.");
+      setError(err instanceof ApiError ? err.message : "Couldn't reach MindLens.");
     } finally {
       setBusy(false);
     }

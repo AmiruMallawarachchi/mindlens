@@ -17,7 +17,7 @@ export default function NotFound() {
           className="inline-flex items-center gap-2 rounded-[99px] px-5 py-2.5 text-[13px] font-medium no-underline"
           style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)" }}
         >
-          Back to Mindlens
+          Back to MindLens
         </Link>
       </div>
     </main>

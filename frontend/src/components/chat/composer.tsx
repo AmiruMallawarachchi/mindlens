@@ -63,9 +63,9 @@ export function Composer({
   } = useComposerDictation(onTypingChange);
 
   const placeholder = preview
-    ? "Preview mode â€” start the backend to talk to Mindlens"
+    ? "Preview mode â€” start the backend to talk to MindLens"
     : offline
-      ? "Reconnecting to Mindlensâ€¦"
+      ? "Reconnecting to MindLensâ€¦"
       : listening
         ? "Listeningâ€¦"
         : "Say it however it comes outâ€¦";
@@ -91,7 +91,7 @@ export function Composer({
             }}
           >
             <p className="m-0 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-ink)" }}>
-              Dictation is done by your browser, not by Mindlens â€” which means
+              Dictation is done by your browser, not by MindLens â€” which means
               your voice is sent to your browser&rsquo;s speech provider
               (Google, in Chrome) to be turned into text. The words that come
               back are treated like anything else you type. If a thought is one
@@ -201,7 +201,7 @@ export function Composer({
           >
             {preview
               ? "Preview mode has no backend â€” nothing you type here can send."
-              : "Not connected â€” keep typing, it'll send once Mindlens is back."}
+              : "Not connected â€” keep typing, it'll send once MindLens is back."}
           </p>
         )}
 
@@ -214,7 +214,7 @@ export function Composer({
           className="mt-3 text-center text-[11px] leading-[1.6] min-[780px]:hidden"
           style={{ color: "var(--ml-faint)" }}
         >
-          Mindlens is a wellbeing companion â€” not emergency or medical care.{" "}
+          MindLens is a wellbeing companion â€” not emergency or medical care.{" "}
           <a
             href="https://findahelpline.com"
             target="_blank"

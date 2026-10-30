@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The message flow â€” ported from the approved mockup (Mindlens Chat.dc.html).
+ * The message flow â€” ported from the approved mockup (MindLens Chat.dc.html).
  *
  * User turns: right-aligned bubbles with an asymmetric 18/18/5/18 radius and
  * the emotion read strip beneath. Assistant turns: no bubble â€” the companion

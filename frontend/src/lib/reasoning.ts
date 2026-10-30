@@ -59,7 +59,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   const distress = typeof eos?.distress_level === "number" ? eos.distress_level : null;
 
   // --- 1. Safety gate ----------------------------------------------------
-  // Labels come from the approved mockup's trail (Mindlens Chat.dc.html):
+  // Labels come from the approved mockup's trail (MindLens Chat.dc.html):
   // Safety gate / Emotion read / Memory / Approach.
   //
   // The gate is two layers: a keyword regex that always runs, and a crisis

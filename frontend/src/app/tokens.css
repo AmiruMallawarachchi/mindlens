@@ -1,14 +1,14 @@
 /**
- * Mindlens design tokens — design.md §1.3 (colour), §2 (emotion), §8 (radii).
+ * MindLens design tokens — design.md §1.3 (colour), §2 (emotion), §8 (radii).
  *
  * Two token families live here:
- *  1. `--ml-*` / `--e*`  — the Mindlens design system.
+ *  1. `--ml-*` / `--e*`  — the MindLens design system.
  *  2. shadcn/ui's token names, which the AI Elements primitives compile
- *     against. These are mapped onto the Mindlens palette rather than kept as
+ *     against. These are mapped onto the MindLens palette rather than kept as
  *     a second, competing theme.
  *
- * The day grade is the default (matching the approved mockups — Mindlens
- * Chat.dc.html / Mindlens Home.dc.html both open on warm paper with a
+ * The day grade is the default (matching the approved mockups — MindLens
+ * Chat.dc.html / MindLens Home.dc.html both open on warm paper with a
  * sun/moon toggle). The night grade overrides under [data-grade="night"], so
  * switching is a token swap, not a rebuild. Values are ported verbatim from
  * the mockups' own DAY/NIGHT constants.
@@ -124,7 +124,7 @@
  * shadcn/ui token bridge.
  *
  * AI Elements' primitives are written against these names. Pointing them at
- * the Mindlens palette means an <Message> or <PromptInput> inherits the
+ * the MindLens palette means an <Message> or <PromptInput> inherits the
  * emotion grade for free instead of carrying a stock neutral theme.
  * ----------------------------------------------------------------------- */
 :root {
@@ -226,7 +226,7 @@
 /* --------------------------------------------------------------------------
  * The five companions — Ember, The Lens, Flit, Tide, Fern. Ambient loops and
  * per-state fx, ported verbatim from the approved design file "Companion
- * Expressions" (project "Mindlens: Emotional AI Companion"). The state poses
+ * Expressions" (project "MindLens: Emotional AI Companion"). The state poses
  * themselves are spring-driven in companion-avatar.tsx; these are only the
  * loops that must keep running underneath a pose, so they deliberately live
  * on layers that carry no pose transform of their own.
@@ -285,7 +285,7 @@
 }
 
 /* --------------------------------------------------------------------------
- * Home page — ported from Mindlens Home.dc.html.
+ * Home page — ported from MindLens Home.dc.html.
  * ----------------------------------------------------------------------- */
 @keyframes mlBlobA {
   0% { transform: translate(0, 0) scale(1); }

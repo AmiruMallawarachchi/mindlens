@@ -8,7 +8,7 @@ const NAV: { id: ChatNavView; label: string; icon: typeof MessageCircle }[] = [
   { id: "progress", label: "Progress", icon: LineChart },
   { id: "journal", label: "Journal", icon: BookOpen },
   { id: "memory", label: "Memory", icon: Brain },
-  { id: "settings", label: "Your Mindlens", icon: Settings2 },
+  { id: "settings", label: "Your MindLens", icon: Settings2 },
 ];
 
 export function SidebarNavigation({ activeView, onNavigate, collapsed = false }: {

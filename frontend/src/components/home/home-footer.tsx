@@ -21,10 +21,10 @@ export function HomeFooter() {
             <Reveal className="max-w-[420px]">
               <div className="mb-3.5 flex items-center gap-2">
                 <MindlensMark size={20} />
-                <span className="text-[15px] font-semibold tracking-[-.02em]">Mindlens</span>
+                <span className="text-[15px] font-semibold tracking-[-.02em]">MindLens</span>
               </div>
               <p className="m-0 text-[12.5px] leading-[1.7]" style={{ color: "var(--ml-muted)", textWrap: "pretty" }}>
-                Mindlens is support software — not a clinical service, diagnostic tool, or replacement for professional care. If you are in crisis, please reach a human: local emergency services or a crisis line near you.
+                MindLens is support software — not a clinical service, diagnostic tool, or replacement for professional care. If you are in crisis, please reach a human: local emergency services or a crisis line near you.
               </p>
             </Reveal>
             <div className="flex flex-wrap gap-11 text-[13px] sm:justify-end">

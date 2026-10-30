@@ -15,7 +15,7 @@ export function HomeHero({reduceMotion}: { reduceMotion: boolean | null }) {
           className="mb-auto flex w-full max-w-[1200px] justify-between font-[family-name:var(--font-geist-mono)] text-[10.5px] uppercase tracking-[.14em]"
           style={{ color: "var(--ml-faint)" }}
         >
-          <span>{"/// Mindlens"}</span>
+          <span>{"/// MindLens"}</span>
           <span>Personal wellbeing companion</span>
         </div>
 
