@@ -42,6 +42,3 @@ def llm_call_metadata(stage: str, response: Any) -> dict[str, Any]:
         "latency_ms": safe_number(getattr(response, "latency_ms", None)),
     }
 
-
-_hosted_orchestrator: HostedGraphOrchestrator | None = None
-
