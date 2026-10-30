@@ -1,31 +1,23 @@
-"""
-Session Memory Save
-===================
-Persists the current turn to MongoDB after all agents have run.
-No LLM calls. Background utility agent.
+"""Heuristic extraction of durable facts from one user message.
 
-Also does the actual extraction behind the Memory page's promise that
-mentioning a person or a hard topic makes it show up there. Before this,
-`user_memory` was fully readable and editable but nothing ever wrote to it
-automatically — the "What's been hard" / "What's helped" categories could
-only be filled by an admin-only endpoint, and a new person could only enter
-memory through the onboarding wizard, never from an ordinary conversation.
+This is the write behind the Memory page's promise that mentioning a person
+or a hard topic makes it show up there. It is deliberately heuristic rather
+than an LLM call: its output is replayed into every future prompt, so a bad
+write does not cost one turn — it persists and quietly corrupts recall. A
+small fixed vocabulary for topics and coping, plus a narrow regex for names,
+bounds what can ever be written.
 
-Deliberately heuristic, not an LLM call: this is a *write* path whose output
-gets replayed into every future prompt via memory_recall.py's "You've
-mentioned {name} before" — a bad write here doesn't cost one turn, it
-persists. Free-form model output is exactly the wrong shape for something
-that gets stored and re-read; a small fixed vocabulary for topics/coping and
-a narrow, tightly-bounded regex for names bounds what can ever be written,
-the same way PersonalityAgent's keyword lists bound its own score updates.
+Call this with the *raw* user message. ``anonymize()`` replaces titled or
+capitalised names ("Dr Perera" -> "[NAME]") before anything reaches Groq,
+which is correct for anything that leaves the process but would make person
+extraction impossible. The result stays on the server and only ever becomes
+a key in this user's own ``user_memory`` document.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
-
-from app.agents.base_agent import AgentContext, AgentOutput, BaseAgent
+from typing import Any
 
 # A small set of relationship words a person is plausibly introduced with.
 # Kept narrow on purpose — this is the only thing standing between "my
@@ -47,9 +39,6 @@ _RELATIONS = (
 # is routinely capitalized at the start of a sentence; the name itself stays
 # case-sensitive, since a leading capital is the actual signal it's a name.
 # A name may be two capitalised tokens: "Dr Perera", "Mary Jane".
-# Capturing only the first meant "my supervisor Dr Perera" was stored as
-# the person "Dr" -- so every later mention of Perera recalled nothing,
-# and the Memory page listed a title as a person.
 _NAME = r"[A-Z][a-zA-Z']{1,20}(?:\s+[A-Z][a-zA-Z']{1,20})?"
 
 # The same shape but case-insensitive, for use ONLY after a phrase that has
@@ -137,21 +126,19 @@ _COPING_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 _HELPED_PHRASES = ("helped", "helps me", "helped me", "worked for me", "calmed me down")
 
-
-def _normalize_name(name: str) -> str:
-    """Title-case each word — so "AMAYA", "amaya" and "Amaya" collapse to
-    the same `people` key instead of becoming three separate entries the
-    Memory page's `$exists: False` guard can't tell apart.
-
-    Per word, not per string: a single pass over the whole thing turned
-    "Dr Perera" into "Dr perera"."""
-    return " ".join(w[:1].upper() + w[1:].lower() for w in name.split())
-
-
 # One turn introducing more than a handful of people is far more likely to
 # be pasted text or an attempt to bulk-write the graph than a real
 # introduction, so the write is bounded rather than unbounded.
 _MAX_PEOPLE_PER_TURN = 3
+
+
+def _normalize_name(name: str) -> str:
+    """Title-case each word — so "AMAYA", "amaya" and "Amaya" collapse to
+    the same ``people`` key instead of becoming three separate entries.
+
+    Per word, not per string: a single pass over the whole thing turned
+    "Dr Perera" into "Dr perera"."""
+    return " ".join(w[:1].upper() + w[1:].lower() for w in name.split())
 
 
 def _extract_people(text: str) -> list[tuple[str, str]]:
@@ -159,12 +146,11 @@ def _extract_people(text: str) -> list[tuple[str, str]]:
 
     Deliberately not just the first: "I have a boyfriend called Hasanka and
     my mum's name is Rehana" is one ordinary sentence introducing two
-    people, and returning only one silently dropped the other — the user
-    had said "remember those people" and half of them were never written.
+    people, and returning only one silently dropped the other.
 
     Order is preserved and names are de-duplicated case-insensitively, so a
     message that says a name twice writes it once. Checked against
-    `memory.people` by the caller before writing — this only proposes, it
+    ``memory.people`` by the caller before writing — this only proposes, it
     never knows what is already on file.
     """
     found: list[tuple[str, str]] = []
@@ -214,75 +200,51 @@ def _extract_coping(text_lower: str) -> str | None:
     return None
 
 
-class SessionMemorySave(BaseAgent):
+def extract_memory(
+    user_text: str,
+    *,
+    distress_level: float = 0.0,
+    valence: str = "neutral",
+    memory_depth: str = "everything",
+) -> dict[str, Any]:
+    """Return the durable facts this turn should add to ``user_memory``.
+
+    Shape (all keys optional)::
+
+        {"people": [{"name": "Amaya", "relation": "sister"}],
+         "person_name": "Amaya", "person_relation": "sister",
+         "trigger_topic": "exams", "effective_coping": "going for a walk"}
+
+    ``memory_depth == "nothing"`` returns ``{}``: a user who asked MindLens
+    not to draw on memory should not have new memory accumulating in the
+    background either.
+
+    ``user_text`` must be the un-anonymised message — see the module
+    docstring for why.
     """
-    Saves the completed turn to the sessions collection in MongoDB.
-    Updates the user_memory document with longitudinal data.
-    """
+    if memory_depth == "nothing":
+        return {}
 
-    def __init__(self) -> None:
-        super().__init__(
-            name="session_memory_save",
-            description="Persist session turn to MongoDB",
-            llm_tier="none",
-            max_tokens=0,
-            always_runs=False,
-        )
+    extracted: dict[str, Any] = {}
+    text_lower = user_text.lower()
 
-    async def run(self, ctx: AgentContext) -> AgentOutput:
-        """
-        Return save metadata, including any memory extracted from this turn.
-        The actual DB writes happen in the session router after this output
-        (chat.py: _save_turn, _save_extracted_memory).
-        """
-        extracted: dict[str, str] = {}
+    people = _extract_people(user_text)
+    if people:
+        extracted["people"] = [
+            {"name": name, "relation": relation} for relation, name in people
+        ]
+        # The single-person keys stay for the journaling prompt and any
+        # consumer written against the old shape; `people` is the complete
+        # list.
+        extracted["person_relation"] = people[0][0]
+        extracted["person_name"] = people[0][1]
 
-        # "Nothing" turns off recall in memory_recall.py; it turns off this
-        # extraction too — a user who asked MindLens not to draw on memory
-        # shouldn't have new memory quietly accumulating in the background.
-        if ctx.eos.memory_depth != "nothing":
-            text = ctx.user_text
-            text_lower = text.lower()
+    topic = _extract_topic(text_lower, distress_level, valence == "negative")
+    if topic:
+        extracted["trigger_topic"] = topic
 
-            # Person extraction runs on the RAW message, not the anonymized
-            # one. anonymize() replaces titled/capitalised names ("Dr
-            # Perera") with "[NAME]" before ctx.user_text is built -- correct
-            # for anything that reaches Groq or leaves this process, but it
-            # meant this regex could never see a real name to store. This
-            # never leaves the server: it only ever becomes a key in this
-            # user's own people graph.
-            raw = ctx.raw_user_text
-            people = _extract_people(raw)
-            if people:
-                extracted["people"] = [
-                    {"name": name, "relation": relation} for relation, name in people
-                ]
-                # The single-person keys stay for the journaling prompt and
-                # any consumer written against the old shape; `people` is
-                # the complete list.
-                extracted["person_relation"] = people[0][0]
-                extracted["person_name"] = people[0][1]
+    coping = _extract_coping(text_lower)
+    if coping:
+        extracted["effective_coping"] = coping
 
-            is_negative = ctx.eos.valence == "negative"
-            topic = _extract_topic(text_lower, ctx.eos.distress_level, is_negative)
-            if topic:
-                extracted["trigger_topic"] = topic
-
-            coping = _extract_coping(text_lower)
-            if coping:
-                extracted["effective_coping"] = coping
-
-        return AgentOutput(
-            agent_name=self.name,
-            text="",  # No user-facing text
-            metadata={
-                "llm_tier": "none",
-                "action": "save_turn",
-                "session_id": ctx.eos.session_id,
-                "surface_emotion": ctx.eos.surface_emotion,
-                "distress_level": ctx.eos.distress_level,
-                "modality": ctx.eos.modality.value,
-                "timestamp": datetime.now(UTC).isoformat(),
-                "extracted": extracted,
-            },
-        )
+    return extracted
