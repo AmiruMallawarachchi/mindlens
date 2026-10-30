@@ -9,14 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from app.agents.response_assembler import ResponseAssembler
-from app.agents.safety_gate import CRISIS_TEMPLATES, safety_gate
 from app.agents.groq_client import get_groq_client
+from app.agents.hosted_graph_result import llm_call_metadata, result_contract
 from app.agents.hosted_graph_state import (
     HostedGraphState,
     _base_eos,
@@ -24,8 +22,10 @@ from app.agents.hosted_graph_state import (
     _number,
     _stage,
 )
-from app.agents.hosted_graph_result import llm_call_metadata, result_contract
+from app.agents.response_validator import ResponseValidator
+from app.agents.safety_gate import CRISIS_TEMPLATES, safety_gate
 from app.core.anonymizer import anonymize
+from app.core.crisis_resources import CRISIS_RESOURCES
 from app.observability import trace_graph
 from app.rag.hosted_retriever import get_hosted_retriever
 from app.utils.logger import get_logger
@@ -37,7 +37,7 @@ class HostedGraphOrchestrator:
     """Bounded hosted graph with a stable result contract for the WebSocket."""
 
     def __init__(self) -> None:
-        self.assembler = ResponseAssembler()
+        self.validator = ResponseValidator()
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -113,7 +113,13 @@ class HostedGraphOrchestrator:
         state["crisis_flag"] = result.is_crisis
         if result.is_crisis:
             state["assessment"] = {"crisis_risk": True, "distress_level": 1.0}
-        await _stage(state, "safety", "Crisis signals found â€” everything else pauses." if result.is_crisis else "Safety gate clear.")
+        await _stage(
+            state,
+            "safety",
+            "Crisis signals found - everything else pauses."
+            if result.is_crisis
+            else "Safety gate clear.",
+        )
         return state
 
     async def _assess(self, state: HostedGraphState) -> HostedGraphState:
@@ -223,7 +229,7 @@ class HostedGraphOrchestrator:
         except Exception as exc:
             logger.warning("Hosted specialist failed: %s", exc)
             state["degraded"].append("specialist")
-            text = "Iâ€™m with you. Could you tell me a little more about what feels hardest right now?"
+            text = "I'm with you. Could you tell me a little more about what feels hardest right now?"
         state["response"] = text
         state["agent_outputs"] = [{"agent": state["route"], "text": text, "metadata": {"provider": "groq"}}]
         await _stage(state, "approach", f"The {state['route']} specialist prepared a response.")
@@ -256,15 +262,19 @@ class HostedGraphOrchestrator:
             distress = _number(state.get("assessment", {}).get("distress_level"), 1.0)
             text = CRISIS_TEMPLATES["severe" if distress >= 0.85 else "moderate"]
             state["response"] = text
-            from app.agents.crisis_agent import CRISIS_RESOURCES
-
-            state["agent_outputs"] = [{"agent": "crisis", "text": text, "metadata": {"resources": CRISIS_RESOURCES}}]
+            state["agent_outputs"] = [
+                {
+                    "agent": "crisis",
+                    "text": text,
+                    "metadata": {"resources": CRISIS_RESOURCES},
+                }
+            ]
             state["route"] = "crisis"
         else:
-            report = self.assembler._validator.validate(state.get("response", ""))
+            report = self.validator.validate(state.get("response", ""))
             if not report.passed:
                 state["degraded"].append("response_validation")
-                state["response"] = "Iâ€™m here with you. Tell me more about whatâ€™s going on."
+                state["response"] = "I'm here with you. Tell me more about what's going on."
         await _stage(state, "finalize", "Response ready.")
         return state
 

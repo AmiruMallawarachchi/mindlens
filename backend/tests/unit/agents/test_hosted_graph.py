@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.agents.hosted_graph import HostedGraphOrchestrator
 
 
@@ -22,6 +21,8 @@ async def test_regex_crisis_exits_before_groq_and_retrieval() -> None:
     assert result["crisis_flag"] is True
     assert result["agents"] == ["crisis"]
     assert result["telemetry"]["graph"]["nodes"] == ["safety_gate", "finalize"]
+    numbers = {row["number"] for row in result["agent_outputs"][0]["metadata"]["resources"]}
+    assert {"1926", "119 / 110"} <= numbers
 
 
 @pytest.mark.asyncio
