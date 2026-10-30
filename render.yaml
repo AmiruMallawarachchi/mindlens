@@ -1,12 +1,11 @@
-# Documented alternative to the primary deployment (a free Hugging Face
-# Docker Space — see docs/DEPLOYMENT.md). Kept correct and current, not
-# actively used: the five models want roughly 2.5–3.5GB resident, so this
-# needs at least Render's `pro` plan (4GB) to actually boot — the `standard`
-# plan below (2GB) will OOM on startup with PRELOAD_MODELS=true, and leaving
-# it false just moves that failure onto a live user's first message instead
-# (see loader.py's _load_lock comment for what that looked like locally:
-# concurrent cold loads timing out and one request paying for all of them).
-# Bump `plan` before using this path for real.
+# Render blueprint for the current MindLens V2 backend (see
+# docs/V2_HOSTED_DEPLOYMENT.md).
+#
+# V2 has no local model weights and no Chroma index: inference is Groq,
+# retrieval is Pinecone, and persistence is MongoDB Atlas. The free plan is
+# sufficient for this container. It sleeps after about 15 minutes without
+# traffic and cold-starts in about a minute; the filesystem is ephemeral, so
+# no database or index may be stored there.
 services:
   - type: web
     name: mindlens-api

@@ -157,7 +157,9 @@ MindLens uses a small supervisor graph instead of unconstrained agent loops. Thi
 
 Implemented: LangGraph runtime, Groq inference, Pinecone adapters and ingestion, Langfuse tracing, Render/Vercel configuration, Atlas migration runbook, recruiter documentation, and V2 graph tests.
 
-Environment-specific: entering provider credentials, creating cloud projects, migrating private MongoDB data, deploying services, and migrating remaining legacy V1 tests that expect local model/Chroma behavior.
+Deployment state: the Vercel site is live, but its current build points at a local ngrok tunnel that is no longer running. The backend target is the Render service in `render.yaml`; after that service exists, rebuild Vercel with `NEXT_PUBLIC_API_BASE_URL` set to the Render URL. See [V2 hosted deployment](docs/V2_HOSTED_DEPLOYMENT.md) for the exact steps.
+
+Environment-specific: entering provider credentials, creating the Render service, migrating private MongoDB data, and creating the Pinecone index and corpus.
 
 ## Responsible use
 

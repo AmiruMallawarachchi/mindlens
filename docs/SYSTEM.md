@@ -223,6 +223,11 @@ MongoDB Memory + Sessions + Audit Logs
 
 ### 4.3 External Services
 
+> The table below records the V1 design. V2 uses Groq (inference), MongoDB
+> Atlas (persistence), Pinecone (retrieval), Vercel (frontend), Render
+> (backend), and Langfuse Cloud (metadata-only tracing). See
+> [V2_HOSTED_DEPLOYMENT.md](V2_HOSTED_DEPLOYMENT.md).
+
 | Service | Purpose |
 |---|---|
 | Groq | Therapy response generation |
