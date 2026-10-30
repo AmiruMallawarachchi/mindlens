@@ -85,11 +85,14 @@ def _base_eos(state: HostedGraphState, assessment: dict[str, Any]) -> dict[str, 
     ).model_dump(mode="json")
 
 
-def _recall_signals(state: HostedGraphState) -> list[str]:
-    """Memory signals genuinely relevant to this turn.
+def _recall_context(state: HostedGraphState) -> tuple[list[str], dict[str, Any]]:
+    """Memory signals and typed preferences relevant to this turn.
 
-    Returns nothing when memory is empty, nothing on file matches, or the
-    user chose memory_depth="nothing" — see core/memory_recall.py.
+    Signals return nothing when memory is empty, nothing on file matches, or
+    the user chose memory_depth="nothing" — see core/memory_recall.py.
+    Preferences are settings the user typed (tone, personality, custom
+    instructions), so recall keeps them even under "nothing" and they are
+    returned separately for the specialist prompt.
     """
     eos = state.get("eos", {})
     recall = recall_for_turn(
@@ -98,6 +101,30 @@ def _recall_signals(state: HostedGraphState) -> list[str]:
         surface_emotion=str(eos.get("surface_emotion") or "neutral"),
         core_emotion=eos.get("core_emotion"),
     )
-    return recall.memory_recalled
+    preferences = {
+        "preferred_modality": recall.preferred_modality,
+        "tone_preference": recall.tone_preference,
+        "personality": recall.personality,
+        "custom_instructions": recall.custom_instructions,
+    }
+    return recall.memory_recalled, {key: value for key, value in preferences.items() if value}
+
+
+def _specialist_context(state: HostedGraphState) -> dict[str, Any]:
+    """The JSON the specialist sees: this turn, recent history, recalled
+    context, curated notes, the assessment, and typed preferences."""
+    eos = state.get("eos", {})
+    return {
+        "message": anonymize(state["user_text"]),
+        "history": [anonymize(str(t.get("text", ""))) for t in state.get("session_history", [])[-6:]],
+        "memory_signals": state.get("memory_recalled", []),
+        "therapy_notes": state.get("rag_chunks", [])[:5],
+        "assessment": state.get("assessment", {}),
+        "preferences": {
+            key: eos.get(key)
+            for key in ("preferred_modality", "tone_preference", "personality", "custom_instructions")
+            if eos.get(key)
+        },
+    }
 
 

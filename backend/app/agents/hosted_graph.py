@@ -20,7 +20,8 @@ from app.agents.hosted_graph_state import (
     _base_eos,
     _clean_json,
     _number,
-    _recall_signals,
+    _recall_context,
+    _specialist_context,
     _stage,
 )
 from app.agents.response_validator import ResponseValidator
@@ -165,8 +166,13 @@ class HostedGraphOrchestrator:
 
     async def _memory_recall(self, state: HostedGraphState) -> HostedGraphState:
         state["graph_nodes"].append("memory_recall")
-        recalled = _recall_signals(state)
+        recalled, preferences = _recall_context(state)
         state["memory_recalled"] = recalled
+        # Settings > General (tone, personality, custom instructions) were
+        # stored and returned by recall but never reached the reply prompt, so
+        # the controls silently did nothing. They belong on the EOS snapshot
+        # and in the specialist's context.
+        state["eos"].update(preferences)
         await _stage(
             state,
             "memory",
@@ -204,16 +210,11 @@ class HostedGraphOrchestrator:
         state["route"] = route if route in allowed else "empathy"
         if state.get("crisis_flag"):
             return state
-        context = {
-            "message": anonymize(state["user_text"]),
-            "history": [anonymize(str(t.get("text", ""))) for t in state.get("session_history", [])[-6:]],
-            "memory_signals": state.get("memory_recalled", []),
-            "therapy_notes": state.get("rag_chunks", [])[:5],
-            "assessment": state.get("assessment", {}),
-        }
+        context = _specialist_context(state)
         system = (
             f"You are the MindLens {state['route']} specialist. Write one warm, natural reply. "
             "Listen first, reflect the user's point, ask at most one useful question, and offer one practical next step only when it fits. "
+            "Honour the user's tone, personality, and custom instructions when they are present. "
             "Never diagnose, prescribe, claim certainty, or mention internal agents. Return only the reply text."
         )
         try:

@@ -119,7 +119,14 @@ async def test_memory_recall_surfaces_a_person_the_user_mentioned() -> None:
             MagicMock(text="It sounds like talking to Ravi helped a little."),
         ]
     )
-    memory = {"people": {"Ravi": {"role": "best friend"}}, "preferences": {}}
+    memory = {
+        "people": {"Ravi": {"role": "best friend"}},
+        "preferences": {
+            "tone_preference": "direct",
+            "personality": "introvert",
+            "custom_instructions": "No breathing exercises.",
+        },
+    }
     with patch("app.agents.hosted_graph.get_groq_client", return_value=client), patch(
         "app.agents.hosted_graph.get_hosted_retriever"
     ) as retriever:
@@ -130,3 +137,8 @@ async def test_memory_recall_surfaces_a_person_the_user_mentioned() -> None:
         )
 
     assert any("Ravi" in signal for signal in result["memory_recalled"])
+    # Settings > General used to be stored but never reached the reply prompt.
+    assert result["eos"]["tone_preference"] == "direct"
+    specialist_prompt = client.chat.await_args_list[1].kwargs["user_prompt"]
+    assert "direct" in specialist_prompt
+    assert "No breathing exercises." in specialist_prompt
