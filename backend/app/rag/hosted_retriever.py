@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any
 
 from app.config import settings
 from app.utils.logger import get_logger

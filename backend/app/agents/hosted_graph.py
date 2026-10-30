@@ -9,16 +9,25 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
-from typing import Any, TypedDict
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from app.agents.response_assembler import ResponseAssembler
-from app.agents.safety_gate import CRISIS_TEMPLATES, safety_gate
 from app.agents.groq_client import get_groq_client
+from app.agents.hosted_graph_result import llm_call_metadata, result_contract
+from app.agents.hosted_graph_state import (
+    HostedGraphState,
+    _base_eos,
+    _clean_json,
+    _number,
+    _recall_context,
+    _specialist_context,
+    _stage,
+)
+from app.agents.response_validator import ResponseValidator
+from app.agents.safety_gate import CRISIS_TEMPLATES, safety_gate
 from app.core.anonymizer import anonymize
-from app.core.emotional_os import EmotionalOperatingState, Modality
+from app.core.crisis_resources import CRISIS_RESOURCES
 from app.observability import trace_graph
 from app.rag.hosted_retriever import get_hosted_retriever
 from app.utils.logger import get_logger
@@ -26,88 +35,11 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class HostedGraphState(TypedDict, total=False):
-    user_text: str
-    user_name: str
-    session_history: list[dict[str, Any]]
-    memory: dict[str, Any] | None
-    user_id: str | None
-    on_stage: Any
-    safety: dict[str, Any]
-    crisis_flag: bool
-    assessment: dict[str, Any]
-    eos: dict[str, Any]
-    route: str
-    rag_chunks: list[str]
-    response: str
-    agent_outputs: list[dict[str, Any]]
-    degraded: list[str]
-    memory_recalled: list[str]
-    telemetry: dict[str, Any]
-    options: dict[str, Any] | None
-    graph_nodes: list[str]
-    review_required: bool
-    llm_calls: list[dict[str, Any]]
-
-
-def _clean_json(text: str) -> dict[str, Any]:
-    """Parse a JSON object from a hosted model response."""
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        start, end = text.find("{"), text.rfind("}")
-        if start < 0 or end <= start:
-            raise ValueError("Groq returned no JSON object") from None
-        value = json.loads(text[start : end + 1])
-    if not isinstance(value, dict):
-        raise ValueError("Groq returned a non-object JSON value")
-    return value
-
-
-def _number(value: Any, default: float = 0.0) -> float:
-    try:
-        return max(0.0, min(1.0, float(value)))
-    except (TypeError, ValueError):
-        return default
-
-
-async def _stage(state: HostedGraphState, name: str, detail: str) -> None:
-    callback = state.get("on_stage")
-    if callback:
-        await callback(name, detail)
-
-
-def _base_eos(state: HostedGraphState, assessment: dict[str, Any]) -> dict[str, Any]:
-    emotion = str(assessment.get("surface_emotion") or "neutral")
-    core = str(assessment.get("core_emotion") or emotion)
-    distress = _number(assessment.get("distress_level"), 0.0)
-    modality_name = str(assessment.get("modality") or ("DBT" if distress >= 0.7 else "CBT"))
-    try:
-        modality = Modality(modality_name)
-    except ValueError:
-        modality = Modality.CBT
-    return EmotionalOperatingState(
-        surface_emotion=emotion,
-        surface_confidence=_number(assessment.get("surface_confidence"), 0.0),
-        core_emotion=core,
-        suppressed_emotion=assessment.get("suppressed_emotion"),
-        distress_level=distress,
-        emotional_stability=1.0 - distress,
-        mental_fatigue=_number(assessment.get("mental_fatigue"), 0.3),
-        modality=modality,
-        crisis_escalating=bool(assessment.get("crisis_risk")),
-        session_turn_count=len(state.get("session_history", [])),
-        valence=str(assessment.get("valence") or "neutral"),
-        distortion_label=assessment.get("distortion_label"),
-        distortion_score=_number(assessment.get("distortion_score"), 0.0),
-    ).model_dump(mode="json")
-
-
 class HostedGraphOrchestrator:
     """Bounded hosted graph with a stable result contract for the WebSocket."""
 
     def __init__(self) -> None:
-        self.assembler = ResponseAssembler()
+        self.validator = ResponseValidator()
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -183,7 +115,13 @@ class HostedGraphOrchestrator:
         state["crisis_flag"] = result.is_crisis
         if result.is_crisis:
             state["assessment"] = {"crisis_risk": True, "distress_level": 1.0}
-        await _stage(state, "safety", "Crisis signals found — everything else pauses." if result.is_crisis else "Safety gate clear.")
+        await _stage(
+            state,
+            "safety",
+            "Crisis signals found - everything else pauses."
+            if result.is_crisis
+            else "Safety gate clear.",
+        )
         return state
 
     async def _assess(self, state: HostedGraphState) -> HostedGraphState:
@@ -228,14 +166,18 @@ class HostedGraphOrchestrator:
 
     async def _memory_recall(self, state: HostedGraphState) -> HostedGraphState:
         state["graph_nodes"].append("memory_recall")
-        memory = state.get("memory") or {}
-        recalled: list[str] = []
-        if memory.get("preferences", {}).get("tone_preference"):
-            recalled.append("tone preference")
-        if memory.get("emotional_patterns", {}).get("trigger_topics"):
-            recalled.append("known trigger context")
+        recalled, preferences = _recall_context(state)
         state["memory_recalled"] = recalled
-        await _stage(state, "memory", f"Recalled {len(recalled)} relevant preference(s)." if recalled else "Nothing on file matched this turn.")
+        # Settings > General (tone, personality, custom instructions) were
+        # stored and returned by recall but never reached the reply prompt, so
+        # the controls silently did nothing. They belong on the EOS snapshot
+        # and in the specialist's context.
+        state["eos"].update(preferences)
+        await _stage(
+            state,
+            "memory",
+            f"Recalled {len(recalled)} memory signal(s)." if recalled else "Nothing on file matched this turn.",
+        )
         return state
 
     async def _retrieve(self, state: HostedGraphState) -> HostedGraphState:
@@ -268,16 +210,11 @@ class HostedGraphOrchestrator:
         state["route"] = route if route in allowed else "empathy"
         if state.get("crisis_flag"):
             return state
-        context = {
-            "message": anonymize(state["user_text"]),
-            "history": [anonymize(str(t.get("text", ""))) for t in state.get("session_history", [])[-6:]],
-            "memory_signals": state.get("memory_recalled", []),
-            "therapy_notes": state.get("rag_chunks", [])[:5],
-            "assessment": state.get("assessment", {}),
-        }
+        context = _specialist_context(state)
         system = (
             f"You are the MindLens {state['route']} specialist. Write one warm, natural reply. "
             "Listen first, reflect the user's point, ask at most one useful question, and offer one practical next step only when it fits. "
+            "Honour the user's tone, personality, and custom instructions when they are present. "
             "Never diagnose, prescribe, claim certainty, or mention internal agents. Return only the reply text."
         )
         try:
@@ -293,7 +230,7 @@ class HostedGraphOrchestrator:
         except Exception as exc:
             logger.warning("Hosted specialist failed: %s", exc)
             state["degraded"].append("specialist")
-            text = "I’m with you. Could you tell me a little more about what feels hardest right now?"
+            text = "I'm with you. Could you tell me a little more about what feels hardest right now?"
         state["response"] = text
         state["agent_outputs"] = [{"agent": state["route"], "text": text, "metadata": {"provider": "groq"}}]
         await _stage(state, "approach", f"The {state['route']} specialist prepared a response.")
@@ -326,56 +263,29 @@ class HostedGraphOrchestrator:
             distress = _number(state.get("assessment", {}).get("distress_level"), 1.0)
             text = CRISIS_TEMPLATES["severe" if distress >= 0.85 else "moderate"]
             state["response"] = text
-            from app.agents.crisis_agent import CRISIS_RESOURCES
-
-            state["agent_outputs"] = [{"agent": "crisis", "text": text, "metadata": {"resources": CRISIS_RESOURCES}}]
+            state["agent_outputs"] = [
+                {
+                    "agent": "crisis",
+                    "text": text,
+                    "metadata": {"resources": CRISIS_RESOURCES},
+                }
+            ]
             state["route"] = "crisis"
         else:
-            report = self.assembler._validator.validate(state.get("response", ""))
+            report = self.validator.validate(state.get("response", ""))
             if not report.passed:
                 state["degraded"].append("response_validation")
-                state["response"] = "I’m here with you. Tell me more about what’s going on."
+                state["response"] = "I'm here with you. Tell me more about what's going on."
         await _stage(state, "finalize", "Response ready.")
         return state
 
     @staticmethod
     def _result_contract(state: HostedGraphState) -> dict[str, Any]:
-        crisis = bool(state.get("crisis_flag"))
-        agents = ["crisis"] if crisis else [state.get("route", "empathy")]
-        return {
-            "eos": state.get("eos", EmotionalOperatingState().model_dump(mode="json")),
-            "agents": agents,
-            "crisis_flag": crisis,
-            "assembled_text": state.get("response", ""),
-            "agent_outputs": state.get("agent_outputs", []),
-            "safety": state.get("safety", {"is_crisis": False}),
-            "degraded": sorted(set(state.get("degraded", []))),
-            "memory_recalled": state.get("memory_recalled", []),
-            "options": None,
-            "telemetry": {
-                **state.get("telemetry", {}),
-                "graph": {"nodes": state.get("graph_nodes", []), "route": state.get("route", "empathy")},
-                "llm": {
-                    "calls": state.get("llm_calls", []),
-                    "count": len(state.get("llm_calls", [])),
-                },
-                "substantive": len(state.get("user_text", "").split()) >= 4,
-            },
-        }
+        return result_contract(state)
 
     @staticmethod
     def _llm_call_metadata(stage: str, response: Any) -> dict[str, Any]:
-        """Keep provider telemetry JSON-safe and free of prompts or outputs."""
-        def safe_number(value: Any) -> int | None:
-            return value if isinstance(value, int | float) else None
-
-        return {
-            "stage": stage,
-            "model": str(getattr(response, "model_used", "unknown")),
-            "tokens": safe_number(getattr(response, "tokens_used", None)),
-            "latency_ms": safe_number(getattr(response, "latency_ms", None)),
-        }
-
+        return llm_call_metadata(stage, response)
 
 _hosted_orchestrator: HostedGraphOrchestrator | None = None
 

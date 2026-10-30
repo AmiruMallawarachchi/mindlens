@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The composer — a plain 22px panel, mic + send and nothing else.
+ * The composer â€” a plain 22px panel, mic + send and nothing else.
  *
  * Built on AI Elements' <PromptInput>, which supplies Enter-to-send,
  * Shift+Enter for a newline and the form plumbing. The textarea is controlled
@@ -15,13 +15,12 @@
  *   so an attached file had nowhere to go and nothing to read it. A control
  *   that cannot work is worse than an absent one (CLAUDE.md rule 1).
  * - The mic's "soon" state. It now genuinely dictates, via the browser's
- *   Web Speech API — but that ships audio to the browser vendor's servers
+ *   Web Speech API â€” but that ships audio to the browser vendor's servers
  *   (Google, in Chrome), which sits badly against "everything here stays
  *   yours". So it says so, once, before the first use, and the button is not
  *   rendered at all where the API is missing rather than rendered dead.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Mic, Square } from "lucide-react";
 import {
   PromptInput,
@@ -31,32 +30,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import type { ConnectionStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/** The Web Speech API is still a draft spec that Chrome ships prefixed, so
- * the DOM lib doesn't type it. Only the parts actually used are modelled. */
-type SpeechResult = ArrayLike<{ transcript: string }> & { isFinal: boolean };
-type SpeechResultEvent = { resultIndex: number; results: ArrayLike<SpeechResult> };
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechResultEvent) => void) | null;
-  onerror: ((event: { error?: string }) => void) | null;
-  onend: (() => void) | null;
-};
-
-const VOICE_NOTICE_KEY = "ml-voice-notice-ack";
-
-function speechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
-  if (typeof window === "undefined") return null;
-  const scope = window as unknown as {
-    SpeechRecognition?: new () => SpeechRecognitionLike;
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-  };
-  return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null;
-}
+import { useComposerDictation } from "./use-composer-dictation";
 
 export function Composer({
   onSend,
@@ -75,96 +49,26 @@ export function Composer({
   const offline = connectionStatus !== "open";
   const blocked = disabled || offline;
 
-  const [draft, setDraft] = useState("");
-  const [listening, setListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const [showVoiceNotice, setShowVoiceNotice] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-
-  // Detection has to wait for the client — on the server there is no window,
-  // and rendering the button during SSR then removing it would flicker.
-  useEffect(() => setVoiceSupported(speechRecognitionCtor() !== null), []);
-
-  const stopDictation = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setListening(false);
-  }, []);
-
-  useEffect(() => () => recognitionRef.current?.stop(), []);
-
-  const startDictation = useCallback(() => {
-    const Recognition = speechRecognitionCtor();
-    if (!Recognition) return;
-    setVoiceError(null);
-
-    const recognition = new Recognition();
-    recognition.continuous = true;
-    // Interim results would rewrite the textarea under the user mid-sentence.
-    recognition.interimResults = false;
-    recognition.lang = navigator.language || "en-US";
-
-    recognition.onresult = (event) => {
-      let settled = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        if (result.isFinal) settled += result[0].transcript;
-      }
-      if (!settled.trim()) return;
-      setDraft((current) => {
-        const next = current.trim()
-          ? `${current.trimEnd()} ${settled.trim()}`
-          : settled.trim();
-        onTypingChange?.(next.length > 0);
-        return next;
-      });
-    };
-
-    recognition.onerror = (event) => {
-      setVoiceError(
-        event.error === "not-allowed"
-          ? "Microphone access was blocked. Allow it in your browser to dictate."
-          : "Dictation stopped unexpectedly — keep typing, nothing was lost.",
-      );
-      stopDictation();
-    };
-
-    recognition.onend = () => {
-      recognitionRef.current = null;
-      setListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
-  }, [onTypingChange, stopDictation]);
-
-  const handleMicClick = () => {
-    if (listening) {
-      stopDictation();
-      return;
-    }
-    if (window.localStorage.getItem(VOICE_NOTICE_KEY) !== "1") {
-      setShowVoiceNotice(true);
-      return;
-    }
-    startDictation();
-  };
-
-  const acceptVoiceNotice = () => {
-    window.localStorage.setItem(VOICE_NOTICE_KEY, "1");
-    setShowVoiceNotice(false);
-    startDictation();
-  };
+  const {
+    draft,
+    setDraft,
+    listening,
+    voiceSupported,
+    showVoiceNotice,
+    setShowVoiceNotice,
+    voiceError,
+    handleMicClick,
+    acceptVoiceNotice,
+    stopDictation,
+  } = useComposerDictation(onTypingChange);
 
   const placeholder = preview
-    ? "Preview mode — start the backend to talk to Mindlens"
+    ? "Preview mode â€” start the backend to talk to MindLens"
     : offline
-      ? "Reconnecting to Mindlens…"
+      ? "Reconnecting to MindLensâ€¦"
       : listening
-        ? "Listening…"
-        : "Say it however it comes out…";
+        ? "Listeningâ€¦"
+        : "Say it however it comes outâ€¦";
 
   const handleSubmit = (message: PromptInputMessage) => {
     const text = (message.text ?? draft).trim();
@@ -187,7 +91,7 @@ export function Composer({
             }}
           >
             <p className="m-0 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-ink)" }}>
-              Dictation is done by your browser, not by Mindlens — which means
+              Dictation is done by your browser, not by MindLens â€” which means
               your voice is sent to your browser&rsquo;s speech provider
               (Google, in Chrome) to be turned into text. The words that come
               back are treated like anything else you type. If a thought is one
@@ -245,11 +149,11 @@ export function Composer({
             * `has-[>[data-align=block-end]]:flex-col` selector. Without this
             * attribute the textarea and this toolbar sit side by side in one
             * squashed row instead of stacking, which is exactly how it
-            * rendered before. `w-full` is needed for the same reason — the
+            * rendered before. `w-full` is needed for the same reason â€” the
             * parent's `items-center` centres (not stretches) children once
             * it's a column. */}
           <div data-align="block-end" className="flex w-full items-center gap-2 px-3 pb-3 pt-2">
-            {/* Rendered only where the API exists — a browser without it gets
+            {/* Rendered only where the API exists â€” a browser without it gets
               * no button rather than a dead one. */}
             {voiceSupported && (
               <ComposerIconButton
@@ -288,7 +192,7 @@ export function Composer({
         )}
 
         {/* Typing is never blocked (see PromptInputTextarea above), only
-          * sending is — so the reason has to live here, next to the greyed
+          * sending is â€” so the reason has to live here, next to the greyed
           * send button, not in the placeholder alone. */}
         {blocked && (
           <p
@@ -296,21 +200,21 @@ export function Composer({
             style={{ color: "var(--ml-faint)" }}
           >
             {preview
-              ? "Preview mode has no backend — nothing you type here can send."
-              : "Not connected — keep typing, it'll send once Mindlens is back."}
+              ? "Preview mode has no backend â€” nothing you type here can send."
+              : "Not connected â€” keep typing, it'll send once MindLens is back."}
           </p>
         )}
 
-        {/* §4.1 requires this to be always present, never behind a
-          * disclosure. Its home is now the sidebar — but below 780px the
+        {/* Â§4.1 requires this to be always present, never behind a
+          * disclosure. Its home is now the sidebar â€” but below 780px the
           * sidebar is a drawer behind a hamburger, so at those widths it
-          * would be exactly the disclosure §4.1 forbids. Hence this copy,
+          * would be exactly the disclosure Â§4.1 forbids. Hence this copy,
           * shown only where the sidebar isn't. */}
         <p
           className="mt-3 text-center text-[11px] leading-[1.6] min-[780px]:hidden"
           style={{ color: "var(--ml-faint)" }}
         >
-          Mindlens is a wellbeing companion — not emergency or medical care.{" "}
+          MindLens is a wellbeing companion â€” not emergency or medical care.{" "}
           <a
             href="https://findahelpline.com"
             target="_blank"

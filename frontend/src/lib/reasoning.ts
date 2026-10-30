@@ -1,18 +1,19 @@
 /**
- * The reasoning trail — design.md §4.1.
+ * The reasoning trail â€” design.md Â§4.1.
  *
  * Four steps, first person, with a coloured dot rail: Safety first / What I'm
  * reading / What I remember / So I'll try this. The therapy approach is named
- * here and *only* here — §4.1 forbids it in the conversation header.
+ * here and *only* here â€” Â§4.1 forbids it in the conversation header.
  *
  * Every line below is derived from a field the backend actually sends. Where
  * a capability isn't wired up yet, the step says so plainly rather than
- * implying work that didn't happen — a wellbeing product that narrates
+ * implying work that didn't happen â€” a wellbeing product that narrates
  * reasoning it didn't do is worse than one that stays quiet.
  */
 
 import { EMOTION_STATES, stateForLabel, type EmotionReading } from "./emotion";
 import type { EosSnapshot, SafetyVerdict, TurnTelemetry } from "./types";
+import { AGENT_PHRASES, humaniseAgents } from "./reasoning-agents";
 
 export type ReasoningStepId = "safety" | "reading" | "memory" | "approach";
 
@@ -29,7 +30,7 @@ export interface ReasoningStep {
  *
  * These are the fourteen agents orchestrator._init_registry actually
  * registers. The previous table had six entries for things that are not
- * agents and never run — cbt, dbt, act, mi, narrative, planning — while
+ * agents and never run â€” cbt, dbt, act, mi, narrative, planning â€” while
  * silently dropping seven that do, because humaniseAgents filtered out
  * anything it had no phrase for. The trail therefore under-reported real
  * work and implied modality-specific agents the codebase doesn't contain.
@@ -38,42 +39,6 @@ export interface ReasoningStep {
  * user would recognise as part of the reply, so they are excluded from the
  * sentence rather than described. Anything absent from this map is reported
  * by name instead of dropped. */
-const AGENT_PHRASES: Record<string, string | null> = {
-  empathy: "sit with it first",
-  mindfulness: "slow the moment down",
-  crisis: "put your safety before the conversation",
-  reflection: "say back what I'm hearing",
-  challenge: "question the thought gently",
-  distortion: "check the shape of the thinking",
-  routine: "look for one small next step",
-  journaling: "offer something to write about",
-  checkin: "come back to what you said last time",
-  progress: "look at how this compares to before",
-  // Bookkeeping. They run every turn and describing them would be noise.
-  personality: null,
-  checkin_scheduler: null,
-  session_memory_save: null,
-};
-
-function humaniseAgents(agents: readonly string[]): string | null {
-  const phrases: string[] = [];
-  for (const raw of agents) {
-    const name = raw.replace(/_agent$/, "");
-    if (!(name in AGENT_PHRASES)) {
-      // Unknown to this table but it really ran — name it rather than hide
-      // it. Under-reporting is still misreporting.
-      phrases.push(`run ${name}`);
-      continue;
-    }
-    const phrase = AGENT_PHRASES[name];
-    if (phrase) phrases.push(phrase);
-  }
-  if (phrases.length === 0) return null;
-  if (phrases.length === 1) return phrases[0];
-  if (phrases.length === 2) return `${phrases[0]}, then ${phrases[1]}`;
-  return `${phrases.slice(0, -1).join(", ")}, then ${phrases[phrases.length - 1]}`;
-}
-
 export interface ReasoningInput {
   eos: EosSnapshot | null | undefined;
   reading: EmotionReading;
@@ -94,7 +59,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   const distress = typeof eos?.distress_level === "number" ? eos.distress_level : null;
 
   // --- 1. Safety gate ----------------------------------------------------
-  // Labels come from the approved mockup's trail (Mindlens Chat.dc.html):
+  // Labels come from the approved mockup's trail (MindLens Chat.dc.html):
   // Safety gate / Emotion read / Memory / Approach.
   //
   // The gate is two layers: a keyword regex that always runs, and a crisis
@@ -109,7 +74,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
         id: "safety",
         label: "Safety gate",
         text: layer
-          ? `This needs to come before everything else — the ${layer === "regex" ? "keyword" : "crisis"} layer flagged it. Everything pauses except your safety.`
+          ? `This needs to come before everything else â€” the ${layer === "regex" ? "keyword" : "crisis"} layer flagged it. Everything pauses except your safety.`
           : "This needs to come before everything else. Everything pauses except your safety.",
         tone: "alert",
       }
@@ -117,7 +82,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
       ? {
           id: "safety",
           label: "Safety gate",
-          text: "Screened by the keyword gate only — the second-layer crisis model isn't responding right now. If anything here is urgent, please reach a human.",
+          text: "Screened by the keyword gate only â€” the second-layer crisis model isn't responding right now. If anything here is urgent, please reach a human.",
           tone: "alert",
         }
       : {
@@ -126,7 +91,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
           text:
             distress !== null && distress >= 0.65
               ? `Both layers clear, though distress is running high at ${distress.toFixed(2)}, so I'm staying close to it.`
-              : "Both layers clear — no crisis signals. The door stays open, quietly.",
+              : "Both layers clear â€” no crisis signals. The door stays open, quietly.",
           tone: "normal",
         };
 
@@ -137,7 +102,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   const readingParts: string[] = [];
 
   if (reading.resting) {
-    readingParts.push("I haven't got a read on you yet — this is the first thing you've said.");
+    readingParts.push("I haven't got a read on you yet â€” this is the first thing you've said.");
   } else {
     readingParts.push(
       reading.confidence !== null
@@ -150,7 +115,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
       );
     }
     if (reading.blend) {
-      readingParts.push(`Both at once — that's ${reading.blend.name.toLowerCase()}.`);
+      readingParts.push(`Both at once â€” that's ${reading.blend.name.toLowerCase()}.`);
     }
     if (eos?.suppressed_emotion) {
       readingParts.push(`There may be some ${eos.suppressed_emotion} you're holding back.`);
@@ -161,7 +126,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
       // examples), and a flat "the thinking has X shape to it" states a
       // near-chance argmax as a finding about the person reading it.
       readingParts.push(
-        `This might have a ${eos.distortion_label.replace(/_/g, " ")} shape to it — that read is the least reliable thing here.`,
+        `This might have a ${eos.distortion_label.replace(/_/g, " ")} shape to it â€” that read is the least reliable thing here.`,
       );
     }
   }
@@ -176,25 +141,25 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   // --- 3. What I remember -----------------------------------------------
   // memory_recalled is a real lookup (backend/app/core/memory_recall.py):
   // empty means nothing on file was relevant to *this* turn, not that
-  // recall is unimplemented — most turns won't match anything, and that's
+  // recall is unimplemented â€” most turns won't match anything, and that's
   // meant to read as normal, not as a gap.
   const memory: ReasoningStep =
     memoryRecalled.length > 0
       ? {
           id: "memory",
           label: "Memory",
-          text: memoryRecalled.join(" · "),
+          text: memoryRecalled.join(" Â· "),
           tone: "normal",
         }
       : {
           id: "memory",
           label: "Memory",
-          text: "Nothing from before applies here — just working from this conversation.",
+          text: "Nothing from before applies here â€” just working from this conversation.",
           tone: "muted",
         };
 
   // --- 4. So I'll try this ----------------------------------------------
-  // §4.1: the approach is named here and nowhere else in the UI.
+  // Â§4.1: the approach is named here and nowhere else in the UI.
   //
   // Modality comes from telemetry, not from eos. Every turn carries a
   // modality field (CBT unless distress > 0.7) whether or not anything
@@ -233,7 +198,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
 
   // Three genuinely different failures, reported as three different things.
   // They used to share one bucket, so a cross-encoder fallback rendered as
-  // "the language model fell back this turn" — which was simply untrue about
+  // "the language model fell back this turn" â€” which was simply untrue about
   // which component had broken.
   const modelDegraded = degraded.filter((d) => d.startsWith("model:"));
   const ragDegraded = degraded.filter((d) => d.startsWith("rag:"));
@@ -242,7 +207,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   );
   if (llmDegraded.length > 0) {
     approachParts.push(
-      `Heads up — the language model fell back this turn (${llmDegraded.join(", ")}), so this reply is more generic than usual.`,
+      `Heads up â€” the language model fell back this turn (${llmDegraded.join(", ")}), so this reply is more generic than usual.`,
     );
   }
   if (ragDegraded.length > 0) {
@@ -253,7 +218,7 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
   const otherModelsDown = modelDegraded.filter((d) => d !== "model:crisis");
   if (otherModelsDown.length > 0) {
     approachParts.push(
-      `One of the reads behind this reply didn't come back (${otherModelsDown.join(", ")}) — the rest of the pipeline still ran normally.`,
+      `One of the reads behind this reply didn't come back (${otherModelsDown.join(", ")}) â€” the rest of the pipeline still ran normally.`,
     );
   }
 
@@ -271,21 +236,21 @@ export function buildReasoningTrail(input: ReasoningInput): ReasoningStep[] {
 }
 
 /**
- * One short human clause for the collapsed trigger — the ai-elements
- * <Reasoning> primitive already renders this as "Thought for Ns · {clause}",
+ * One short human clause for the collapsed trigger â€” the ai-elements
+ * <Reasoning> primitive already renders this as "Thought for Ns Â· {clause}",
  * matching how Claude's own UI shows a tool-call summary: what happened,
  * not a stats readout.
  *
- * This used to return a pipe-joined line — "safety clear · 2 agents · 5
- * passages · CBT" — styled in small-caps mono. Correct facts, wrong shape:
+ * This used to return a pipe-joined line â€” "safety clear Â· 2 agents Â· 5
+ * passages Â· CBT" â€” styled in small-caps mono. Correct facts, wrong shape:
  * it read as a system status bar sitting permanently above every reply,
  * not as part of a conversation. This picks the single most notable real
  * thing that happened and says it in one clause, the way a person would
  * mention it in passing. Full detail is still one click away in the
- * expanded steps — this line is a hint, not the whole report.
+ * expanded steps â€” this line is a hint, not the whole report.
  *
  * Returns null when nothing is worth a clause (a plain, undegraded, opening
- * turn) — "Thought for 2 seconds" on its own is honest and enough.
+ * turn) â€” "Thought for 2 seconds" on its own is honest and enough.
  */
 export function summariseTrail(input: ReasoningInput): string | null {
   const { agents, crisis, degraded, telemetry, memoryRecalled } = input;

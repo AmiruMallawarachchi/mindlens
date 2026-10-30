@@ -1,8 +1,8 @@
 /**
- * The companion cast — design project "Mindlens: Emotional AI Companion",
+ * The companion cast — design project "MindLens: Emotional AI Companion",
  * file "Companion Expressions": "The five companions — LOCKED. No new
  * characters. No renames. [...] Eyes only." Ember is the default; the other
- * four are alternate companions a user can pick in Your Mindlens, then
+ * four are alternate companions a user can pick in Your MindLens, then
  * rename to whatever they like.
  *
  * Every companion's colour is bound to --e1/--e2/--e3 from the active

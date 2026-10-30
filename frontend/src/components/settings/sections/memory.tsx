@@ -35,7 +35,7 @@ export function MemorySection() {
 
       <SettingsGroup title="Memory depth">
         <Row
-          label="How much Mindlens draws on"
+          label="How much MindLens draws on"
           description="Changes what this turn's reply is allowed to recall — not what's kept below, which you can always see and edit."
           stacked
           control={
@@ -86,7 +86,7 @@ export function MemorySection() {
 
       <SettingsGroup title="What's kept">
         <p className="mb-6 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-          Everything Mindlens has kept about you, and the controls to change or
+          Everything MindLens has kept about you, and the controls to change or
           remove any of it.
         </p>
         <MemoryPage />

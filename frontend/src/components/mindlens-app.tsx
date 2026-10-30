@@ -64,9 +64,9 @@ export function MindLensApp() {
 
   // Every view now shares one real shell — chat brings its own three-column
   // layout (sidebar + conversation + inspector); Progress/Journal/Memory/
-  // Your Mindlens share PageShell (sidebar + full-width main, no inspector),
+  // Your MindLens share PageShell (sidebar + full-width main, no inspector),
   // matching design.md §4.2. The legacy atmosphere shell, mood-swatch topbar
-  // and modal SettingsDialog are gone — Your Mindlens is a real page now.
+  // and modal SettingsDialog are gone — Your MindLens is a real page now.
   // "settings" is no longer a destination — it opens the modal over whatever
   // you were doing, the way Claude's does, so you never lose your place.
   const navigate = (next: View) => {
@@ -93,7 +93,7 @@ export function MindLensApp() {
   const titles: Record<Exclude<View, "chat" | "settings">, { eyebrow: string; title: string }> = {
     progress: { eyebrow: "Your rhythm, not a score", title: "How things have been landing" },
     journal: { eyebrow: "Private reflection", title: "Make space for the thought underneath" },
-    memory: { eyebrow: "Transparent personalization", title: "You decide what Mindlens remembers" },
+    memory: { eyebrow: "Transparent personalization", title: "You decide what MindLens remembers" },
   };
   const { eyebrow, title } = titles[view as Exclude<View, "chat" | "settings">];
 

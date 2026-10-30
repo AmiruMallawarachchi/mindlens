@@ -1,5 +1,5 @@
 /**
- * The Mindlens brand mark — your actual logo (frontend/public/mindlens-logo.png),
+ * The MindLens brand mark — your actual logo (frontend/public/mindlens-logo.png),
  * not a code-drawn reinterpretation. An earlier build invented a "living dot"
  * wordmark from an older text-only design doc before the real logo file was
  * available; that's gone now that we have the real asset.
@@ -24,7 +24,7 @@ export function MindlensMark({
     // eslint-disable-next-line @next/next/no-img-element -- small fixed icon, next/image adds no benefit here
     <img
       src="/mindlens-logo.png"
-      alt="Mindlens"
+      alt="MindLens"
       width={Math.round(size * LOGO_ASPECT)}
       height={size}
       className={cn("shrink-0 select-none", className)}
@@ -52,7 +52,7 @@ export function Wordmark({
         className="font-semibold leading-none"
         style={{ fontSize: size * 0.72, letterSpacing: "-0.02em", color: "var(--ml-ink)" }}
       >
-        Mindlens
+        MindLens
       </span>
     </span>
   );

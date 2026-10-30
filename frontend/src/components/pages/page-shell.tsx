@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared shell for Progress / Journal / Memory / Your Mindlens — design.md
+ * Shared shell for Progress / Journal / Memory / Your MindLens — design.md
  * §4.2: "Same shell (sidebar + full-width main, no inspector)". Reuses the
  * chat screen's sidebar and emotion field so navigating between pages never
  * feels like a different app.

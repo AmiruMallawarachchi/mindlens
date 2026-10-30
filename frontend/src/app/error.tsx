@@ -17,7 +17,7 @@ export default function Error({
     >
       <div>
         <p className="ml-eyebrow mb-3">Something went wrong</p>
-        <h1 className="ml-display mb-6 text-[28px]">Mindlens hit a snag.</h1>
+        <h1 className="ml-display mb-6 text-[28px]">MindLens hit a snag.</h1>
         <button
           type="button"
           onClick={reset}

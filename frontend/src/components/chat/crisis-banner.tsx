@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Crisis panel — ported from the approved mockup (Mindlens Chat.dc.html,
+ * Crisis panel — ported from the approved mockup (MindLens Chat.dc.html,
  * "Crisis panel"): warm-bordered panel on the standard surface, "Let's pause
  * here" eyebrow, Newsreader lede, contact rows with mono numbers, and the
  * template-only disclosure line.
@@ -66,7 +66,7 @@ export function CrisisPanel({
       )}
 
       <p className="m-0 text-[11.5px]" style={{ color: "var(--ml-faint)" }}>
-        This message was written by people, not generated. Mindlens makes no
+        This message was written by people, not generated. MindLens makes no
         model calls during a crisis.
       </p>
 

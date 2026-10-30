@@ -1,0 +1,301 @@
+=== Backend: python -m pytest backend/tests -q --disable-warnings ===
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.1.0, pluggy-1.6.0
+rootdir: D:\AI Projects\mindlens
+configfile: pyproject.toml
+plugins: anyio-4.14.0, langsmith-0.10.14, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 744 items
+
+backend\tests\integration\test_full_pipeline.py ...                      [  0%]
+backend\tests\unit\agents\test_base_agent.py ................            [  2%]
+backend\tests\unit\agents\test_challenge_agent.py .................      [  4%]
+backend\tests\unit\agents\test_checkin_agent.py ...                      [  5%]
+backend\tests\unit\agents\test_checkin_scheduler.py .....                [  5%]
+backend\tests\unit\agents\test_crisis_agent.py .......                   [  6%]
+backend\tests\unit\agents\test_distortion_agent.py ....                  [  7%]
+backend\tests\unit\agents\test_empathy_agent.py ......................   [ 10%]
+backend\tests\unit\agents\test_groq_client.py ...............            [ 12%]
+backend\tests\unit\agents\test_groq_degradation.py .....                 [ 13%]
+backend\tests\unit\agents\test_hosted_graph.py .....                     [ 13%]
+backend\tests\unit\agents\test_journaling_agent.py ...                   [ 14%]
+backend\tests\unit\agents\test_mindfulness_agent.py .....                [ 14%]
+backend\tests\unit\agents\test_orchestrator.py ......................... [ 18%]
+......................................                                   [ 23%]
+backend\tests\unit\agents\test_personality_agent.py ................     [ 25%]
+backend\tests\unit\agents\test_progress_agent.py ...                     [ 25%]
+backend\tests\unit\agents\test_question_options.py ..................    [ 28%]
+backend\tests\unit\agents\test_reflection_agent.py ............          [ 29%]
+backend\tests\unit\agents\test_response_assembler.py ...............     [ 31%]
+backend\tests\unit\agents\test_response_validator.py .................   [ 34%]
+backend\tests\unit\agents\test_routine_agent.py .......                  [ 35%]
+backend\tests\unit\agents\test_safety_gate.py .........                  [ 36%]
+backend\tests\unit\agents\test_safety_gate_redteam.py .................. [ 38%]
+...................................                                      [ 43%]
+backend\tests\unit\agents\test_session_memory_save.py .................. [ 45%]
+................                                                         [ 47%]
+backend\tests\unit\agents\test_streaming.py ...............              [ 50%]
+backend\tests\unit\core\test_anonymizer.py .........                     [ 51%]
+backend\tests\unit\core\test_connection_manager.py ..................    [ 53%]
+backend\tests\unit\core\test_emotion_labels.py .........                 [ 54%]
+backend\tests\unit\core\test_emotional_os.py ........................... [ 58%]
+                                                                         [ 58%]
+backend\tests\unit\core\test_memory_recall.py .....................      [ 61%]
+backend\tests\unit\memory\test_session.py ................               [ 63%]
+backend\tests\unit\middleware\test_auth.py ............................. [ 67%]
+....                                                                     [ 67%]
+backend\tests\unit\models\test_loader.py .....................           [ 70%]
+backend\tests\unit\rag\test_ingest.py ..........                         [ 72%]
+backend\tests\unit\rag\test_retriever.py ...................             [ 74%]
+backend\tests\unit\rag\test_vector_store.py EEEEEEEEEEEE.                [ 76%]
+backend\tests\unit\routers\test_account.py ........................      [ 79%]
+backend\tests\unit\routers\test_auth.py ..........................       [ 83%]
+backend\tests\unit\routers\test_chat.py ................................ [ 87%]
+...                                                                      [ 87%]
+backend\tests\unit\routers\test_dashboard.py .......                     [ 88%]
+backend\tests\unit\routers\test_journal.py ...........                   [ 90%]
+backend\tests\unit\routers\test_memory.py ............                   [ 91%]
+backend\tests\unit\routers\test_onboarding.py ........                   [ 92%]
+backend\tests\unit\routers\test_session.py .......................       [ 95%]
+backend\tests\unit\routers\test_system.py .F..F                          [ 96%]
+backend\tests\unit\test_config.py F....FF.                               [ 97%]
+backend\tests\unit\test_import_smoke.py .                                [ 97%]
+backend\tests\unit\test_main.py .....F..FFFF.                            [ 99%]
+backend\tests\unit\utils\test_logger.py ...                              [100%]
+
+=================================== ERRORS ====================================
+__ ERROR at setup of TestTherapyVectorStore.test_connect_initializes_client ___
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_________ ERROR at setup of TestTherapyVectorStore.test_add_documents _________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_______ ERROR at setup of TestTherapyVectorStore.test_delete_documents ________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_____________ ERROR at setup of TestTherapyVectorStore.test_query _____________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_____________ ERROR at setup of TestTherapyVectorStore.test_count _____________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_____________ ERROR at setup of TestTherapyVectorStore.test_peek ______________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+__________ ERROR at setup of TestTherapyVectorStore.test_mmr_rerank ___________
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_ ERROR at setup of TestTherapyVectorStore.test_mmr_rerank_with_numpy_embeddings _
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_ ERROR at setup of TestTherapyVectorStore.test_mmr_rerank_empty_embeddings_returns_results_unchanged _
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_____ ERROR at setup of TestTherapyVectorStore.test_cosine_sim_identical ______
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+_____ ERROR at setup of TestTherapyVectorStore.test_cosine_sim_orthogonal _____
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+____ ERROR at setup of TestTherapyVectorStore.test_cosine_sim_zero_vector _____
+backend\tests\unit\rag\test_vector_store.py:28: in store
+    store.connect()
+backend\app\rag\vector_store.py:68: in connect
+    raise RuntimeError("Local ChromaDB was removed in MindLens V2; use Pinecone")
+E   RuntimeError: Local ChromaDB was removed in MindLens V2; use Pinecone
+================================== FAILURES ===================================
+______________ TestSystemStatus.test_returns_operational_status _______________
+backend\tests\unit\routers\test_system.py:75: in test_returns_operational_status
+    assert "models" in body
+E   AssertionError: assert 'models' in {'status': 'ok', 'environment': 'development', 'release': 'local', 'database': 'connected', ...}
+_____________ TestModelStatus.test_returns_model_registry_health ______________
+backend\tests\unit\routers\test_system.py:107: in test_returns_model_registry_health
+    models = response.json()["models"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'models'
+______ test_production_configuration_derives_cross_site_cookie_security _______
+backend\tests\unit\test_config.py:27: in test_production_configuration_derives_cross_site_cookie_security
+    configured = _production_settings()
+                 ^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\unit\test_config.py:23: in _production_settings
+    return Settings(_env_file=None, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\main.py:247: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E     Value error, PINECONE_API_KEY and PINECONE_INDEX_NAME are required in production [type=value_error, input_value={'openai_api_key': 'sk-pr...se_openai_stubs': False}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.13/v/value_error
+_______________ test_production_rejects_implicit_cors[origins0] _______________
+backend\tests\unit\test_config.py:56: in test_production_rejects_implicit_cors
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'CORS_ORIGINS'
+E     Actual message: "1 validation error for Settings\n  Value error, PINECONE_API_KEY and PINECONE_INDEX_NAME are required in production [type=value_error, input_value={'openai_api_key': 'sk-pr...se_openai_stubs': False}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+_______________ test_production_rejects_implicit_cors[origins1] _______________
+backend\tests\unit\test_config.py:56: in test_production_rejects_implicit_cors
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'CORS_ORIGINS'
+E     Actual message: "1 validation error for Settings\n  Value error, PINECONE_API_KEY and PINECONE_INDEX_NAME are required in production [type=value_error, input_value={'openai_api_key': 'sk-pr...se_openai_stubs': False}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+_______ TestReadinessCheck.test_ready_when_db_reachable_and_preload_off _______
+backend\tests\unit\test_main.py:98: in test_ready_when_db_reachable_and_preload_off
+    assert body["rag"] == {"status": "lazy"}
+E   AssertionError: assert {'status': 'n...': 'pinecone'} == {'status': 'lazy'}
+E     
+E     Differing items:
+E     {'status': 'not_configured'} != {'status': 'lazy'}
+E     Left contains 1 more item:
+E     {'provider': 'pinecone'}
+E     Use -v to get more diff
+________ TestReadinessCheck.test_waits_on_models_when_preload_enabled _________
+backend\tests\unit\test_main.py:127: in test_waits_on_models_when_preload_enabled
+    patch("app.main.model_manager.health_status") as health,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1494: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\pkgutil.py:473: in resolve_name
+    result = getattr(result, p)
+             ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'app.main' has no attribute 'model_manager'
+____ TestReadinessCheck.test_ready_when_all_preloaded_models_report_ready _____
+backend\tests\unit\test_main.py:143: in test_ready_when_all_preloaded_models_report_ready
+    patch("app.main.model_manager.health_status") as health,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1494: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\pkgutil.py:473: in resolve_name
+    result = getattr(result, p)
+             ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'app.main' has no attribute 'model_manager'
+_____ TestReadinessCheck.test_rag_empty_is_reported_and_blocks_readiness ______
+backend\tests\unit\test_main.py:162: in test_rag_empty_is_reported_and_blocks_readiness
+    patch("app.main.get_vector_store") as store,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1480: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'app.main' from 'D:\\AI Projects\\mindlens\\backend\\app\\main.py'> does not have the attribute 'get_vector_store'
+__________ TestReadinessCheck.test_rag_populated_reports_chunk_count __________
+backend\tests\unit\test_main.py:174: in test_rag_populated_reports_chunk_count
+    patch("app.main.get_vector_store") as store,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Users\M S I\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:1480: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'app.main' from 'D:\\AI Projects\\mindlens\\backend\\app\\main.py'> does not have the attribute 'get_vector_store'
+=========================== short test summary info ===========================
+FAILED backend/tests/unit/routers/test_system.py::TestSystemStatus::test_returns_operational_status
+FAILED backend/tests/unit/routers/test_system.py::TestModelStatus::test_returns_model_registry_health
+FAILED backend/tests/unit/test_config.py::test_production_configuration_derives_cross_site_cookie_security
+FAILED backend/tests/unit/test_config.py::test_production_rejects_implicit_cors[origins0]
+FAILED backend/tests/unit/test_config.py::test_production_rejects_implicit_cors[origins1]
+FAILED backend/tests/unit/test_main.py::TestReadinessCheck::test_ready_when_db_reachable_and_preload_off
+FAILED backend/tests/unit/test_main.py::TestReadinessCheck::test_waits_on_models_when_preload_enabled
+FAILED backend/tests/unit/test_main.py::TestReadinessCheck::test_ready_when_all_preloaded_models_report_ready
+FAILED backend/tests/unit/test_main.py::TestReadinessCheck::test_rag_empty_is_reported_and_blocks_readiness
+FAILED backend/tests/unit/test_main.py::TestReadinessCheck::test_rag_populated_reports_chunk_count
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_connect_initializes_client
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_add_documents
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_delete_documents
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_query
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_count
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_peek
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_mmr_rerank
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_mmr_rerank_with_numpy_embeddings
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_mmr_rerank_empty_embeddings_returns_results_unchanged
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_cosine_sim_identical
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_cosine_sim_orthogonal
+ERROR backend/tests/unit/rag/test_vector_store.py::TestTherapyVectorStore::test_cosine_sim_zero_vector
+========== 10 failed, 722 passed, 342 warnings, 12 errors in 12.63s ===========
+[exit_code=1]
+
+=== Frontend: npm run lint ===
+
+> frontend@0.1.0 lint
+> eslint
+
+
+D:\AI Projects\mindlens\frontend\src\components\ai-elements\prompt-input.tsx
+  865:34  warning  '_id' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
+[exit_code=0]
+
+=== Frontend: npx tsc --noEmit ===
+[exit_code=0]
+
+=== Frontend: npm run build ===
+
+> frontend@0.1.0 build
+> next build --turbopack
+
+▲ Next.js 16.3.0 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 190ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 19.0s
+  Running TypeScript ...
+  Finished TypeScript in 7.8s ...
+  Collecting page data using 9 workers ...
+  Generating static pages using 9 workers (0/8) ...
+  Generating static pages using 9 workers (2/8) 
+  Generating static pages using 9 workers (4/8) 
+  Generating static pages using 9 workers (6/8) 
+✓ Generating static pages using 9 workers (8/8) in 5.6s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin
+├ ○ /app
+├ ○ /companion-lab
+└ ○ /icon.png
+
+
+○  (Static)  prerendered as static content
+
+[exit_code=0]

@@ -1,10 +1,20 @@
 # MindLens — DESIGN.md
 
-**Version:** 2.0 · Warm-paper direction · July 2026
-**Status:** Design source of truth for the web client. Supersedes the dark-indigo-glass system in `frontend/src/app/tokens.css`.
+**Version:** 2.1 · Warm-paper direction · October 2026
+**Status:** Design source of truth for the web client's appearance and interaction.
 **Scope:** Everything visual and interactive in the MindLens web client — colour, type, layout, motion, component anatomy, emotion behaviour, day/night grading, accessibility, and the mapping from backend payloads to UI state.
 
-Read alongside `docs/SYSTEM.md` (architecture, models, safety rules — non-negotiable) and `docs/API.md` (payload shapes). **Where this document and SYSTEM.md disagree on behaviour, SYSTEM.md wins.** This document owns appearance only.
+> **V2 notice:** the visual system below is current, but two sections describe
+> the retired V1 runtime and should be read as history: the five local model
+> cards on the home page (§4) and any reference to `frontend/src/app/tokens.css`,
+> which now lives at `frontend/src/styles/tokens.css`. The home page describes
+> the V2 graph (safety gate, assessment, recall, retrieval, specialist,
+> review), not five models. For runtime behaviour, [ARCHITECTURE.md](ARCHITECTURE.md)
+> and [V2_HOSTED_DEPLOYMENT.md](V2_HOSTED_DEPLOYMENT.md) are authoritative.
+
+Read alongside [ARCHITECTURE.md](ARCHITECTURE.md) (the V2 runtime) and
+[API.md](API.md) (payload shapes). `docs/SYSTEM.md` is retained as a legacy V1
+reference and is not a runtime contract.
 
 ---
 

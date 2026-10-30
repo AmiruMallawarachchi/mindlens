@@ -33,13 +33,13 @@ import { Row, SettingsGroup, SettingsHeading } from "../ui";
  *    message text. The marketing page disclosed it; this screen didn't. */
 const PROMISES: string[] = [
   "Everything is scoped to your account. Every query that reads your conversations, memory, journal or moods filters by your user id.",
-  "Your conversations are saved so Mindlens can pick up where you left off. Anything it *learns* from them — people, hard topics, what's helped — appears in Memory first, where you can edit or delete it.",
+  "Your conversations are saved so MindLens can pick up where you left off. Anything it *learns* from them — people, hard topics, what's helped — appears in Memory first, where you can edit or delete it.",
   "Your 7-day sign-in token is an httpOnly cookie that page scripts can't read. The short-lived access token is kept in browser storage so the app can call the API.",
   "Sign-in records keep the device name only. Logins are also audited with a one-way, unreadable hash of your IP — enough to spot a break-in attempt, not enough to locate you — and it's erased when you delete your account.",
-  "In a crisis, Mindlens answers from human-written templates. Zero AI calls, every time.",
+  "In a crisis, MindLens answers from human-written templates. Zero AI calls, every time.",
   "Your conversations are never sold or used for advertising.",
-  "To write a reply, this turn's message goes to Groq, the model provider, with emails, phone numbers and ID numbers stripped first. Your first name and anyone you've told Mindlens about travel with it unstripped — that's what lets the reply sound like it knows you. Nowhere else.",
-  "Mindlens never trains its own models on what you write. What Groq does with the text it receives to generate a reply is covered by Groq's terms, not this app's.",
+  "To write a reply, this turn's message goes to Groq, the model provider, with emails, phone numbers and ID numbers stripped first. Your first name and anyone you've told MindLens about travel with it unstripped — that's what lets the reply sound like it knows you. Nowhere else.",
+  "MindLens never trains its own models on what you write. What Groq does with the text it receives to generate a reply is covered by Groq's terms, not this app's.",
 ];
 
 export function PrivacySection({ client }: { client: MindLensClient }) {
@@ -107,7 +107,7 @@ export function PrivacySection({ client }: { client: MindLensClient }) {
         >
           <ShieldCheck size={15} strokeWidth={1.8} className="mt-[2px] shrink-0" style={{ color: "var(--ml-muted)" }} />
           <p className="text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-            <strong style={{ color: "var(--ml-ink)" }}>What Mindlens is not:</strong>{" "}
+            <strong style={{ color: "var(--ml-ink)" }}>What MindLens is not:</strong>{" "}
             it isn&rsquo;t end-to-end encrypted. The models that read how you&rsquo;re
             feeling have to see your message to do it, so your words are
             readable on the server. That&rsquo;s the honest trade for the app

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import { Instrument_Sans, Newsreader } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 /** design.md §1.2 — max three fonts, each with one job.
@@ -25,9 +26,34 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mindlens — Think clearly. Feel fully.",
-  description:
-    "A personalised, multi-agent wellbeing companion that helps you understand patterns and take the next kind, practical step.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/mindlens-logo.png",
+        width: 580,
+        height: 546,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: ["/mindlens-logo.png"],
+  },
 };
 
 // Runs before paint, before React hydrates — sets the real grade from

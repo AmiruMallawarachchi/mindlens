@@ -3,7 +3,7 @@
 /**
  * Sidebar collapse (full 262px vs icon-only rail) — persisted the same way
  * as useGrade, so the choice survives navigation between Chat and the
- * Progress/Journal/Memory/Your Mindlens pages instead of resetting per view.
+ * Progress/Journal/Memory/Your MindLens pages instead of resetting per view.
  */
 
 import { useCallback, useEffect, useState } from "react";

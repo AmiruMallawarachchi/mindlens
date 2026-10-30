@@ -19,7 +19,9 @@ The refresh token is rotated by `POST /api/v1/auth/refresh`. Logout is handled b
 ## Main routes
 
 - `GET /health`: process liveness; does not touch dependencies.
-- `GET /ready`: MongoDB and configured model readiness.
+- `GET /ready`: readiness for MongoDB (ping), real Groq configuration, and
+  non-stub mode; Pinecone is reported as configured but deliberately not
+  pinged because retrieval is fail-soft.
 - `POST /api/v1/sessions`: create a conversation session.
 - `GET /api/v1/sessions`: list the authenticated user's sessions.
 - `GET /api/v1/sessions/{session_id}`: get one owned session.
@@ -27,9 +29,12 @@ The refresh token is rotated by `POST /api/v1/auth/refresh`. Logout is handled b
 - `GET /api/v1/onboarding/status`: onboarding state.
 - `POST /api/v1/onboarding/step/{step_number}`: save one onboarding step.
 - `GET /api/v1/memory`: get the authenticated user's memory.
+- `GET /api/v1/journal`, `POST /api/v1/journal`, and the per-entry routes:
+  create, list, read, update, and delete owned journal entries.
 - `GET /api/v1/dashboard/summary`: dashboard summary.
-- `GET /api/v1/admin/system`: admin-only dependency and model status.
-- `GET /api/v1/admin/models`: admin-only model registry status.
+- `GET /api/v1/admin/system`: admin-only dependency and hosted-service status.
+- `GET /api/v1/admin/models`: admin-only hosted-service status in the same
+  shape (the name is kept for an unchanged client contract).
 
 ## WebSocket chat
 

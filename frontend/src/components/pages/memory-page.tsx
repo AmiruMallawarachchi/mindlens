@@ -1,63 +1,24 @@
 "use client";
 
 /**
- * Memory — design.md §4.2: "You decide what Mindlens remembers". Category
+ * Memory — design.md §4.2: "You decide what MindLens remembers". Category
  * cards backed by the real memory document, each with Forget (delete) —
  * and for people, an inline Edit. Empty states are honest: a category with
  * nothing in it says so, rather than showing placeholder content.
  */
 
-import { useEffect, useState } from "react";
-import { Heart, MessageSquareWarning, ShieldCheck, Sparkles, StickyNote, Trash2, X } from "lucide-react";
-import {
-  addMemoryNote,
-  deleteMemoryEntry,
-  deleteMemoryNote,
-  fetchMemory,
-  updateMemoryPeople,
-  updateMemoryPreferences,
-} from "@/lib/api";
-import type { MemoryDoc } from "@/lib/types";
+import { Heart, MessageSquareWarning, ShieldCheck, Sparkles, StickyNote, Trash2 } from "lucide-react";
+import { MemoryCategory, ChipList } from "./memory-page-components";
+import { useMemoryPage } from "./use-memory-page";
 
 export function MemoryPage() {
-  const [memory, setMemory] = useState<MemoryDoc | null | "missing">(null);
-  const [noteDraft, setNoteDraft] = useState("");
-  const [savingNote, setSavingNote] = useState(false);
-  const [editingPerson, setEditingPerson] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState("");
-  const [editContext, setEditContext] = useState("");
-  // A "Forget" click arms that one item rather than deleting immediately —
-  // the second click within the window confirms. Proportionate friction for
-  // a single recoverable-ish item; the typed-password panel in Settings >
-  // Privacy is reserved for the one truly irreversible action (the account).
-  const [armedKey, setArmedKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    fetchMemory()
-      .then(setMemory)
-      .catch(() => setMemory("missing"));
-  };
-
-  useEffect(load, []);
-
-  /** Arms `key` on first call, runs `action` and disarms on the second
-   * (confirming) call. Surfaces a failure instead of leaving an unhandled
-   * rejection and a button stuck mid-delete. */
-  const confirmThenRun = async (key: string, action: () => Promise<unknown>) => {
-    if (armedKey !== key) {
-      setArmedKey(key);
-      return;
-    }
-    setArmedKey(null);
-    setError(null);
-    try {
-      await action();
-      load();
-    } catch {
-      setError("Couldn't forget that — try again.");
-    }
-  };
+  const {
+    memory, noteDraft, setNoteDraft, savingNote, editingPerson, setEditingPerson,
+    editRole, setEditRole, editContext, setEditContext, armedKey, setArmedKey,
+    error, people, triggerTopics, effectiveCoping, notes, forgetPerson,
+    savePersonEdit, removeListItem, addNote, forgetNote, introvertScore,
+    forgetSocialRead,
+  } = useMemoryPage();
 
   if (memory === null) {
     return <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>Loading…</p>;
@@ -72,62 +33,6 @@ export function MemoryPage() {
     );
   }
 
-  const people = Object.entries(memory.people ?? {});
-  const triggerTopics = memory.emotional_patterns?.trigger_topics ?? [];
-  const effectiveCoping = memory.emotional_patterns?.effective_coping ?? [];
-  const notes = memory.raw_notes ?? [];
-
-  const forgetPerson = (name: string) =>
-    confirmThenRun(`people:${name}`, () => deleteMemoryEntry("people", name));
-
-  const savePersonEdit = async (name: string) => {
-    const current = memory.people[name];
-    const updated = {
-      ...memory.people,
-      [name]: { role: editRole, context: editContext, sentiment: current?.sentiment ?? "positive" },
-    };
-    setError(null);
-    try {
-      await updateMemoryPeople(updated);
-      setEditingPerson(null);
-      load();
-    } catch {
-      setError("Couldn't save that — try again.");
-    }
-  };
-
-  const removeListItem = (
-    section: "trigger_topics" | "effective_coping",
-    value: string,
-  ) => confirmThenRun(`${section}:${value}`, () => deleteMemoryEntry(section, value));
-
-  const addNote = async () => {
-    const text = noteDraft.trim();
-    if (!text) return;
-    setSavingNote(true);
-    setError(null);
-    try {
-      await addMemoryNote(text);
-      setNoteDraft("");
-      load();
-    } catch {
-      setError("Couldn't save that note — try again.");
-    } finally {
-      setSavingNote(false);
-    }
-  };
-
-  const forgetNote = (noteId: string) =>
-    confirmThenRun(`notes:${noteId}`, () => deleteMemoryNote(noteId));
-
-  // Inferred from conversation, not typed by the user — unlike everything
-  // else on this page. Still has to appear here: it changes what Mindlens
-  // suggests (RoutineAgent's solo-vs-social branch), so leaving it invisible
-  // would make "anything Mindlens learns lands on this page" false for this
-  // one field. `null` clears it; a plain PATCH omitting the key would not.
-  const introvertScore = memory.preferences?.introvert_score;
-  const forgetSocialRead = () =>
-    confirmThenRun("introvert_score", () => updateMemoryPreferences({ introvert_score: null }));
 
   return (
     <div className="flex flex-col gap-9">
@@ -137,11 +42,11 @@ export function MemoryPage() {
       >
         <ShieldCheck size={16} strokeWidth={1.8} className="mt-0.5 shrink-0" style={{ color: "var(--e1)" }} />
         <p className="text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-muted)" }}>
-          Everything here is visible and editable. Anything Mindlens
+          Everything here is visible and editable. Anything MindLens
           &lsquo;learns&rsquo; about you lands on this page first, where you can
           change or delete it &mdash; your conversations themselves are kept
           separately so it can pick up where you left off. This is not a
-          diagnosis; it&rsquo;s just what you&rsquo;ve told Mindlens.
+          diagnosis; it&rsquo;s just what you&rsquo;ve told MindLens.
         </p>
       </div>
 
@@ -154,7 +59,7 @@ export function MemoryPage() {
             <p className="ml-eyebrow mb-1">Social read</p>
             <p className="text-[12.5px] leading-[1.55]" style={{ color: "var(--ml-muted)" }}>
               Picked up from conversation, not something you told it directly —
-              shapes whether Mindlens suggests solo or social activities. Reads{" "}
+              shapes whether MindLens suggests solo or social activities. Reads{" "}
               {introvertScore < 0.4 ? "more introverted" : introvertScore > 0.6 ? "more extroverted" : "balanced"} right now.
             </p>
           </div>
@@ -285,7 +190,7 @@ export function MemoryPage() {
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addNote()}
-            placeholder="Add a note Mindlens should remember…"
+            placeholder="Add a note MindLens should remember…"
             className="min-w-0 flex-1 rounded-[99px] px-4 py-2 text-[13px] outline-none"
             style={{ background: "var(--ml-panel)", border: "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
           />
@@ -300,69 +205,6 @@ export function MemoryPage() {
           </button>
         </div>
       </MemoryCategory>
-    </div>
-  );
-}
-
-function MemoryCategory({
-  title,
-  icon,
-  empty,
-  emptyText,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  empty: boolean;
-  emptyText: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <p className="ml-eyebrow mb-3 inline-flex items-center gap-1.5" style={{ color: icon ? "var(--ml-muted)" : undefined }}>
-        {icon}
-        {title}
-      </p>
-      {empty ? (
-        <p className="text-[13px]" style={{ color: "var(--ml-faint)" }}>{emptyText}</p>
-      ) : (
-        <div className="flex flex-col gap-2">{children}</div>
-      )}
-    </section>
-  );
-}
-
-function ChipList({
-  items,
-  onRemove,
-  isArmed,
-}: {
-  items: string[];
-  onRemove: (value: string) => void;
-  isArmed: (value: string) => boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item) => {
-        const armed = isArmed(item);
-        return (
-        <span
-          key={item}
-          className="inline-flex items-center gap-1.5 rounded-[99px] py-1.5 pl-3 pr-2 text-[12.5px]"
-          style={{ border: armed ? "1px solid #e08a8a" : "1px solid var(--ml-hairline-strong)", color: "var(--ml-ink)" }}
-        >
-          {item}
-          <button
-            type="button"
-            onClick={() => onRemove(item)}
-            aria-label={armed ? `Click to confirm forgetting ${item}` : `Forget ${item}`}
-            style={{ color: armed ? "#e08a8a" : "var(--ml-faint)" }}
-          >
-            {armed ? <span className="text-[10.5px] font-medium">Confirm</span> : <X size={12} strokeWidth={2} />}
-          </button>
-        </span>
-        );
-      })}
     </div>
   );
 }

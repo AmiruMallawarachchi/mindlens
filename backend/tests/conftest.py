@@ -17,60 +17,20 @@ from app.core.emotional_os import (
     EmotionalOperatingState,
     Modality,
 )
-from app.models.loader import ModelManager
 
 # ============================================================
 # ASYNC CONFIGURATION
 # ============================================================
 
-pytest_plugins = ("pytest_asyncio",)
-
-
-# ============================================================
-# AGENT CONTEXT FIXTURES
-# ============================================================
-
-
-@pytest.fixture
-def agent_context(default_eos: EmotionalOperatingState) -> Any:
-    """Standard AgentContext for agent testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=default_eos,
-        user_text="I feel anxious about my exam tomorrow.",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
-
-
-@pytest.fixture
-def crisis_agent_context(high_distress_eos: EmotionalOperatingState) -> Any:
-    """AgentContext for crisis testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=high_distress_eos,
-        user_text="I want to end my life",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
-
-
-@pytest.fixture
-def stable_agent_context(stable_eos: EmotionalOperatingState) -> Any:
-    """AgentContext for stable/trusting user testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=stable_eos,
-        user_text="I had a good day today, but I'm still worried about my project.",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
+# Fixture modules are registered as plugins rather than imported into each
+# test module: importing a fixture and then accepting a same-named parameter
+# is a redefinition to linters, and ruff's unused-import fix would delete a
+# fixture the tests still need.
+pytest_plugins = (
+    "pytest_asyncio",
+    "tests.unit.routers.chat_test_fixtures",
+    "tests.unit.routers.session_test_fixtures",
+)
 
 
 # ============================================================
@@ -122,48 +82,6 @@ def stable_eos() -> EmotionalOperatingState:
         session_depth=0.6,
         alliance_score=0.7,
     )
-
-
-# ============================================================
-# MODEL MANAGER FIXTURE
-# ============================================================
-
-
-@pytest.fixture
-def mock_model_manager() -> MagicMock:
-    """ModelManager with mocked pipelines (no GPU needed)."""
-    manager = MagicMock(spec=ModelManager)
-
-    async def mock_predict_emotion(text: str) -> list[list[dict[str, Any]]]:
-        return [[
-            {"label": "LABEL_25", "score": 0.85},
-            {"label": "LABEL_19", "score": 0.6},
-            {"label": "LABEL_17", "score": 0.1},
-        ]]
-
-    async def mock_predict_crisis(text: str) -> list[dict[str, Any]]:
-        return [{"label": "NON_CRISIS", "score": 0.12}]
-
-    async def mock_predict_mental_health(text: str) -> list[list[dict[str, Any]]]:
-        return [[
-            {"label": "LABEL_1", "score": 0.7},
-            {"label": "LABEL_0", "score": 0.3},
-        ]]
-
-    async def mock_predict_all(text: str) -> dict[str, list[Any]]:
-        return {
-            "emotion": await mock_predict_emotion(text),
-            "crisis": await mock_predict_crisis(text),
-            "mental_health": await mock_predict_mental_health(text),
-            "distortion": [],
-        }
-
-    manager.predict_emotion = mock_predict_emotion
-    manager.predict_crisis = mock_predict_crisis
-    manager.predict_mental_health = mock_predict_mental_health
-    manager.predict_all = mock_predict_all
-
-    return manager
 
 
 # ============================================================

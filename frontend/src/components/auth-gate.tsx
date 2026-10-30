@@ -189,7 +189,7 @@ export function AuthGate({
               <Loader2 size={15} className="animate-spin" />
             ) : (
               <>
-                {mode === "login" ? "Sign in" : "Start with Mindlens"}
+                {mode === "login" ? "Sign in" : "Start with MindLens"}
                 <ArrowRight size={15} />
               </>
             )}
@@ -197,7 +197,7 @@ export function AuthGate({
         </form>
 
         <p className="mt-5 text-center text-[11px] leading-[1.5]" style={{ color: "var(--ml-faint)" }}>
-          Mindlens is a wellbeing companion, not emergency or medical care.
+          MindLens is a wellbeing companion, not emergency or medical care.
         </p>
       </div>
     </div>

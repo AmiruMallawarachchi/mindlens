@@ -3,7 +3,7 @@
 /**
  * Settings — the Claude-style modal the user asked for: a left nav of
  * sections, a scrolling content pane, one close button. Replaces the old
- * "Your Mindlens" page, which had grown into a settings screen wearing a
+ * "Your MindLens" page, which had grown into a settings screen wearing a
  * page's clothes.
  *
  * Sections are registered in SECTIONS below. Only sections that are actually
