@@ -6,6 +6,7 @@ import datetime
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
 from app.agents.base_agent import AgentContext
 from app.agents.checkin_agent import CheckInAgent
 from app.core.emotional_os import EmotionalOperatingState
@@ -14,7 +15,7 @@ from app.utils.logger import get_logger
 logger = get_logger("app.routers.chat")
 
 _CHECKIN_FALLBACK_TEXT = (
-    "Hey ??? I've been thinking about our last conversation. How are things now?"
+    "Hey - I've been thinking about our last conversation. How are things now?"
 )
 
 

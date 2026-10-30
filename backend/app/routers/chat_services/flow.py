@@ -12,8 +12,9 @@ from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.middleware.auth import get_rate_limit_store
 from app.utils.logger import get_logger
+
 from .checkins import _save_pending_checkin
-from .memory import _save_extracted_memory, _save_introvert_score
+from .memory import _save_extracted_memory
 from .persistence import (
     _load_session_history,
     _save_assistant_turn,
@@ -160,7 +161,6 @@ async def run_chat_message_loop(
         # DuplicateKeyError race noted below) fell through to the outer
         # handler and silently disconnected the user over a background save.
         try:
-            await _save_introvert_score(db, user_id, result)
             await _save_extracted_memory(db, user_id, result)
         except Exception:
             logger.exception(

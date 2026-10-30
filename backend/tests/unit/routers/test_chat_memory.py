@@ -3,22 +3,14 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.agents.base_agent import AgentOutput
-from app.core.connection_manager import ConnectionManager
-from app.routers.chat import (
-    _CHECKIN_FALLBACK_TEXT,
+from app.routers.chat_services.memory import (
     _ensure_user_memory_doc,
     _save_extracted_memory,
-    _save_introvert_score,
-    _save_mood_log,
-    _save_pending_checkin,
 )
 from pymongo.errors import DuplicateKeyError
-from .chat_test_fixtures import mock_db_ws, sample_session_doc
 
 
 class TestSaveExtractedMemory:
@@ -50,8 +42,6 @@ class TestSaveExtractedMemory:
         index on user_id and crashing the turn. Ensuring the document exists
         first, then applying the conditional set with no upsert flag, is
         what makes a name that's already on file a safe no-op instead."""
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(
             db, "u1", self._result({"person_relation": "sister", "person_name": "Amaya"})
@@ -76,8 +66,6 @@ class TestSaveExtractedMemory:
         Hasanka and my mum's name is Rehana" persisted one of them and
         silently dropped the other.
         """
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(
             db,
@@ -112,8 +100,6 @@ class TestSaveExtractedMemory:
         """A dot is not legal in a Mongo field path. Writing it raises and
         would take every other person in the same turn down with it, so the
         offending name is skipped and the rest still land."""
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(
             db,
@@ -138,8 +124,6 @@ class TestSaveExtractedMemory:
 
     @pytest.mark.asyncio
     async def test_trigger_topic_and_coping_use_add_to_set(self) -> None:
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(
             db, "u1", self._result({"trigger_topic": "exams", "effective_coping": "going for a walk"})
@@ -158,16 +142,12 @@ class TestSaveExtractedMemory:
 
     @pytest.mark.asyncio
     async def test_nothing_extracted_writes_nothing(self) -> None:
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(db, "u1", self._result({}))
         db.user_memory.update_one.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_turn_without_the_agent_writes_nothing(self) -> None:
-        from app.routers.chat import _save_extracted_memory
-
         db = self._db()
         await _save_extracted_memory(
             db, "u1", {"agent_outputs": [{"agent": "empathy", "metadata": {}}]}
@@ -183,8 +163,6 @@ class TestEnsureUserMemoryDoc:
 
     @pytest.mark.asyncio
     async def test_duplicate_key_error_is_swallowed(self) -> None:
-        from app.routers.chat import _ensure_user_memory_doc
-
         db = MagicMock()
         db.user_memory = MagicMock()
         db.user_memory.update_one = AsyncMock(side_effect=DuplicateKeyError("dup"))
@@ -198,26 +176,19 @@ class TestEnsureUserMemoryDoc:
         """Exactly the scenario the race produces: our bootstrap loses the
         race and raises, but the concurrent writer already created the
         document, so the caller's next (non-upsert) write still succeeds."""
-        from app.routers.chat import _save_introvert_score
-
         db = MagicMock()
         db.user_memory = MagicMock()
         db.user_memory.update_one = AsyncMock(
-            side_effect=[DuplicateKeyError("dup"), None]
+            side_effect=[DuplicateKeyError("dup"), None, None]
         )
 
-        await _save_introvert_score(
+        await _save_extracted_memory(
             db,
             "u1",
-            {
-                "agent_outputs": [{
-                    "agent": "personality",
-                    "metadata": {"score_update": {"introvert_score": 0.4}},
-                }]
-            },
+            {"agent_outputs": [{"agent": "session_memory_save", "metadata": {"extracted": {"trigger_topic": "exams"}}}]},
         )
 
         assert db.user_memory.update_one.await_count == 2
         second_query, second_update = db.user_memory.update_one.await_args_list[1].args
         assert second_query == {"user_id": "u1"}
-        assert second_update["$set"]["preferences.introvert_score"] == 0.4
+        assert second_update["$addToSet"]["emotional_patterns.trigger_topics"] == "exams"

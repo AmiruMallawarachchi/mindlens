@@ -2,23 +2,10 @@
 
 from __future__ import annotations
 
-import datetime
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from app.agents.base_agent import AgentOutput
-from app.core.connection_manager import ConnectionManager
-from app.routers.chat import (
-    _CHECKIN_FALLBACK_TEXT,
-    _ensure_user_memory_doc,
-    _save_extracted_memory,
-    _save_introvert_score,
-    _save_mood_log,
-    _save_pending_checkin,
-)
-from pymongo.errors import DuplicateKeyError
-from .chat_test_fixtures import mock_db_ws, sample_session_doc
+from app.routers.chat_services.persistence import _save_mood_log
 
 
 class TestSaveMoodLog:

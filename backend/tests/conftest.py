@@ -22,7 +22,15 @@ from app.core.emotional_os import (
 # ASYNC CONFIGURATION
 # ============================================================
 
-pytest_plugins = ("pytest_asyncio",)
+# Fixture modules are registered as plugins rather than imported into each
+# test module: importing a fixture and then accepting a same-named parameter
+# is a redefinition to linters, and ruff's unused-import fix would delete a
+# fixture the tests still need.
+pytest_plugins = (
+    "pytest_asyncio",
+    "tests.unit.routers.chat_test_fixtures",
+    "tests.unit.routers.session_test_fixtures",
+)
 
 
 # ============================================================

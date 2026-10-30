@@ -8,17 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.agents.base_agent import AgentOutput
-from app.core.connection_manager import ConnectionManager
-from app.routers.chat import (
+from app.routers.chat_services.checkins import (
     _CHECKIN_FALLBACK_TEXT,
-    _ensure_user_memory_doc,
-    _save_extracted_memory,
-    _save_introvert_score,
-    _save_mood_log,
     _save_pending_checkin,
 )
-from pymongo.errors import DuplicateKeyError
-from .chat_test_fixtures import mock_db_ws, sample_session_doc
 
 
 class TestSavePendingCheckin:
@@ -58,7 +51,7 @@ class TestSavePendingCheckin:
             metadata={},
         )
         with patch(
-            "app.routers.chat.CheckInAgent.run",
+            "app.routers.chat_services.checkins.CheckInAgent.run",
             new=AsyncMock(return_value=generated),
         ):
             await _save_pending_checkin(
@@ -77,7 +70,7 @@ class TestSavePendingCheckin:
     ) -> None:
         mock_db_ws.pending_checkins.update_one = AsyncMock()
         with patch(
-            "app.routers.chat.CheckInAgent.run",
+            "app.routers.chat_services.checkins.CheckInAgent.run",
             new=AsyncMock(side_effect=RuntimeError("groq down")),
         ):
             await _save_pending_checkin(

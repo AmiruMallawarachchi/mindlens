@@ -30,48 +30,6 @@ async def _ensure_user_memory_doc(db: Any, user_id: str, now: datetime.datetime)
         pass
 
 
-async def _save_introvert_score(
-    db: Any,
-    user_id: str,
-    result: dict[str, Any],
-) -> None:
-    """Persist PersonalityAgent's updated social-disposition score.
-
-    This is the write that closes the personality loop. Before it existed the
-    agent computed a score into its output metadata every turn and nothing
-    read it back, so RoutineAgent's introvert/extrovert branches could never
-    fire — the classic dead control.
-
-    Uses a dotted `$set` so only this one field moves: `preferences` also
-    carries the user's typed settings (tone, modality, custom instructions),
-    and writing the whole subdocument would silently wipe them.
-
-    Bootstraps the document via `_ensure_user_memory_doc` rather than
-    combining `$set` and `$setOnInsert` in one `upsert=True` call — that
-    combined form loses the score update entirely if it races a concurrent
-    upsert for the same user and hits the unique index (see that helper's
-    docstring). Splitting the bootstrap out means this write can be a plain,
-    race-free update once the document is guaranteed to exist.
-    """
-    for output in result.get("agent_outputs", []):
-        if output.get("agent") != "personality":
-            continue
-        metadata = output.get("metadata") or {}
-        if metadata.get("skipped"):
-            return
-        score = (metadata.get("score_update") or {}).get("introvert_score")
-        if not isinstance(score, (int, float)):
-            return
-
-        now = datetime.datetime.now(datetime.UTC)
-        await _ensure_user_memory_doc(db, user_id, now)
-        await db.user_memory.update_one(
-            {"user_id": user_id},
-            {"$set": {"preferences.introvert_score": float(score), "updated_at": now}},
-        )
-        return
-
-
 async def _save_extracted_memory(
     db: Any,
     user_id: str,

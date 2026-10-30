@@ -20,38 +20,20 @@ Security:
 
 from __future__ import annotations
 
-
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.agents.checkin_agent import CheckInAgent
 from app.agents.hosted_graph import get_hosted_orchestrator
 from app.config import settings
 from app.core.connection_manager import get_connection_manager
 from app.db import document_id_filter, get_db
 from app.middleware.auth import verify_access_token
 from app.utils.logger import get_logger
-from .chat_services.checkins import (
-    _CHECKIN_FALLBACK_TEXT,
-    _generate_checkin_text,
-    _save_pending_checkin,
-    _send_pending_checkin,
-)
+
+from .chat_services.checkins import _send_pending_checkin
 from .chat_services.flow import run_chat_message_loop
-from .chat_services.memory import (
-    _ensure_user_memory_doc,
-    _save_extracted_memory,
-    _save_introvert_score,
-)
-from .chat_services.persistence import (
-    _load_session_history,
-    _save_assistant_turn,
-    _save_mood_log,
-    _save_safety_event,
-    _save_session_on_disconnect,
-    _save_user_turn,
-)
+from .chat_services.persistence import _save_session_on_disconnect
 
 logger = get_logger(__name__)
 
