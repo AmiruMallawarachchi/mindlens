@@ -11,9 +11,9 @@ deployment guide.
 ## Current state
 
 - Frontend: `https://mindlens-theta.vercel.app` serves the marketing page and
-  the application shell. Its last build was produced while the backend URL was
-  a local ngrok tunnel, and that tunnel is offline, so the deployed frontend
-  currently cannot reach an API.
+  the application shell. Its production bundle still targets the retired tunnel
+  `https://playroom-operative-ninth.ngrok-free.dev`, so the deployed chat cannot
+  reach an API.
 - Backend: **not yet deployed.** `render.yaml` defines the Docker web service,
   but no Render account has created it. `https://mindlens-api.onrender.com`
   does not answer, so that hostname is a placeholder, not a live endpoint.
