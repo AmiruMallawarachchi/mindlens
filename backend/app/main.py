@@ -127,19 +127,43 @@ def create_app() -> FastAPI:
             if client is None:
                 raise RuntimeError("Database client not initialized")
             await client.admin.command("ping")
-            model_ready = bool(settings.groq_api_key)
+            # A configured key is not enough: a deployment running with
+            # USE_OPENAI_STUBS=true would answer every turn from canned text
+            # and still look healthy. Readiness must reflect real inference.
+            model_ready = bool(settings.groq_api_key) and not settings.use_openai_stubs
+            if model_ready:
+                inference_status = "configured"
+            elif settings.use_openai_stubs:
+                inference_status = "stub_mode"
+            else:
+                inference_status = "missing_key"
             rag_status: dict[str, object] = {
                 "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
                 "provider": "pinecone",
+                # Retrieval is fail-soft: the graph answers without it, so a
+                # missing or unreachable index must not fail readiness. It is
+                # reported as configuration, not reachability, on purpose.
+                "mode": "fail_soft",
             }
             return JSONResponse(
                 status_code=200 if model_ready else 503,
                 content={
                     "ready": model_ready,
                     "database": "connected",
-                    "inference": {"provider": "groq", "status": "configured" if model_ready else "missing_key"},
+                    "inference": {
+                        "provider": "groq",
+                        "status": inference_status,
+                        "stub_mode": settings.use_openai_stubs,
+                    },
                     "rag": rag_status,
-                    "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
+                    "observability": {
+                        "provider": "langfuse",
+                        "enabled": settings.langfuse_enabled,
+                        "configured": bool(
+                            settings.langfuse_public_key
+                            and settings.langfuse_secret_key
+                        ),
+                    },
                 },
             )
         except Exception:

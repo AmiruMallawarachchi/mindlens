@@ -71,6 +71,7 @@ class TestReadinessCheck:
         """V2 readiness requires MongoDB and configured hosted inference."""
         with (
             patch("app.main.settings.groq_api_key", "test-groq-key"),
+            patch("app.main.settings.use_openai_stubs", False),
             patch("app.main.settings.pinecone_api_key", "test-pinecone-key"),
             patch("app.main.settings.pinecone_index_name", "test-index"),
         ):
@@ -79,9 +80,33 @@ class TestReadinessCheck:
         body = response.json()
         assert body["ready"] is True
         assert body["database"] == "connected"
-        assert body["inference"] == {"provider": "groq", "status": "configured"}
-        assert body["rag"] == {"provider": "pinecone", "status": "configured"}
+        assert body["inference"] == {
+            "provider": "groq",
+            "status": "configured",
+            "stub_mode": False,
+        }
+        assert body["rag"] == {
+            "provider": "pinecone",
+            "status": "configured",
+            "mode": "fail_soft",
+        }
         assert body["observability"]["provider"] == "langfuse"
+
+    async def test_not_ready_in_stub_mode(self, client: AsyncClient) -> None:
+        """A key is not enough if the deployment is still serving stubs."""
+        with (
+            patch("app.main.settings.groq_api_key", "test-groq-key"),
+            patch("app.main.settings.use_openai_stubs", True),
+        ):
+            response = await client.get("/ready")
+        assert response.status_code == 503
+        body = response.json()
+        assert body["ready"] is False
+        assert body["inference"] == {
+            "provider": "groq",
+            "status": "stub_mode",
+            "stub_mode": True,
+        }
 
     async def test_not_ready_when_db_unreachable(self, client: AsyncClient) -> None:
         with patch("app.main.get_db_client") as mock:
@@ -101,13 +126,20 @@ class TestReadinessCheck:
         assert response.json()["ready"] is False
 
     async def test_not_ready_when_groq_key_missing(self, client: AsyncClient) -> None:
-        with patch("app.main.settings.groq_api_key", ""):
+        with (
+            patch("app.main.settings.groq_api_key", ""),
+            patch("app.main.settings.use_openai_stubs", False),
+        ):
             response = await client.get("/ready")
         assert response.status_code == 503
         body = response.json()
         assert body["ready"] is False
         assert body["database"] == "connected"
-        assert body["inference"] == {"provider": "groq", "status": "missing_key"}
+        assert body["inference"] == {
+            "provider": "groq",
+            "status": "missing_key",
+            "stub_mode": False,
+        }
 
     @pytest.mark.parametrize(
         ("api_key", "index_name"),
@@ -122,6 +154,7 @@ class TestReadinessCheck:
         """Pinecone is fail-soft; /ready reports configuration, not reachability."""
         with (
             patch("app.main.settings.groq_api_key", "test-groq-key"),
+            patch("app.main.settings.use_openai_stubs", False),
             patch("app.main.settings.pinecone_api_key", api_key),
             patch("app.main.settings.pinecone_index_name", index_name),
         ):
@@ -130,7 +163,11 @@ class TestReadinessCheck:
         assert response.status_code == 200
         body = response.json()
         assert body["ready"] is True
-        assert body["rag"] == {"provider": "pinecone", "status": "not_configured"}
+        assert body["rag"] == {
+            "provider": "pinecone",
+            "status": "not_configured",
+            "mode": "fail_soft",
+        }
 
 
 class TestGlobalExceptionHandler:
