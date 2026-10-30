@@ -64,6 +64,10 @@ lives now.
 - Fourteen unreferenced frontend UI primitives.
 
 ### Security
+- Upgraded Next.js to 16.4.3 (clearing critical RCE advisories in the 16.0–16.4
+  range) and moved pymongo, PyJWT, and langgraph pins past their published
+  vulnerabilities. `pip-audit` is clean. Seven low-severity KaTeX advisories
+  remain in the math renderer with no upstream fix available.
 - PII is stripped before every model and retrieval call; safety audit events
   store a SHA-256 hash of the message rather than the message.
 - Conversation text and memories are never indexed in Pinecone.
