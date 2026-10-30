@@ -5,7 +5,75 @@ All notable changes to MindLens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-30
+
+MindLens V2: the local-model research stack is gone. Inference is Groq,
+retrieval is Pinecone, persistence is MongoDB Atlas, and orchestration is a
+seven-node LangGraph instead of a fourteen-agent registry. This release also
+finishes the V1 removal that had been left half-done, restores two features
+whose wiring had silently died, and adds the first frontend test suite.
+
+See [docs/V1_V2_REPORT.md](docs/V1_V2_REPORT.md) for the evidence behind the
+rewrite and [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md) for where everything
+lives now.
+
+### Added
+- LangGraph supervisor graph: `safety_gate → assess → memory_recall → retrieve
+  → specialist → [review] → finalize`, with at most three Groq calls per turn.
+- Deterministic crisis gate that runs before any model call and exits to a
+  reviewed resource template.
+- Hosted Pinecone retrieval with a curated corpus, ingested by
+  `scripts/ingest_pinecone.py`; retrieval failure degrades one turn rather than
+  failing it.
+- Metadata-only Langfuse tracing: node, route, branch, and degradation status,
+  with no prompts, replies, or identifiers.
+- Memory extraction as an explicit post-turn service
+  (`services/memory_extraction.py`), replacing a loop that waited for an agent
+  output V2 never emitted.
+- Check-in scheduling as an explicit post-turn service
+  (`services/checkins.py`), likewise restored.
+- Progress insights as a plain service (`services/progress.py`), no longer tied
+  to the V1 `BaseAgent` hierarchy.
+- `/ready` reports the dependencies V2 actually needs and refuses to claim
+  readiness in stub mode.
+- Frontend test harness (Vitest + Testing Library + jsdom) with tests for the
+  auth gate, chat frame reducer, WebSocket message shape, and journal creation.
+- SEO: `metadataBase`, canonical URL, Open Graph, Twitter cards, `robots.txt`,
+  `sitemap.xml`, and JSON-LD for the public page.
+- `docs/CODEBASE_MAP.md` and this release's V1/V2 comparison report.
+
+### Changed
+- Tone, personality, custom instructions, and preferred modality now reach the
+  specialist prompt. They previously saved correctly and were never read.
+- The companion lab page is development-only and returns 404 in production.
+- The user's turn is persisted before inference starts, so a failed reply never
+  costs what the user typed.
+- The chat UI carries safety, telemetry, and degradation state through the
+  frame instead of rendering a fixed "no crisis signals" line.
+- Container is a normal FastAPI image with no model weights, no Chroma, and no
+  preload step.
+
+### Removed
+- V1 agents, `BaseAgent` hierarchy, orchestrator, agent registry, local model
+  loader, and Chroma ingestion/retrieval.
+- Unused V1 configuration fields, including model ids, preload flags, and
+  OpenAI/Hugging Face credentials.
+- The 2,787-line legacy stylesheet block; every one of its 131 selectors was
+  unreferenced, and live styles moved to `styles/tokens.css` and
+  `styles/components.css`.
+- Fourteen unreferenced frontend UI primitives.
+
+### Security
+- PII is stripped before every model and retrieval call; safety audit events
+  store a SHA-256 hash of the message rather than the message.
+- Conversation text and memories are never indexed in Pinecone.
+- No secrets are committed; `.env` files stay ignored and CI keeps
+  `detect-secrets` green.
+
+## [Unreleased — V1 line, superseded]
+
+The entries below describe the local-model V1 runtime that 0.4.0 replaced.
+They are kept as history, not as a description of the current deployment.
 
 First release verified against a running system rather than a test suite —
 local MongoDB, real Groq calls, and the app driven end to end in a browser.

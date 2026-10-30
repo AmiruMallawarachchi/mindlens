@@ -10,13 +10,20 @@ deployment guide.
 
 ## Current state
 
-- Frontend: `https://mindlens-theta.vercel.app` (Vercel).
-- Backend: Render Docker web service defined by `render.yaml`.
-- The last Vercel build was produced while the backend URL was a local ngrok
-  tunnel. That tunnel is offline, so the deployed frontend must be rebuilt with
-  the Render URL before it can reach the API. `NEXT_PUBLIC_*` variables are
-  baked into the bundle at build time; changing the dashboard value alone does
-  nothing until a new build runs.
+- Frontend: `https://mindlens-theta.vercel.app` serves the marketing page and
+  the application shell. Its last build was produced while the backend URL was
+  a local ngrok tunnel, and that tunnel is offline, so the deployed frontend
+  currently cannot reach an API.
+- Backend: **not yet deployed.** `render.yaml` defines the Docker web service,
+  but no Render account has created it. `https://mindlens-api.onrender.com`
+  does not answer, so that hostname is a placeholder, not a live endpoint.
+- `NEXT_PUBLIC_*` variables are baked into the bundle at build time. Setting
+  the API URL in the Vercel dashboard changes nothing until a new build runs.
+
+To finish the deployment, follow the steps in this document in order: create the
+Render service from the blueprint, set the secrets, create and ingest the
+Pinecone index, then rebuild Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at
+the Render URL.
 
 ## Required services
 

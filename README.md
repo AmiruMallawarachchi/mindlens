@@ -77,6 +77,8 @@ frontend/src/components/chat/         Chat and pipeline UI
 scripts/create_pinecone_index.py      Idempotent index creation
 scripts/ingest_pinecone.py            Curated corpus ingestion
 docs/ARCHITECTURE.md                  Detailed technical architecture
+docs/CODEBASE_MAP.md                  Module-by-module map and request flows
+docs/V1_V2_REPORT.md                  Evidence-based V1 post-mortem
 docs/RECRUITER_DEMO.md                Offline portfolio walkthrough
 docs/V2_HOSTED_DEPLOYMENT.md          Cloud deployment and migration
 render.yaml                            Render backend blueprint
@@ -119,11 +121,24 @@ Open `http://localhost:3000`; the application lives at `/app`. Backend health en
 ## Tests and quality checks
 
 ```powershell
-python -m pytest backend/tests/unit/agents/test_hosted_graph.py -q
-cd frontend
+cd backend
+python -m pytest tests -q
+uv run --no-project ruff check app tests
+
+cd ../frontend
+npm run typecheck
 npm run lint
-npx tsc --noEmit
+npm test
+npm run build
 ```
+
+Backend tests mock every hosted service, so they run offline. Frontend tests
+cover the auth gate, the chat frame reducer, the WebSocket message shape, and
+journal creation. Neither suite needs credentials.
+
+For the engineering story — what failed in V1, why, and what replaced it — read
+[the V1 vs V2 report](docs/V1_V2_REPORT.md). For "where does this code live and
+how does a request flow", read [the codebase map](docs/CODEBASE_MAP.md).
 
 ## Deployment architecture
 
@@ -155,11 +170,21 @@ MindLens uses a small supervisor graph instead of unconstrained agent loops. Thi
 
 ## Status
 
-Implemented: LangGraph runtime, Groq inference, Pinecone adapters and ingestion, Langfuse tracing, Render/Vercel configuration, Atlas migration runbook, recruiter documentation, and V2 graph tests.
+Implemented: LangGraph runtime, Groq inference, Pinecone adapters and ingestion,
+Langfuse tracing, memory extraction, check-in scheduling, Render/Vercel
+configuration, Atlas migration runbook, recruiter documentation, V2 graph and
+router tests, and frontend component tests.
 
-Deployment state: the Vercel site is live, but its current build points at a local ngrok tunnel that is no longer running. The backend target is the Render service in `render.yaml`; after that service exists, rebuild Vercel with `NEXT_PUBLIC_API_BASE_URL` set to the Render URL. See [V2 hosted deployment](docs/V2_HOSTED_DEPLOYMENT.md) for the exact steps.
+Deployment state: the Vercel frontend is live, but its current build points at a
+local ngrok tunnel that is no longer running, and the Render backend service
+defined by `render.yaml` has not been created yet. The application therefore
+runs locally but is not reachable end to end in production. Creating the Render
+service and rebuilding Vercel with `NEXT_PUBLIC_API_BASE_URL` set to the Render
+URL are the remaining steps; see [V2 hosted deployment](docs/V2_HOSTED_DEPLOYMENT.md).
 
-Environment-specific: entering provider credentials, creating the Render service, migrating private MongoDB data, and creating the Pinecone index and corpus.
+Environment-specific: entering provider credentials, creating the Render
+service, migrating private MongoDB data, and creating the Pinecone index and
+corpus.
 
 ## Responsible use
 

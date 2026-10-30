@@ -26,7 +26,7 @@ with deterministic safety first and a stable contract at the edge.
 | Safety | model-dependent layers after orchestration | deterministic regex gate before any model call |
 | Readiness | checked five local models | Mongo ping + real Groq configuration |
 | Deployment | local models + tunnel / oversized host | Render + Vercel + hosted services |
-| Tests | 722 passed, 10 failed, 12 errors at baseline | measured after cleanup (see report update) |
+| Tests | 722 passed, 10 failed, 12 errors at baseline | 472 backend + 9 frontend, 0 failed, 0 errors |
 
 ## Method
 
@@ -199,21 +199,63 @@ ships.
 | Largest frontend file | 1,463 lines (`ai-elements/prompt-input.tsx`) | baseline size report |
 | Legacy code removed in the first deletion batch | 2,112 lines / 19 files | `git diff --stat` |
 
-A fresh post-fix baseline is recorded in `cleanup/post-fix-baseline.md` after
-Phase 2. The report is updated with the final counts in Phase 7.
+A fresh post-fix baseline was recorded in `cleanup/post-fix-baseline.md` after
+Phase 2. The final numbers below were re-measured after the last cleanup
+commit; they supersede both the pre-cleanup numbers and the earlier post-fix
+snapshot.
 
-## What still had to change after this analysis
+## Final measured state
 
-The V1/V2 split explains the architecture, but it did not finish the cleanup.
-The remaining work is tracked in the finalization plan:
+| Metric | Before finalization | After finalization |
+|---|---:|---:|
+| Backend tests | 722 passed / 10 failed / 12 errors | **472 passed / 0 failed / 0 errors** |
+| Frontend tests | none | **9 passed** (Vitest + Testing Library) |
+| Typecheck / lint / build | lint + build only | **all four gates green** |
+| Source files over 300 lines | 43 at the pre-cleanup tag | **1** (a 303-line token sheet) |
+| Largest code file | 781 lines (`agents/orchestrator.py`) | 297 lines (`agents/hosted_graph.py`) |
+| Largest stylesheet | 2,787 lines (`globals.css`) | 303-line token sheet; 102-line base |
+| Dead V1 backend modules | 19 files already staged, more reachable only through `agents/__init__` | removed; the package is a docstring |
+| Unreferenced frontend files | 12 TSX files | removed (14 with the two newly orphaned) |
+| Unused config settings | 26 | removed |
+| Deployment runbooks | three contradictory stories | one (`V2_HOSTED_DEPLOYMENT.md`) |
 
-- fix the boot-blocking annotation in `hosted_graph_result.py`;
-- commit the pending V1 deletions and get the suite to zero failures;
-- make the deployment docs agree and make `/ready` truthful;
-- remove the dead V1 agents and the V1 `BaseAgent` hierarchy;
-- either rewire or remove the dead memory/check-in loops;
-- add frontend tests and SEO;
-- split the 2,787-line `globals.css` without deleting styles still in use.
+The suite is smaller than V1's because V1 tests asserted a removed
+architecture. Every remaining test exercises behaviour that ships; none were
+skipped or marked expected-failure to reach zero.
+
+## What changed during finalization
+
+The analysis above explains the architecture, but the cleanup itself found
+more than the original audit claimed:
+
+- a boot-blocking annotation in `hosted_graph_result.py` made every test error
+  before collection on Python 3.11;
+- three post-turn loops were dead (introvert score, memory extraction,
+  check-in scheduling); the V2 path now calls plain services explicitly;
+- tone, personality, and custom instructions were stored and recalled but never
+  reached the reply prompt; they now do;
+- the 2,787-line stylesheet was not "still in use" as an audit note claimed:
+  its 131 selectors had no caller in the V2 UI. It was deleted rather than
+  split, leaving one styling system;
+- the deployed companion-lab route 404s in production and is disallowed by
+  `robots.txt`;
+- the public site gained canonical, Open Graph, Twitter, sitemap, and
+  structured-data metadata.
+
+## Where V2 still has limits
+
+These are deliberate, documented boundaries rather than hidden gaps:
+
+- `/ready` pings Mongo and checks real Groq configuration, but reports Pinecone
+  as configured without pinging it, because retrieval is fail-soft. The reason
+  is written next to the check.
+- Free-tier Render services sleep; the first request after idle is slow. The UI
+  says so instead of presenting a failure as an emotional judgement.
+- Frontend tests cover the flows most likely to break silently (login, chat
+  frames, socket payload, journal save). They are not a visual regression
+  suite; the design system is verified by build and manual day/night review.
+- The weekly insight and check-ins are LLM-generated and cached; they are not
+  clinically validated instruments.
 
 ## Lessons worth defending in an interview
 
