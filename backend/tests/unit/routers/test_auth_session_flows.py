@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.middleware.auth import create_token_pair
-from app.routers.auth import hash_password, verify_password
+from app.routers.auth import hash_password
 from fastapi import status
 
 # --- Helper fixtures ---

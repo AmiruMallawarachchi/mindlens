@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.middleware.auth import create_token_pair
 from app.routers.auth import hash_password, verify_password
 from fastapi import status
 

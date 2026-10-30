@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.db import get_db
 from app.middleware.auth import create_token_pair
-from app.routers.account import USER_DATA_COLLECTIONS, device_label
+from app.routers.account import USER_DATA_COLLECTIONS
 from httpx import ASGITransport, AsyncClient
 
 

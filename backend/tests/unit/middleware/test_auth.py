@@ -2,26 +2,16 @@
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock, patch
 
-import jwt
 import pytest
-from app.config import settings
 from app.middleware.auth import (
-    JWTUser,
     MindLensAuthMiddleware,
     RateLimitStore,
     anonymize_request_body,
     anonymize_text,
-    create_admin_token,
-    create_token_pair,
-    verify_access_token,
-    verify_admin_token,
-    verify_refresh_token,
 )
 from fastapi import Request, Response
-from jwt.exceptions import PyJWTError as JWTError
 
 # --- Anonymizer tests ---
 

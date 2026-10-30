@@ -5,15 +5,13 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from app.middleware.auth import create_token_pair
 from fastapi import status
+
 from tests.unit.routers.session_test_fixtures import (
     _make_async_cursor,
-    sample_session_doc,
-    sample_user_doc,
-    session_client,
 )
+
 
 class TestCreateSession:
     async def test_create_session_success(self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict) -> None:

@@ -2,6 +2,8 @@
 
 from app.core.emotional_os_model import EmotionalOperatingState
 from app.core.emotional_os_types import AgeGroup, Modality, Receptiveness
+
+
 def create_calm_eos(session_id: str = "test") -> EmotionalOperatingState:
     """Create an EOS for a calm user."""
     return EmotionalOperatingState(

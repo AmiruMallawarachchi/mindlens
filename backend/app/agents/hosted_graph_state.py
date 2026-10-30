@@ -4,6 +4,8 @@ import json
 from typing import Any, TypedDict
 
 from app.core.emotional_os import EmotionalOperatingState, Modality
+
+
 class HostedGraphState(TypedDict, total=False):
     user_text: str
     user_name: str

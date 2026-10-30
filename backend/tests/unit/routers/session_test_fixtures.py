@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+
 def _make_async_cursor(docs: list[dict]) -> Any:
     """Return a mock MongoDB cursor that works with async for."""
 

@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import datetime
+
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError as JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import settings
 from app.db import get_db
-from app.middleware.auth import require_user
 from app.routers.auth_helpers import _clear_auth_cookies
 
 router = APIRouter()

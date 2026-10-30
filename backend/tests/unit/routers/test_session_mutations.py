@@ -8,11 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.middleware.auth import create_token_pair
 from fastapi import status
-from tests.unit.routers.session_test_fixtures import (
-    sample_session_doc,
-    sample_user_doc,
-    session_client,
-)
+
 
 class TestDeleteSession:
     """DELETE is a real delete now.

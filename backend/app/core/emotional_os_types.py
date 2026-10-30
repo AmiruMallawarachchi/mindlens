@@ -4,6 +4,8 @@ import enum
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+
+
 class Modality(enum.StrEnum):
     """Therapy modality in use."""
 

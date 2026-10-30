@@ -75,6 +75,12 @@ ignore = [
     "W293",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# pytest discovers fixtures by importing them into the test module, then
+# shadows that imported name with a same-named test parameter. That is the
+# documented pytest pattern, not a redefinition bug.
+"backend/tests/**" = ["F811"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

@@ -15,7 +15,6 @@ from typing import Any
 from fastapi import WebSocket
 
 from app.core.connection_messages import ConnectionMessageMethods
-
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

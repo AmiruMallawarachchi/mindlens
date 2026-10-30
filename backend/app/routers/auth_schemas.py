@@ -1,9 +1,10 @@
 ﻿"""Pydantic request and response schemas for authentication routes."""
 
 import datetime
-from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
 class UserRegister(BaseModel):
     """Request body for user registration."""
 

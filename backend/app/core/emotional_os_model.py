@@ -7,7 +7,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.core.emotional_os_types import AgeGroup, LLMTier, Modality, PeopleGraph, Receptiveness
+from app.core.emotional_os_types import AgeGroup, Modality, PeopleGraph, Receptiveness
+
+
 class EmotionalOperatingState(BaseModel):
     """
     Complete Emotional Operating System snapshot.
@@ -259,7 +261,7 @@ class EmotionalOperatingState(BaseModel):
         return self.model_dump(mode="json")
 
     @classmethod
-    def from_dict(cls, data: dict) -> "EmotionalOperatingState":
+    def from_dict(cls, data: dict) -> EmotionalOperatingState:
         return cls(**data)
 
 

@@ -28,11 +28,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import settings
 from app.db import document_id_filter, get_db
 from app.middleware.auth import create_token_pair, require_user
-from app.routers.onboarding_service import (
-    age_group as calculate_age_group,
-    build_people_graph,
-    get_onboarding_status_data,
-)
 from app.routers.onboarding_schemas import (
     OnboardingCompleteRequest,
     OnboardingCompleteResponse,
@@ -42,6 +37,13 @@ from app.routers.onboarding_schemas import (
     OnboardingStep3,
     OnboardingStep4,
     OnboardingStep5,
+)
+from app.routers.onboarding_service import (
+    age_group as calculate_age_group,
+)
+from app.routers.onboarding_service import (
+    build_people_graph,
+    get_onboarding_status_data,
 )
 from app.utils.logger import get_logger
 

@@ -15,7 +15,6 @@ All endpoints enforce user_id isolation — users can only see their own session
 from __future__ import annotations
 
 import datetime
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase

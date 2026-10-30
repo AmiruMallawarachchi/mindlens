@@ -13,7 +13,6 @@ from jwt.exceptions import PyJWTError as JWTError
 
 from app.config import settings
 
-
 # ---------------------------------------------------------------------------
 # Rate-Limit Store (in-memory)
 # ---------------------------------------------------------------------------

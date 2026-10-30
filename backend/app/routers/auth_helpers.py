@@ -8,6 +8,8 @@ import bcrypt
 from fastapi import Response
 
 from app.config import settings
+
+
 def hash_password(password: str) -> str:
     """Hash a plain password using bcrypt without silent truncation."""
     password_bytes = password.encode("utf-8")

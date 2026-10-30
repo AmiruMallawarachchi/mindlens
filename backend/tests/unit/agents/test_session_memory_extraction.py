@@ -6,6 +6,8 @@ import pytest
 from app.agents.base_agent import AgentContext
 from app.agents.session_memory_save import SessionMemorySave
 from app.core.emotional_os import EmotionalOperatingState
+
+
 class TestMemoryExtraction:
     """Regression â€” before this, `user_memory` was fully readable/editable
     but nothing ever wrote to it from an ordinary conversation: "What's been

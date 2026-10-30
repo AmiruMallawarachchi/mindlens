@@ -9,6 +9,8 @@ from app.agents.base_agent import AgentOutput
 from app.agents.streaming_response import DEFAULT_CHUNK_SIZE, StreamingResponse
 from app.core.connection_manager import get_connection_manager
 from app.core.emotional_os import EmotionalOperatingState
+
+
 async def stream_pipeline_result(
     user_id: str,
     session_id: str,

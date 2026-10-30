@@ -26,6 +26,26 @@ from app.middleware.auth_tokens import (
     verify_refresh_token,
 )
 
+# Compatibility surface: routers and tests import these auth helpers from
+# this module. Listing them here keeps that contract explicit to linters.
+__all__ = [
+    "MindLensAuthMiddleware",
+    "JWTUser",
+    "RateLimitStore",
+    "anonymize_request_body",
+    "anonymize_text",
+    "create_admin_token",
+    "create_token_pair",
+    "get_rate_limit_store",
+    "get_request_access_token",
+    "optional_user",
+    "require_admin",
+    "require_user",
+    "verify_access_token",
+    "verify_admin_token",
+    "verify_refresh_token",
+]
+
 # ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------

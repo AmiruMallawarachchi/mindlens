@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from app.core.emotional_os import EmotionalOperatingState
 from app.agents.hosted_graph_state import HostedGraphState
+from app.core.emotional_os import EmotionalOperatingState
 
 
 def result_contract(state: HostedGraphState) -> dict[str, Any]:
