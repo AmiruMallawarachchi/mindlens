@@ -20,6 +20,7 @@ from app.agents.hosted_graph_state import (
     _base_eos,
     _clean_json,
     _number,
+    _recall_signals,
     _stage,
 )
 from app.agents.response_validator import ResponseValidator
@@ -164,14 +165,13 @@ class HostedGraphOrchestrator:
 
     async def _memory_recall(self, state: HostedGraphState) -> HostedGraphState:
         state["graph_nodes"].append("memory_recall")
-        memory = state.get("memory") or {}
-        recalled: list[str] = []
-        if memory.get("preferences", {}).get("tone_preference"):
-            recalled.append("tone preference")
-        if memory.get("emotional_patterns", {}).get("trigger_topics"):
-            recalled.append("known trigger context")
+        recalled = _recall_signals(state)
         state["memory_recalled"] = recalled
-        await _stage(state, "memory", f"Recalled {len(recalled)} relevant preference(s)." if recalled else "Nothing on file matched this turn.")
+        await _stage(
+            state,
+            "memory",
+            f"Recalled {len(recalled)} memory signal(s)." if recalled else "Nothing on file matched this turn.",
+        )
         return state
 
     async def _retrieve(self, state: HostedGraphState) -> HostedGraphState:

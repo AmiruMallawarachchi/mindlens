@@ -1,4 +1,4 @@
-"""Focused tests for WebSocket chat service behavior."""
+"""Tests for persisting the facts extracted from a chat turn."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pymongo.errors import DuplicateKeyError
 
 class TestSaveExtractedMemory:
     """The write that makes the Memory page's promise true — see
-    session_memory_save.py's module docstring."""
+    services/memory_extraction.py's module docstring."""
 
     @staticmethod
     def _db():
@@ -23,14 +23,6 @@ class TestSaveExtractedMemory:
         db.user_memory = MagicMock()
         db.user_memory.update_one = AsyncMock()
         return db
-
-    @staticmethod
-    def _result(extracted: dict) -> dict:
-        return {
-            "agent_outputs": [
-                {"agent": "session_memory_save", "metadata": {"extracted": extracted}}
-            ]
-        }
 
     @pytest.mark.asyncio
     async def test_new_person_written_in_two_steps_no_upsert_on_the_conditional_call(
@@ -44,7 +36,7 @@ class TestSaveExtractedMemory:
         what makes a name that's already on file a safe no-op instead."""
         db = self._db()
         await _save_extracted_memory(
-            db, "u1", self._result({"person_relation": "sister", "person_name": "Amaya"})
+            db, "u1", {"person_relation": "sister", "person_name": "Amaya"}
         )
 
         assert db.user_memory.update_one.await_count == 2
@@ -70,14 +62,12 @@ class TestSaveExtractedMemory:
         await _save_extracted_memory(
             db,
             "u1",
-            self._result(
-                {
-                    "people": [
-                        {"name": "Hasanka", "relation": "boyfriend"},
-                        {"name": "Rehana", "relation": "mum"},
-                    ]
-                }
-            ),
+            {
+                "people": [
+                    {"name": "Hasanka", "relation": "boyfriend"},
+                    {"name": "Rehana", "relation": "mum"},
+                ]
+            },
         )
 
         # 1 ensure-doc call + one conditional set per person.
@@ -104,14 +94,12 @@ class TestSaveExtractedMemory:
         await _save_extracted_memory(
             db,
             "u1",
-            self._result(
-                {
-                    "people": [
-                        {"name": "Dr. Perera", "relation": "supervisor"},
-                        {"name": "Rehana", "relation": "mum"},
-                    ]
-                }
-            ),
+            {
+                "people": [
+                    {"name": "Dr. Perera", "relation": "supervisor"},
+                    {"name": "Rehana", "relation": "mum"},
+                ]
+            },
         )
 
         keys = [
@@ -126,7 +114,7 @@ class TestSaveExtractedMemory:
     async def test_trigger_topic_and_coping_use_add_to_set(self) -> None:
         db = self._db()
         await _save_extracted_memory(
-            db, "u1", self._result({"trigger_topic": "exams", "effective_coping": "going for a walk"})
+            db, "u1", {"trigger_topic": "exams", "effective_coping": "going for a walk"}
         )
 
         # Call 0 bootstraps the document; call 1 is the actual $addToSet,
@@ -143,16 +131,9 @@ class TestSaveExtractedMemory:
     @pytest.mark.asyncio
     async def test_nothing_extracted_writes_nothing(self) -> None:
         db = self._db()
-        await _save_extracted_memory(db, "u1", self._result({}))
+        await _save_extracted_memory(db, "u1", {})
         db.user_memory.update_one.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_turn_without_the_agent_writes_nothing(self) -> None:
-        db = self._db()
-        await _save_extracted_memory(
-            db, "u1", {"agent_outputs": [{"agent": "empathy", "metadata": {}}]}
-        )
-        db.user_memory.update_one.assert_not_awaited()
 
 class TestEnsureUserMemoryDoc:
     """persistence-review finding: a plain `upsert=True` bootstrap racing a
@@ -182,11 +163,7 @@ class TestEnsureUserMemoryDoc:
             side_effect=[DuplicateKeyError("dup"), None, None]
         )
 
-        await _save_extracted_memory(
-            db,
-            "u1",
-            {"agent_outputs": [{"agent": "session_memory_save", "metadata": {"extracted": {"trigger_topic": "exams"}}}]},
-        )
+        await _save_extracted_memory(db, "u1", {"trigger_topic": "exams"})
 
         assert db.user_memory.update_one.await_count == 2
         second_query, second_update = db.user_memory.update_one.await_args_list[1].args

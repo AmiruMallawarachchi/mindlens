@@ -106,10 +106,9 @@ class TestGetProgressInsight:
         )
         mock_db.mood_logs.find = MagicMock(return_value=cursor)
 
-        mock_output = MagicMock(text="You've been showing up consistently, Amiru.")
         with patch(
-            "app.routers.dashboard.ProgressAgent.run",
-            new=AsyncMock(return_value=mock_output),
+            "app.routers.dashboard.generate_progress_insight",
+            new=AsyncMock(return_value="You've been showing up consistently, Amiru."),
         ):
             response = await dashboard_client.get(
                 "/api/v1/dashboard/insight", headers=_auth_header()
@@ -163,10 +162,9 @@ class TestGetProgressInsight:
         cursor.to_list = AsyncMock(return_value=[])
         mock_db.mood_logs.find = MagicMock(return_value=cursor)
 
-        mock_output = MagicMock(text="A fresh insight.")
         with patch(
-            "app.routers.dashboard.ProgressAgent.run",
-            new=AsyncMock(return_value=mock_output),
+            "app.routers.dashboard.generate_progress_insight",
+            new=AsyncMock(return_value="A fresh insight."),
         ):
             response = await dashboard_client.get(
                 "/api/v1/dashboard/insight", headers=_auth_header()
@@ -192,7 +190,7 @@ class TestGetProgressInsight:
         mock_db.mood_logs.find = MagicMock(return_value=cursor)
 
         with patch(
-            "app.routers.dashboard.ProgressAgent.run",
+            "app.routers.dashboard.generate_progress_insight",
             new=AsyncMock(side_effect=RuntimeError("groq down")),
         ):
             response = await dashboard_client.get(

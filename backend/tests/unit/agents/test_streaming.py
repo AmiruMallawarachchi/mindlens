@@ -5,12 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.agents.base_agent import AgentOutput
-from app.agents.streaming import (
-    StreamingResponse,
-    stream_agent_output,
-    stream_pipeline_result,
-)
+from app.agents.streaming import StreamingResponse, stream_pipeline_result
 from app.core.connection_manager import ConnectionManager
 from app.core.emotional_os import EmotionalOperatingState
 
@@ -247,31 +242,3 @@ class TestStreamPipelineResult:
 
         args = mock_manager.send_thinking_update.call_args[1]
         assert args["memory_recalled"] == ["You've mentioned Ravi before — best friend."]
-
-
-class TestStreamAgentOutput:
-    """Tests for stream_agent_output."""
-
-    @pytest.fixture
-    def mock_manager(self) -> MagicMock:
-        manager = MagicMock(spec=ConnectionManager)
-        manager.send_thinking_update = AsyncMock(return_value=True)
-        manager.send_chunk = AsyncMock(return_value=True)
-        manager.send_response = AsyncMock(return_value=True)
-        return manager
-
-    @pytest.mark.asyncio
-    async def test_stream_agent_output(self, mock_manager: MagicMock) -> None:
-        output = AgentOutput(
-            agent_name="mindfulness_agent",
-            text="Let's take a slow breath together.",
-            metadata={"mode": "B"},
-        )
-        eos = EmotionalOperatingState(surface_emotion="anxiety")
-
-        await stream_agent_output("user_123", "sess_abc", output, eos, mock_manager)
-
-        mock_manager.send_thinking_update.assert_awaited_once()
-        mock_manager.send_response.assert_awaited_once()
-        args = mock_manager.send_response.call_args[1]
-        assert args["text"] == "Let's take a slow breath together."

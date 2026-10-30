@@ -29,9 +29,9 @@ from app.config import settings
 from app.core.connection_manager import get_connection_manager
 from app.db import document_id_filter, get_db
 from app.middleware.auth import verify_access_token
+from app.services.checkins import schedule_checkin, send_pending_checkin
 from app.utils.logger import get_logger
 
-from .chat_services.checkins import _send_pending_checkin
 from .chat_services.flow import run_chat_message_loop
 from .chat_services.persistence import _save_session_on_disconnect
 
@@ -115,7 +115,7 @@ async def websocket_chat(
     user_name = user.get("nickname", user.get("name", "friend")) if user else "friend"
 
     # Send welcome / check-in if pending
-    await _send_pending_checkin(db, user_id, conn_manager)
+    await send_pending_checkin(db, user_id, conn_manager)
 
     logger.info(
         "WebSocket chat started: user=%s session=%s",
@@ -143,6 +143,24 @@ async def websocket_chat(
         # Cleanup
         await conn_manager.disconnect(user_id)
         await _save_session_on_disconnect(db, session_id, user_id)
+        # Schedule the follow-up now that the session has actually ended —
+        # the conversation is already persisted, so this can read its last
+        # turn back instead of depending on in-memory pipeline state. Best
+        # effort: a failure to schedule must never surface to a user who has
+        # already disconnected.
+        try:
+            await schedule_checkin(
+                db,
+                session_id=session_id,
+                user_id=user_id,
+                user_name=user_name,
+            )
+        except Exception:
+            logger.exception(
+                "Check-in scheduling failed: user=%s session=%s",
+                user_id,
+                session_id,
+            )
         logger.info("WebSocket cleanup complete: user=%s", user_id)
 
 

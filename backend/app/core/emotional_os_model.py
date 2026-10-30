@@ -163,9 +163,10 @@ class EmotionalOperatingState(BaseModel):
         default="everything",
         description=(
             "Your Mindlens > Memory depth control. 'nothing' also stops "
-            "SessionMemorySave's own extraction, not just recall â€” a user "
-            "who asked MindLens not to draw on memory shouldn't have new "
-            "memory quietly building up behind the scenes either."
+            "services/memory_extraction.py from recording new facts, not just "
+            "recall — a user who asked MindLens not to draw on memory "
+            "shouldn't have new memory quietly building up behind the "
+            "scenes either."
         ),
     )
 

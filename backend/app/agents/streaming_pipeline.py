@@ -5,10 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.agents.base_agent import AgentOutput
 from app.agents.streaming_response import DEFAULT_CHUNK_SIZE, StreamingResponse
 from app.core.connection_manager import get_connection_manager
-from app.core.emotional_os import EmotionalOperatingState
 
 
 async def stream_pipeline_result(
@@ -100,33 +98,4 @@ async def stream_pipeline_result(
             safety=safety,
             options=options_payload,
         )
-
-
-async def stream_agent_output(
-    user_id: str,
-    session_id: str,
-    agent_output: AgentOutput,
-    eos: EmotionalOperatingState | dict[str, Any],
-    conn_manager=None,
-) -> None:
-    """
-    Stream a single agent's output directly (for specialized agents
-    that run outside the full orchestrator pipeline).
-    """
-    conn = conn_manager or get_connection_manager()
-    streamer = StreamingResponse(user_id, session_id, conn)
-
-    await streamer.begin_thinking(
-        agents_active=[agent_output.agent_name],
-        eos=eos,
-    )
-
-    await asyncio.sleep(0.15)
-
-    await streamer.stream_text(agent_output.text, chunk_size=DEFAULT_CHUNK_SIZE)
-    await streamer.end_stream(
-        assembled_text=agent_output.text,
-        agents_used=[agent_output.agent_name],
-        eos_snapshot=eos,
-    )
 

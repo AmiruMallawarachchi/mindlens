@@ -34,53 +34,6 @@ pytest_plugins = (
 
 
 # ============================================================
-# AGENT CONTEXT FIXTURES
-# ============================================================
-
-
-@pytest.fixture
-def agent_context(default_eos: EmotionalOperatingState) -> Any:
-    """Standard AgentContext for agent testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=default_eos,
-        user_text="I feel anxious about my exam tomorrow.",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
-
-
-@pytest.fixture
-def crisis_agent_context(high_distress_eos: EmotionalOperatingState) -> Any:
-    """AgentContext for crisis testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=high_distress_eos,
-        user_text="I want to end my life",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
-
-
-@pytest.fixture
-def stable_agent_context(stable_eos: EmotionalOperatingState) -> Any:
-    """AgentContext for stable/trusting user testing."""
-    from app.agents.base_agent import AgentContext
-
-    return AgentContext(
-        eos=stable_eos,
-        user_text="I had a good day today, but I'm still worried about my project.",
-        user_name="Amiru",
-        session_history=[],
-        rag_chunks=[],
-    )
-
-
-# ============================================================
 # CORE MODEL FIXTURES
 # ============================================================
 

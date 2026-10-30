@@ -3,7 +3,9 @@
 import json
 from typing import Any, TypedDict
 
+from app.core.anonymizer import anonymize
 from app.core.emotional_os import EmotionalOperatingState, Modality
+from app.core.memory_recall import recall_for_turn
 
 
 class HostedGraphState(TypedDict, total=False):
@@ -81,5 +83,21 @@ def _base_eos(state: HostedGraphState, assessment: dict[str, Any]) -> dict[str, 
         distortion_label=assessment.get("distortion_label"),
         distortion_score=_number(assessment.get("distortion_score"), 0.0),
     ).model_dump(mode="json")
+
+
+def _recall_signals(state: HostedGraphState) -> list[str]:
+    """Memory signals genuinely relevant to this turn.
+
+    Returns nothing when memory is empty, nothing on file matches, or the
+    user chose memory_depth="nothing" — see core/memory_recall.py.
+    """
+    eos = state.get("eos", {})
+    recall = recall_for_turn(
+        state.get("memory") or {},
+        user_text=anonymize(state["user_text"]),
+        surface_emotion=str(eos.get("surface_emotion") or "neutral"),
+        core_emotion=eos.get("core_emotion"),
+    )
+    return recall.memory_recalled
 
 

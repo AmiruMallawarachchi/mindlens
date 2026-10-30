@@ -11,9 +11,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.agents.streaming import stream_pipeline_result
 from app.config import settings
 from app.middleware.auth import get_rate_limit_store
+from app.services.memory_extraction import extract_memory
 from app.utils.logger import get_logger
 
-from .checkins import _save_pending_checkin
 from .memory import _save_extracted_memory
 from .persistence import (
     _load_session_history,
@@ -149,21 +149,35 @@ async def run_chat_message_loop(
         await _save_assistant_turn(db, session_id, user_id, result)
         await _save_mood_log(db, session_id, user_id, result)
         await _save_safety_event(db, session_id, user_id, user_text, result)
-        await _save_pending_checkin(
-            db, session_id, user_id, user_name, session_history, result
-        )
+
+        # Extract the facts this turn offered to memory (a person, a hard
+        # topic, a strategy that helped). Runs on the raw message because
+        # names are anonymised before the graph ever sees the text; the
+        # result never leaves this user's own document. Crisis turns are
+        # skipped: there is no ordinary conversation to file, and the safety
+        # event above is the record that matters.
+        #
         # Best-effort background enrichment, not this turn's content: the
         # reply is already streamed and saved above, so a failure here
-        # should cost this turn's personality/memory update, not the
-        # whole connection. Previously bare, these were the only two
-        # post-stream writes not already isolated like the pipeline and
-        # streaming calls above — an unhandled exception (including the
-        # DuplicateKeyError race noted below) fell through to the outer
-        # handler and silently disconnected the user over a background save.
-        try:
-            await _save_extracted_memory(db, user_id, result)
-        except Exception:
-            logger.exception(
-                "Background memory update failed for user %s", user_id
-            )
+        # should cost this turn's memory update, not the whole connection.
+        # Previously bare, this was the only post-stream write not already
+        # isolated like the pipeline and streaming calls above — an
+        # unhandled exception (including the DuplicateKeyError race noted in
+        # memory.py) fell through to the outer handler and silently
+        # disconnected the user over a background save.
+        if not result.get("crisis_flag"):
+            try:
+                eos = result.get("eos", {})
+                preferences = (user_memory or {}).get("preferences") or {}
+                extracted = extract_memory(
+                    user_text,
+                    distress_level=float(eos.get("distress_level") or 0.0),
+                    valence=str(eos.get("valence") or "neutral"),
+                    memory_depth=preferences.get("memory_depth") or "everything",
+                )
+                await _save_extracted_memory(db, user_id, extracted)
+            except Exception:
+                logger.exception(
+                    "Background memory update failed for user %s", user_id
+                )
 

@@ -101,3 +101,32 @@ async def test_reviewer_is_the_third_and_final_allowed_groq_call() -> None:
     assert client.chat.await_count == 3
     assert result["telemetry"]["llm"]["count"] == 3
     assert "review" in result["telemetry"]["graph"]["nodes"]
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_surfaces_a_person_the_user_mentioned() -> None:
+    """user_memory was readable and editable but no V2 turn ever read it
+    back, so the thinking panel's memory line was always empty. The graph
+    now runs core/memory_recall.recall_for_turn, which surfaces only what is
+    relevant to this message."""
+    graph = HostedGraphOrchestrator()
+    client = MagicMock()
+    client.chat = AsyncMock(
+        side_effect=[
+            MagicMock(
+                text='{"surface_emotion":"anxiety","distress_level":0.4,"route":"empathy","crisis_risk":false,"review_required":false}'
+            ),
+            MagicMock(text="It sounds like talking to Ravi helped a little."),
+        ]
+    )
+    memory = {"people": {"Ravi": {"role": "best friend"}}, "preferences": {}}
+    with patch("app.agents.hosted_graph.get_groq_client", return_value=client), patch(
+        "app.agents.hosted_graph.get_hosted_retriever"
+    ) as retriever:
+        retriever.return_value.retrieve.return_value = []
+        result = await graph.run_full_pipeline(
+            "I talked to Ravi today and I still feel anxious about work",
+            memory=memory,
+        )
+
+    assert any("Ravi" in signal for signal in result["memory_recalled"])

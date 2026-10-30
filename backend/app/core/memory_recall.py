@@ -50,7 +50,8 @@ class MemoryRecall:
     # has been inferred yet, which is different from a genuine 0.5.
     introvert_score: float | None = None
     # Your Mindlens > Memory depth (design.md §4.2). Carried through onto the
-    # EOS so SessionMemorySave can also honour "nothing" — not just recall.
+    # EOS so services/memory_extraction.py can also honour "nothing" — not
+    # just recall.
     memory_depth: str = "everything"
 
 

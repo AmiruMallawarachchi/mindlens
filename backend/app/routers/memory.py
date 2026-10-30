@@ -137,8 +137,8 @@ async def update_emotional_patterns(
 
     Dotted paths, not {"emotional_patterns": updates} — the same whole-
     subdocument bug fixed in update_preferences below. This endpoint is called
-    piecemeal (session_memory_save.py sends trigger_topics and
-    effective_coping in separate turns), so a caller sending only
+    piecemeal (services/memory_extraction.py records trigger_topics and
+    effective_coping on separate turns), so a caller sending only
     most_common_emotion would otherwise wipe whatever the other calls had
     just added.
     """

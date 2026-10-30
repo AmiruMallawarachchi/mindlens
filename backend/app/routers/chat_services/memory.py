@@ -1,4 +1,4 @@
-"""User memory preference and extraction persistence helpers."""
+"""Persistence for the facts extracted from one chat turn."""
 
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ async def _ensure_user_memory_doc(db: Any, user_id: str, now: datetime.datetime)
 async def _save_extracted_memory(
     db: Any,
     user_id: str,
-    result: dict[str, Any],
+    extracted: dict[str, Any],
 ) -> None:
-    """Persist SessionMemorySave's heuristic extraction — a person, a hard
-    topic, or a coping strategy this turn actually mentioned.
+    """Persist ``services.memory_extraction.extract_memory``'s output — a
+    person, a hard topic, or a coping strategy this turn actually mentioned.
 
     This is the write that makes the Memory page's promise true. Before it
     existed, `user_memory` was fully readable and editable but nothing
@@ -57,64 +57,57 @@ async def _save_extracted_memory(
     which is idempotent and append-only for the same reason, and go through
     the same bootstrap-then-plain-update shape to stay race-free.
     """
-    for output in result.get("agent_outputs", []):
-        if output.get("agent") != "session_memory_save":
-            continue
-        extracted = (output.get("metadata") or {}).get("extracted") or {}
-        if not extracted:
-            return
-
-        now = datetime.datetime.now(datetime.UTC)
-
-        # Every person the turn introduced, not just the first: one sentence
-        # can name two ("my boyfriend called Hasanka and my mum's name is
-        # Rehana") and dropping the rest broke the Memory page's promise for
-        # exactly the turns where the user was deliberately listing people.
-        # Falls back to the single-person keys so an older payload shape
-        # still writes.
-        people = extracted.get("people")
-        if not people and extracted.get("person_name"):
-            people = [
-                {
-                    "name": extracted["person_name"],
-                    "relation": extracted.get("person_relation", ""),
-                }
-            ]
-        if people:
-            await _ensure_user_memory_doc(db, user_id, now)
-            for person in people:
-                person_name = person.get("name")
-                # A dot or a leading $ in a key is not a legal Mongo field
-                # path; a name carrying one would make the whole update
-                # fail, taking the other people in the same turn with it.
-                if not person_name or "." in person_name or person_name.startswith("$"):
-                    continue
-                await db.user_memory.update_one(
-                    {"user_id": user_id, f"people.{person_name}": {"$exists": False}},
-                    {
-                        "$set": {
-                            f"people.{person_name}": {
-                                "role": person.get("relation", ""),
-                                "context": "",
-                                "sentiment": "neutral",
-                            },
-                            "updated_at": now,
-                        }
-                    },
-                )
-
-        add_to_set: dict[str, Any] = {}
-        topic = extracted.get("trigger_topic")
-        coping = extracted.get("effective_coping")
-        if topic:
-            add_to_set["emotional_patterns.trigger_topics"] = topic
-        if coping:
-            add_to_set["emotional_patterns.effective_coping"] = coping
-        if add_to_set:
-            await _ensure_user_memory_doc(db, user_id, now)
-            await db.user_memory.update_one(
-                {"user_id": user_id},
-                {"$addToSet": add_to_set, "$set": {"updated_at": now}},
-            )
+    if not extracted:
         return
+
+    now = datetime.datetime.now(datetime.UTC)
+
+    # Every person the turn introduced, not just the first: one sentence
+    # can name two ("my boyfriend called Hasanka and my mum's name is
+    # Rehana") and dropping the rest broke the Memory page's promise for
+    # exactly the turns where the user was deliberately listing people.
+    people = extracted.get("people")
+    if not people and extracted.get("person_name"):
+        people = [
+            {
+                "name": extracted["person_name"],
+                "relation": extracted.get("person_relation", ""),
+            }
+        ]
+    if people:
+        await _ensure_user_memory_doc(db, user_id, now)
+        for person in people:
+            person_name = person.get("name")
+            # A dot or a leading $ in a key is not a legal Mongo field
+            # path; a name carrying one would make the whole update
+            # fail, taking the other people in the same turn with it.
+            if not person_name or "." in person_name or person_name.startswith("$"):
+                continue
+            await db.user_memory.update_one(
+                {"user_id": user_id, f"people.{person_name}": {"$exists": False}},
+                {
+                    "$set": {
+                        f"people.{person_name}": {
+                            "role": person.get("relation", ""),
+                            "context": "",
+                            "sentiment": "neutral",
+                        },
+                        "updated_at": now,
+                    }
+                },
+            )
+
+    add_to_set: dict[str, Any] = {}
+    topic = extracted.get("trigger_topic")
+    coping = extracted.get("effective_coping")
+    if topic:
+        add_to_set["emotional_patterns.trigger_topics"] = topic
+    if coping:
+        add_to_set["emotional_patterns.effective_coping"] = coping
+    if add_to_set:
+        await _ensure_user_memory_doc(db, user_id, now)
+        await db.user_memory.update_one(
+            {"user_id": user_id},
+            {"$addToSet": add_to_set, "$set": {"updated_at": now}},
+        )
 
