@@ -1,0 +1,62 @@
+/* Surface recipes and utilities that consume the tokens. */
+/* --------------------------------------------------------------------------
+ * Shared surface recipes.
+ * ----------------------------------------------------------------------- */
+.ml-glass {
+  background: var(--ml-panel);
+  backdrop-filter: var(--ml-panel-blur);
+  -webkit-backdrop-filter: var(--ml-panel-blur);
+  border: 1px solid var(--ml-hairline);
+}
+
+.ml-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ml-faint);
+}
+
+.ml-display {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
+}
+
+.ml-num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ml-focus);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * Grain — §1.3: 3–5% fractal noise on every full-bleed surface.
+ * ----------------------------------------------------------------------- */
+.ml-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-grade="night"] .ml-grain::after {
+  mix-blend-mode: normal;
+  opacity: 0.04;
+}
+
+/* --------------------------------------------------------------------------
+ * §6: reduced motion keeps layout identical — it removes movement only.
+ * ----------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ml-root {
+    transition: none;
+  }
+}
