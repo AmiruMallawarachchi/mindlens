@@ -3,12 +3,12 @@ uvicorn[standard]==0.51.0
 pydantic==2.13.4
 pydantic-settings==2.14.2
 motor==3.7.1
-pymongo==4.17.0
-langgraph>=0.6.0,<1.0.0
+pymongo==4.19.0
+langgraph>=1.0.10,<2.0.0
 langfuse>=3.0.0,<4.0.0
 pinecone>=7.0.0,<8.0.0
 groq==1.5.0
-PyJWT[crypto]==2.13.0
+PyJWT[crypto]==2.15.1
 bcrypt==5.0.0
 python-multipart==0.0.32
 httpx==0.28.1
