@@ -25,8 +25,8 @@ export interface OnboardingInput {
   nickname?: string;
   people: { name: string; role: string; context?: string }[];
   checkin_preferred_time: "morning" | "evening" | "whenever";
-  /** Both already power empathy_agent's prompt (Settings > General) — asked
-   * here too so the very first reply is personalized. */
+  /** Stored on the profile and editable in Settings > General; memory recall
+   * offers them to the specialist as context for the first reply. */
   personality?: string;
   tone_preference?: "gentle" | "balanced" | "direct";
 }

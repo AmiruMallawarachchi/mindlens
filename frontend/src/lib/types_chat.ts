@@ -27,10 +27,10 @@ export interface CrisisResource {
 
 /** Structured follow-up answers offered as buttons under a reply.
  *
- * Deliberately not the canned menu empathy_agent forbids: generated per
- * turn from what was actually said, schema-validated rather than parsed out
- * of prose, and never a closed set — `allow_other` is always true because
- * the point is to save typing, not to limit what someone may say. */
+ * Deliberately not a canned menu: generated per turn from what was actually
+ * said, schema-validated rather than parsed out of prose, and never a closed
+ * set — `allow_other` is always true because the point is to save typing,
+ * not to limit what someone may say. */
 export interface OptionsPayload {
   options: string[];
   allow_other: boolean;

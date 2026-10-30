@@ -33,10 +33,10 @@ export const STEPS = [
   {
     num: "04",
     title: "The response",
-    // Not "always ending in a choice": empathy_agent deliberately drops the
+    // Not "always ending in a choice": the V2 graph deliberately drops the
     // options above 0.8 distress ("No advice. No choices."), which is the
     // right behaviour and the opposite of what the old copy promised.
-    body: "A team of agents drafts a reply in the voice of a wise coaching friend: practical, warm, and usually ending in a choice — breathing, journaling, or just talking. When distress runs high it drops the options and just stays with you.",
+    body: "The graph drafts a reply in the voice of a wise coaching friend: practical, warm, and usually ending in a choice — breathing, journaling, or just talking. When distress runs high it drops the options and just stays with you.",
   },
   {
     num: "05",

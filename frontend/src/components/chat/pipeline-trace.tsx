@@ -28,7 +28,9 @@ import {
 } from "@/components/ai-elements/tool";
 import type { ChatMessage } from "@/lib/types";
 
-/** Human-readable names for the agents the registry actually registers. */
+/** Labels for the specialist routes a turn can name. V2 emits exactly one
+ * route (or "crisis"); the older entries remain so saved V1 transcripts still
+ * render with a readable name. */
 const AGENT_TITLES: Record<string, string> = {
   empathy: "empathy",
   mindfulness: "mindfulness",
@@ -41,8 +43,6 @@ const AGENT_TITLES: Record<string, string> = {
   checkin: "checkin",
   progress: "progress",
   personality: "personality",
-  checkin_scheduler: "checkin_scheduler",
-  session_memory_save: "session_memory_save",
 };
 
 export function PipelineTrace({ message }: { message: ChatMessage }) {

@@ -10,9 +10,9 @@
  * Five short steps — nickname, one person, personality, tone, check-in
  * time. Name and age are already known from registration, so they're not
  * asked again. Personality and tone are both optional/defaulted rather than
- * forced picks, and both are already fully wired into empathy_agent's
- * prompt (Settings > General) — asking here just means the first reply is
- * personalized instead of only replies after a trip to Settings.
+ * forced picks; they are stored on the profile and editable later in
+ * Settings > General, and memory recall offers them to the specialist as
+ * context.
  */
 
 import { useState } from "react";
@@ -55,9 +55,9 @@ export function OnboardingFlow({
   // Both optional — not everyone sees themselves in a 10-item list, and
   // forcing a pick would mean guessing rather than telling MindLens
   // something true. Skipping personality leaves it unset (Settings > General
-  // later, or PersonalityAgent infers it from conversation); tone still
-  // needs *a* value since empathy_agent branches on it every turn, so it
-  // defaults to "balanced" rather than being skippable.
+  // later, or memory recall infers it from conversation); tone still
+  // needs *a* value, so it defaults to "balanced" rather than being
+  // skippable.
   const [personality, setPersonality] = useState<string>("");
   const [tone, setTone] = useState<NonNullable<OnboardingInput["tone_preference"]>>("balanced");
 

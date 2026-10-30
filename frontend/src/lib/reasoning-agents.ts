@@ -7,12 +7,10 @@
   distortion: "check the shape of the thinking",
   routine: "look for one small next step",
   journaling: "offer something to write about",
+  // Historical V1 names, kept so older saved turns still get a phrase.
   checkin: "come back to what you said last time",
   progress: "look at how this compares to before",
-  // Bookkeeping. They run every turn and describing them would be noise.
   personality: null,
-  checkin_scheduler: null,
-  session_memory_save: null,
 };
 
 export function humaniseAgents(agents: readonly string[]): string | null {
