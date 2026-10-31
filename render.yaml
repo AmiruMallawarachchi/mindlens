@@ -32,6 +32,8 @@ services:
         sync: false
       - key: LANGFUSE_SECRET_KEY
         sync: false
+      - key: LANGFUSE_BASE_URL
+        sync: false
       - key: LANGFUSE_ENABLED
         value: "true"
       - key: PINECONE_API_KEY
