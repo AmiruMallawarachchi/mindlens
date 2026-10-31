@@ -42,6 +42,31 @@ about a minute. Its filesystem is ephemeral; no database, model, or vector index
 may be stored there. The service runs one worker because WebSocket connection
 state and rate limits are process-local.
 
+## Creating the service correctly
+
+Use the blueprint: **New → Blueprint**, connect the repository, and apply
+`render.yaml`. It selects the Docker runtime, `backend/Dockerfile` as the
+Dockerfile, the repository root as the build context, `/ready` as the health
+check, and the variables below.
+
+If the service is created manually as **New → Web Service** with the "Python"
+runtime, Render runs its own default start command
+(`gunicorn your_application.wsgi`), which does not exist here, and the deploy
+exits with status 127. Either delete the service and create it from the
+blueprint, or set:
+
+| Setting | Value |
+|---|---|
+| Language / runtime | Docker |
+| Dockerfile path | `backend/Dockerfile` |
+| Docker build context | repository root |
+| Health check path | `/ready` |
+
+The runtime cannot be switched on an existing service, so a service created as
+Python must be recreated. Do not point the root directory at `backend/`: the
+Dockerfile copies `requirements.txt` and `backend/` relative to the repository
+root.
+
 ## Environment variables
 
 Set these in the Render dashboard (or let the blueprint generate the JWT
@@ -57,6 +82,7 @@ secrets). Never commit values.
 | `PINECONE_API_KEY` | Pinecone project key |
 | `PINECONE_INDEX_NAME` | index created by `scripts/create_pinecone_index.py` |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | only when tracing is enabled |
+| `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com`, or the regional host shown in your Langfuse project (for example `https://jp.cloud.langfuse.com`) |
 | `LANGFUSE_ENABLED` | `true` after both keys are present |
 | `CORS_ORIGINS` | exact Vercel production origin (and any preview origins) |
 | `JWT_SECRET_KEY` / `JWT_REFRESH_SECRET_KEY` / `ADMIN_JWT_SECRET` | three independent values |
