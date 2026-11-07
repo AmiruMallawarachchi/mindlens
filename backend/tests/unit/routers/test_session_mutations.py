@@ -32,6 +32,9 @@ class TestDeleteSession:
         mock_db.sessions.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
         mock_db.mood_logs.delete_many = AsyncMock(return_value=MagicMock(deleted_count=4))
         mock_db.safety_events.delete_many = AsyncMock(return_value=MagicMock(deleted_count=2))
+        mock_db.pending_checkins.delete_many = AsyncMock(
+            return_value=MagicMock(deleted_count=1)
+        )
 
     async def test_delete_removes_every_session_scoped_collection(
         self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict
@@ -47,10 +50,15 @@ class TestDeleteSession:
             "sessions": 1,
             "mood_logs": 4,
             "safety_events": 2,
+            "pending_checkins": 1,
         }
         mock_db.sessions.delete_one.assert_awaited_once()
         mock_db.mood_logs.delete_many.assert_awaited_once()
         mock_db.safety_events.delete_many.assert_awaited_once()
+        # `from_session`, the field checkins are actually keyed by.
+        mock_db.pending_checkins.delete_many.assert_awaited_once_with(
+            {"user_id": "user_123", "from_session": "sess_abc"}
+        )
 
     async def test_delete_does_not_merely_flag_the_session(
         self, session_client: Any, mock_db: MagicMock, sample_user_doc: dict, sample_session_doc: dict

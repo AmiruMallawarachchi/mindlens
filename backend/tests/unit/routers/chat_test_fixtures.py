@@ -16,6 +16,7 @@ def mock_db_ws():
     mock.users = MagicMock()
     mock.sessions = MagicMock()
     mock.token_blocklist = MagicMock()
+    mock.token_blocklist.find_one = AsyncMock(return_value=None)
     mock.pending_checkins = MagicMock()
     mock.safety_events = MagicMock()
     mock.mood_logs = MagicMock()

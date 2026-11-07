@@ -82,11 +82,18 @@ async def delete_session_data(
     session_result = await db.sessions.delete_one(scope)
     moods_result = await db.mood_logs.delete_many(scope)
     safety_result = await db.safety_events.delete_many(scope)
+    # Keyed by `from_session`, not `session_id`. Left behind, its text would
+    # still be delivered on the next connect — a deleted conversation
+    # resurfacing as a proactive check-in.
+    checkins_result = await db.pending_checkins.delete_many(
+        {"user_id": user_id, "from_session": session_id}
+    )
 
     deleted = {
         "sessions": session_result.deleted_count,
         "mood_logs": moods_result.deleted_count,
         "safety_events": safety_result.deleted_count,
+        "pending_checkins": checkins_result.deleted_count,
     }
     logger.info("Session hard-deleted: %s for user %s (%s)", session_id, user_id, deleted)
     return SessionDeleteResponse(session_id=session_id, deleted=deleted)

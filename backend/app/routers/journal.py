@@ -238,7 +238,12 @@ async def update_entry(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journal entry not found")
 
-    updates = {"text": req.text, "title": req.title, "updated_at": now}
+    # `title` is optional on the update model, and the journal UI's edit pane
+    # sends only the body text. Writing None here would blank a title the user
+    # never touched, so an absent title means "leave it alone"; "" still clears.
+    updates: dict[str, Any] = {"text": req.text, "updated_at": now}
+    if req.title is not None:
+        updates["title"] = req.title
     await db.journal_entries.update_one(
         {"entry_id": entry_id, "user_id": user_id},
         {"$set": updates},
