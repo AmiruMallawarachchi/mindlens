@@ -53,6 +53,11 @@ class PreferencesUpdate(BaseModel):
     # 1.0 = uncapped (the emotion's own read decides); lower values flatten
     # the room for anyone who wants stillness over intensity.
     intensity_cap: float | None = Field(None, ge=0.1, le=1.0)
+    # ISO 3166-1 alpha-2, used only to choose crisis helplines. Optional: with
+    # no country on file the crisis card shows international directories,
+    # never one country's numbers. Nothing else in the app reads it — no
+    # geolocation, no IP inference, no targeting.
+    crisis_country: str | None = Field(None, pattern="^[A-Za-z]{2}$")
 
 
 class EmotionalPatternsUpdate(BaseModel):
