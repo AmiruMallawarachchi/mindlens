@@ -5,9 +5,10 @@
  *
  * User turns: right-aligned bubbles with an asymmetric 18/18/5/18 radius and
  * the emotion read strip beneath. Assistant turns: no bubble — the companion
- * blob avatar, the reasoning trail, editorial text, then a compact actions
- * row (Copy / Regenerate / Read aloud–soon) and any inline cards in a
- * two-column grid.
+ * blob avatar, the reasoning trail, reply text in the UI face (Newsreader is
+ * kept for titles and the opening room, where it is not read at length),
+ * then a compact actions row (Copy / Regenerate / Read aloud) and any inline
+ * cards in a two-column grid.
  */
 
 import { useMemo } from "react";
@@ -20,6 +21,16 @@ import { resolveEmotion } from "@/lib/emotion";
 import { buildReasoningTrail, summariseTrail } from "@/lib/reasoning";
 import type { ChatMessage } from "@/lib/types";
 import { OptionChoices, TurnActions } from "./message-flow-actions";
+
+/** One entry per paragraph; an empty reply still yields one so the streaming
+ * caret has somewhere to sit. */
+function replyParagraphs(text: string): string[] {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return paragraphs.length > 0 ? paragraphs : [""];
+}
 
 export function UserTurn({ message }: { message: ChatMessage }) {
   const reading = useMemo(() => resolveEmotion(message.eos), [message.eos]);
@@ -144,26 +155,27 @@ export function AssistantTurn({
           * by default, so the default reading experience is unchanged. */}
         {!isStreaming && steps.length > 0 && <PipelineTrace message={message} />}
 
-        {/* whitespace-pre-line, because the reply genuinely carries
-          * structure and HTML was throwing all of it away. The assembler
-          * joins empathy and the specialist with "\n\n", and a guided
-          * exercise arrives as one step per line — collapsed to single
-          * spaces, that rendered as an unreadable wall with "1. ... 2. ...
-          * 3." running inline mid-sentence. Only newlines are honoured;
-          * runs of spaces still collapse, so this cannot be used to inject
-          * layout from message text. */}
-        <p
-          className="ml-display m-0 whitespace-pre-line text-[19.5px] leading-[1.6]"
+        {/* One paragraph per blank line, whitespace-pre-line inside each, so
+          * a guided exercise's one-step-per-line survives. The assembler joins
+          * empathy and the specialist with "\n\n"; rendered as a single block
+          * at this size that read as one wall with no breathing room. Only
+          * newlines are honoured, so message text still cannot inject layout. */}
+        <div
+          className="flex flex-col gap-[0.85em] text-[15.5px] leading-[1.62]"
           style={{ color: "var(--ml-ink)", textWrap: "pretty" }}
         >
-          {message.text}
-          {isStreaming && (
-            <span
-              className="ml-0.5 inline-block h-[1em] w-[2px] align-text-bottom"
-              style={{ background: "var(--e1)", animation: "mlCaret 1s step-end infinite" }}
-            />
-          )}
-        </p>
+          {replyParagraphs(message.text).map((paragraph, index, all) => (
+            <p key={index} className="m-0 whitespace-pre-line">
+              {paragraph}
+              {isStreaming && index === all.length - 1 && (
+                <span
+                  className="ml-0.5 inline-block h-[1em] w-[2px] align-text-bottom"
+                  style={{ background: "var(--e1)", animation: "mlCaret 1s step-end infinite" }}
+                />
+              )}
+            </p>
+          ))}
+        </div>
 
         {!isStreaming && (
           <TurnActions text={message.text} onRegenerate={onRegenerate ?? null} />

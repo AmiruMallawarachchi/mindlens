@@ -169,7 +169,7 @@ export function ChatScreen({
         </header>
 
         <Conversation className="min-h-0 flex-1">
-          <ConversationContent className="mx-auto flex w-full max-w-[760px] flex-col gap-7 px-4 py-6">
+          <ConversationContent className="mx-auto flex w-full max-w-[680px] flex-col gap-6 px-4 py-6">
             {messages.length === 0 && !thinking && (
               <EmptyRoom mood={reading.state.id} companionId={companionId} companionName={companionName} />
             )}
