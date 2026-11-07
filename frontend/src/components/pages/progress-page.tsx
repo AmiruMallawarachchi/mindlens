@@ -25,7 +25,7 @@ export function ProgressPage() {
           label="Average mood"
           value={averageMood !== null ? averageMood.toFixed(1) : "—"}
           suffix={averageMood !== null ? "/ 10" : undefined}
-          footnote={moods ? `From ${moods.length} check-ins` : undefined}
+          footnote={moods ? `From ${moods.length} check-in${moods.length === 1 ? "" : "s"}` : undefined}
         />
         <MetricCard
           icon={<MessageCircle size={17} strokeWidth={1.7} style={{ color: "var(--e2)" }} />}
@@ -56,7 +56,7 @@ export function ProgressPage() {
           </div>
           {distressTrend && (
             <span className="ml-num text-[10.5px] uppercase tracking-[.12em]" style={{ color: "var(--e1)" }}>
-              {distressTrend.direction === "down" ? "trending up" : "keep an eye on this"}
+              {distressTrend.direction === "down" ? "distress easing" : "keep an eye on this"}
             </span>
           )}
         </div>
