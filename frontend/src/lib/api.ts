@@ -23,6 +23,80 @@ const TOKEN_STORAGE_KEY = "mindlens.access_token";
 // time. That read as the app being merely slow, not actually broken.
 const REQUEST_TIMEOUT_MS = 12_000;
 
+// The Render backend is a free instance, and a free instance sleeps after
+// about 15 minutes of quiet. Waking takes 30-60s, during which Render accepts
+// the connection and holds it open — so the browser's fetch neither fails nor
+// answers, it just waits, and REQUEST_TIMEOUT_MS above gives up long before
+// the service comes back. Every first request of a session ended in
+// "taking too long to respond" and an unavoidable second click.
+//
+// So: when a request times out, spend a bounded window finding out whether
+// the backend has started answering, and if it has, send the request again.
+// The wait is in probes rather than in one long timeout because the second
+// attempt against a woken instance is fast — raising REQUEST_TIMEOUT_MS to
+// cover cold start would also make every genuinely dead backend take a minute
+// to report itself.
+const WAKE_WAIT_BUDGET_MS = 45_000;
+const WAKE_PROBE_TIMEOUT_MS = 8_000;
+const WAKE_PROBE_INTERVAL_MS = 2_500;
+
+let wakeWait: Promise<boolean> | null = null;
+
+/**
+ * Poll until the backend returns any HTTP response, or the budget runs out.
+ *
+ * `/ready` is the probe because it is public, needs no token, and touches no
+ * model or retrieval, so a reply here means the process itself is up rather
+ * than that one dependency happened to answer. Any status counts as a reply,
+ * including a 500 from the app: reaching the app is the thing being waited
+ * for; what it says once there is the retry's problem to report.
+ */
+async function probeForWake(): Promise<boolean> {
+  const deadline = Date.now() + WAKE_WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return false;
+    const remaining = deadline - Date.now();
+    const controller = new AbortController();
+    const probeTimer = setTimeout(
+      () => controller.abort(),
+      Math.min(WAKE_PROBE_TIMEOUT_MS, remaining),
+    );
+    try {
+      await fetch(`${API_BASE_URL}/ready`, {
+        credentials: "omit",
+        signal: controller.signal,
+      });
+      return true;
+    } catch {
+      // No answer yet — still connecting, still starting, still queued.
+    } finally {
+      clearTimeout(probeTimer);
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, Math.min(WAKE_PROBE_INTERVAL_MS, remaining));
+    });
+  }
+  return false;
+}
+
+/**
+ * The wait, shared.
+ *
+ * The opening screen fires several reads at once and they all time out
+ * together, so without this each one ran its own probe loop and the waking
+ * backend took four or five `/ready` requests every couple of seconds for
+ * the same information. Like `refreshInFlight` below, the sharing is of the
+ * answer only — every caller still replays its own request.
+ */
+async function backendHasWoken(): Promise<boolean> {
+  if (!wakeWait) {
+    wakeWait = probeForWake().finally(() => {
+      wakeWait = null;
+    });
+  }
+  return wakeWait;
+}
+
 let inMemoryToken: string | null = null;
 
 export function getAccessToken(): string | null {
@@ -67,28 +141,53 @@ export class ApiError extends Error {
  */
 let refreshInFlight: Promise<boolean> | null = null;
 
-export async function refreshAccessToken(): Promise<boolean> {
-  if (!refreshInFlight) {
-    // Same reasoning as request()'s timeout: an unreachable backend must
-    // not hang this silently for a minute — every caller of request() is
-    // awaiting this before it can even report its own error.
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    refreshInFlight = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+/**
+ * One refresh attempt. `false` means the server actually answered and said
+ * no (an expired or revoked cookie, which no retry changes); it throws only
+ * when no response happened at all, so the caller can tell a refusal from a
+ * cold start instead of treating both as a dead session.
+ */
+async function attemptRefresh(): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
       headers: { "ngrok-skip-browser-warning": "true" },
       signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return false;
-        const data = (await response.json()) as { access_token: string };
-        setAccessToken(data.access_token);
-        return true;
-      })
+    });
+    if (!response.ok) return false;
+    const data = (await response.json()) as { access_token: string };
+    setAccessToken(data.access_token);
+    return true;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        return await attemptRefresh();
+      } catch (err) {
+        // No response within the timeout, so the instance may still be
+        // starting. Every caller of request() awaits this before it can
+        // report its own error, and a refresh lost to a wake used to end a
+        // session with a valid 7-day cookie still in the jar — the reader
+        // landed on the login screen and had to sign in again. A connection
+        // refused outright is the same answer it always was: signed out.
+        const timedOut = err instanceof DOMException && err.name === "AbortError";
+        const online = typeof navigator === "undefined" || navigator.onLine;
+        if (timedOut && online) {
+          return (await backendHasWoken()) && attemptRefresh();
+        }
+        return false;
+      }
+    })()
       .catch(() => false)
       .finally(() => {
-        clearTimeout(timeout);
         refreshInFlight = null;
       });
   }
@@ -97,9 +196,13 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 export async function request<T>(
   path: string,
-  init: RequestInit & { auth?: boolean; _retried?: boolean } = {},
+  init: RequestInit & {
+    auth?: boolean;
+    _retried?: boolean;
+    _replayedAfterWake?: boolean;
+  } = {},
 ): Promise<T> {
-  const { auth = true, _retried = false, ...rest } = init;
+  const { auth = true, _retried = false, _replayedAfterWake = false, ...rest } = init;
   const headers = new Headers(rest.headers);
   headers.set("Content-Type", "application/json");
   // Free ngrok tunnels serve an HTML "you're about to visit..." interstitial
@@ -127,6 +230,10 @@ export async function request<T>(
   // block actually happened — those three collapse into one identical
   // TypeError. Claiming to tell them apart would be a claim the code can't
   // back up (rule 2), so the unreachable branch stays honestly generic.
+  //
+  // These are what the reader sees once any wake wait below has been spent,
+  // not instead of it: a read that timed out is replayed first, and only a
+  // replay that also fails reaches this.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
@@ -134,21 +241,37 @@ export async function request<T>(
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       headers,
-      credentials: "omit",
+      // Cookie-authenticated calls (refresh, logout) pass their own
+      // `credentials`; everything else stays on `omit` for the reason in this
+      // module's header comment.
+      credentials: rest.credentials ?? "omit",
       signal: controller.signal,
     });
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new ApiError(
-        0,
-        "MindLens is taking too long to respond. It may be waking up — try again in a moment.",
-      );
+    const offline = typeof navigator !== "undefined" && !navigator.onLine;
+    // Timing out is the only failure that can mean "still waking". A
+    // rejected connection is what a port with nothing listening on it looks
+    // like — the usual local-dev case where the backend was never started —
+    // and waiting 45s for it would only make the wrong answer slower.
+    const timedOut = err instanceof DOMException && err.name === "AbortError";
+    if (timedOut && !offline && !_replayedAfterWake) {
+      // Reads only. Aborting a POST ends the client's wait, not the server's
+      // work: an entry it accepted just before the connection went quiet can
+      // still get written while it wakes, and replaying the request would
+      // save it twice. A read is safe to send again, so the retry is limited
+      // to reads and everything else keeps the single attempt.
+      const isRead = (rest.method ?? "GET").toUpperCase() === "GET";
+      if (isRead && (await backendHasWoken())) {
+        return request<T>(path, { ...init, _replayedAfterWake: true });
+      }
     }
     throw new ApiError(
       0,
-      typeof navigator !== "undefined" && !navigator.onLine
+      offline
         ? "You're offline. Check your connection and try again."
-        : "Couldn't reach MindLens. It may be down — try again in a moment.",
+        : timedOut
+          ? "MindLens is taking too long to respond. It may be waking up — try again in a moment."
+          : "Couldn't reach MindLens. It may be down — try again in a moment.",
     );
   } finally {
     clearTimeout(timeout);
