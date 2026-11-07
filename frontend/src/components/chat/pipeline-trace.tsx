@@ -16,8 +16,14 @@
  * invented state — a "Completed" badge on a stage that never ran would be
  * exactly the kind of confident-looking fiction this panel exists to
  * prevent.
+ *
+ * It reads as a quiet line under the prose, not a bordered panel. As a box it
+ * sat above every reply as a second full-width collapsible next to the
+ * reasoning trail, and two competing chevrons of chrome outweighed a two-line
+ * answer.
  */
 
+import { ChevronDown } from "lucide-react";
 import { Task, TaskContent, TaskTrigger } from "@/components/ai-elements/task";
 import {
   Tool,
@@ -58,16 +64,21 @@ export function PipelineTrace({ message }: { message: ChatMessage }) {
     1 + (message.eos ? 1 : 0) + (rag ? 1 : 0) + 1 + agents.length;
 
   return (
-    <Task
-      defaultOpen={false}
-      className="rounded-[var(--r-13)] border px-3 py-2.5"
-      style={{
-        borderColor: "var(--ml-hairline)",
-        background: "color-mix(in oklab, var(--ml-ink) 2.5%, transparent)",
-      }}
-    >
-      <TaskTrigger title={`Pipeline · ${stageCount} stages`} />
-      <TaskContent>
+    <Task defaultOpen={false} className="w-fit">
+      <TaskTrigger title={`Pipeline · ${stageCount} stages`} className="w-fit">
+        <span
+          className="flex cursor-pointer items-center gap-1.5 text-[12.5px] transition-colors hover:text-[var(--ml-muted)]"
+          style={{ color: "var(--ml-faint)" }}
+        >
+          Pipeline · {stageCount} stages
+          <ChevronDown
+            size={13}
+            strokeWidth={1.8}
+            className="transition-transform group-data-[state=open]:rotate-180"
+          />
+        </span>
+      </TaskTrigger>
+      <TaskContent className="mt-2.5">
         {/* 1. Safety gate — the one stage that runs on literally every turn. */}
         <PipelineTool
           name="safety_gate"

@@ -215,7 +215,7 @@ Three columns in a 12px-gutter flex row, each a 22px-radius glass panel (`--pane
 │ Sidebar  │ Header                         │
 │ 262px    ├────────────────────────────────┤
 │          │ Message list (scroll)          │
-│  logo    │   max-width 760px, centred     │
+│  logo    │   max-width 680px, centred     │
 │  new     │   trail · reply · options      │
 │  nav     ├────────────────────────────────┤
 │  history │ ▼ scroll-to-bottom (42px band) │
@@ -277,7 +277,7 @@ Right-aligned, `max-width: 540px`, `padding: 13px 17px`, `border-radius: 18px 18
 
    Canonical step labels, in order: **SAFETY GATE → EMOTION READ → MEMORY → APPROACH**. Steps are written in first person, plainly, as one sentence each — the same register as Claude's thinking summaries. They must be honest reflections of what the pipeline did (including the routed model), never theatre.
 
-2. **Response body** — 14.5px/1.68, `text-wrap: pretty`. Voice: a wise coaching friend. 4–5 sentences. Validate → one root-cause question or reframe → close with a choice of next step. Never clinical, never a bulleted plan unless asked.
+2. **Response body** — Instrument Sans 15.5px/1.62, `text-wrap: pretty`, one paragraph per blank line. Voice: a wise coaching friend. Two or three sentences: name what you heard in their words, then ask one question that helps them go a little further. A technique only when they ask for one or when it genuinely fits — never a plan bolted onto every reply, never a bulleted plan unless asked. Newsreader stays on titles and the opening room, where it is read once rather than at length.
 
 3. **Message actions** — three 28px ghost icon buttons (copy, regenerate, read aloud), `--faint`, hover tints to `--muted` on a 6% ink wash.
 

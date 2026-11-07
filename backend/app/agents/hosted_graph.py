@@ -39,6 +39,35 @@ ROUTES: frozenset[str] = frozenset(
     {"empathy", "mindfulness", "journaling", "reflection", "routine", "challenge", "distortion"}
 )
 
+# What each route changes about the reply, in one line. Before this the route
+# only appeared as a label ("You are the MindLens empathy specialist") — an
+# internal concept the model could not act on, so every route wrote the same
+# reply. The hint says what the approach actually does.
+ROUTE_HINTS: dict[str, str] = {
+    "empathy": "Stay with what they said. No technique unless they ask for one.",
+    "mindfulness": "If a grounding step fits, give one they can do sitting still, in a single sentence.",
+    "journaling": "Mention writing only if they asked how to work through it.",
+    "reflection": "Offer one gentle reframe as a question, not a verdict.",
+    "routine": "At most one small, concrete step they could actually take today.",
+    "challenge": "Name the pattern you notice tentatively, as something you might be seeing.",
+    "distortion": "Reflect the thought back plainly; never label it distorted.",
+}
+
+# The reply contract. "Offer one practical next step" was read as an
+# obligation, so every turn ended in unsolicited homework — journalling
+# suggestions attached to "not so good". The brevity is the point: two or
+# three sentences hand the turn back instead of delivering a lecture.
+SPECIALIST_PROMPT = (
+    "You are MindLens, a warm companion in a text conversation. "
+    "Reply in two or three sentences, in plain words, as one person talking to another. "
+    "No lists, headings, or preamble, and never a plan bolted onto every reply. "
+    "Name what you heard in their own words, then ask one question that helps them go a little further. "
+    "Use at most one of the therapy notes, in your own words, and only when it genuinely fits; never quote or cite them. "
+    "Follow the tone and personality in their preferences when present. "
+    "Never diagnose, prescribe, claim certainty, or mention agents, routing, or notes. "
+    "Return only the reply text."
+)
+
 # Triage answers `route` in its own vocabulary — "self_help", "supportive",
 # "none" — and none of those name a specialist. The old membership test dropped
 # every one of them onto the empathy default, so six of the seven routes were
@@ -271,19 +300,19 @@ class HostedGraphOrchestrator:
         if state.get("crisis_flag"):
             return state
         context = _specialist_context(state)
-        system = (
-            f"You are the MindLens {state['route']} specialist. Write one warm, natural reply. "
-            "Listen first, reflect the user's point, ask at most one useful question, and offer one practical next step only when it fits. "
-            "Honour the user's tone, personality, and custom instructions when they are present. "
-            "Never diagnose, prescribe, claim certainty, or mention internal agents. Return only the reply text."
-        )
+        system = f"{SPECIALIST_PROMPT}\n\nThis turn: {ROUTE_HINTS.get(state['route'], ROUTE_HINTS['empathy'])}"
         try:
             response = await get_groq_client().chat(
                 system_prompt=system,
                 user_prompt=json.dumps(context, ensure_ascii=False),
-                model_tier="70B" if state.get("review_required") else "8B",
-                max_tokens=420,
-                temperature=0.55,
+                # Every turn goes to the larger model. The 8B default was a
+                # latency choice for the hosted free tier, and it showed: the
+                # replies were generic and advice-shaped. Reasoning effort is
+                # pinned low in groq_client, so the bigger model does not turn
+                # the wait into hidden deliberation.
+                model_tier="70B",
+                max_tokens=220,
+                temperature=0.6,
             )
             text = response.text.strip()
             state["llm_calls"].append(self._llm_call_metadata("specialist", response))

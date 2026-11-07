@@ -76,7 +76,7 @@ export function ReasoningTrail({
       // opt-in, always.
       defaultOpen={false}
     >
-      <ReasoningTrigger className="w-fit gap-1.5 text-[12.5px]">
+      <ReasoningTrigger className="max-w-full gap-1.5 text-[12.5px]">
         <TriggerLabel summary={summary} />
       </ReasoningTrigger>
 
@@ -154,7 +154,7 @@ function TriggerLabel({ summary }: { summary?: string | null }) {
   const { isStreaming, isOpen, duration } = useReasoning();
 
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex min-w-0 items-center gap-1.5">
       <span
         className="size-[5px] shrink-0 rounded-full"
         style={{
@@ -162,20 +162,28 @@ function TriggerLabel({ summary }: { summary?: string | null }) {
           animation: isStreaming ? "mlPulse 1.4s ease-in-out infinite" : undefined,
         }}
       />
-      <span style={{ color: "var(--ml-faint)" }}>
+      <span className="whitespace-nowrap" style={{ color: "var(--ml-faint)" }}>
         {isStreaming
           ? "Thinking"
           : duration
             ? `Thought for ${duration}s`
             : "A quick thought"}
       </span>
+      {/* The clause is the first thing to go when there is no room for it —
+        * wrapped onto a 390px screen it split into three fragments around the
+        * dot and read as noise above a two-line reply. */}
       {!isStreaming && summary && (
-        <span style={{ color: "var(--ml-muted)" }}>&middot; {summary}</span>
+        <span
+          className="hidden min-w-0 truncate min-[520px]:inline"
+          style={{ color: "var(--ml-muted)" }}
+        >
+          &middot; {summary}
+        </span>
       )}
       <ChevronDown
         size={13}
         strokeWidth={1.8}
-        className={cn("transition-transform", isOpen ? "rotate-180" : "rotate-0")}
+        className={cn("shrink-0 transition-transform", isOpen ? "rotate-180" : "rotate-0")}
         style={{ color: "var(--ml-faint)" }}
       />
     </span>

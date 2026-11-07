@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The composer — a plain 22px panel, mic + send and nothing else.
+ * The composer — one compact bar: your words, a mic, a send button.
  *
  * Built on AI Elements' <PromptInput>, which supplies Enter-to-send,
  * Shift+Enter for a newline and the form plumbing. The textarea is controlled
@@ -81,7 +81,7 @@ export function Composer({
 
   return (
     <div className="px-4 pb-4 pt-2">
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="mx-auto w-full max-w-[680px]">
         {showVoiceNotice && (
           <div
             className="mb-2.5 rounded-[var(--r-14)] border p-3.5"
@@ -123,11 +123,13 @@ export function Composer({
 
         <PromptInput
           onSubmit={handleSubmit}
-          className={cn("overflow-hidden rounded-[var(--r-22)] border", blocked && "opacity-70")}
+          className={cn("rounded-[16px] border", blocked && "opacity-70")}
           style={{
             borderColor: "var(--ml-hairline-strong)",
             background: "var(--ml-panel-legible)",
-            boxShadow: blocked ? "none" : "var(--ml-shadow-neutral)",
+            boxShadow: blocked
+              ? "none"
+              : "0 1px 2px rgba(10,11,17,.04), 0 16px 32px -24px rgba(10,11,17,.4)",
           }}
         >
           <PromptInputBody>
@@ -138,21 +140,21 @@ export function Composer({
                 setDraft(event.currentTarget.value);
                 onTypingChange?.(event.currentTarget.value.length > 0);
               }}
-              className="min-h-[46px] bg-transparent px-[18px] pb-1 pt-[15px] text-[14px] leading-[1.55] placeholder:opacity-45"
+              className="min-h-[44px] max-h-[160px] bg-transparent py-[11px] pl-4 pr-1 text-[14.5px] leading-[1.5] placeholder:opacity-45"
               style={{ color: "var(--ml-ink)" }}
             />
           </PromptInputBody>
 
-          {/* `data-align="block-end"` is load-bearing, not decoration: the
-            * underlying <InputGroup> is `flex items-center` (a row) and only
-            * switches to `flex-col` via its own
-            * `has-[>[data-align=block-end]]:flex-col` selector. Without this
-            * attribute the textarea and this toolbar sit side by side in one
-            * squashed row instead of stacking, which is exactly how it
-            * rendered before. `w-full` is needed for the same reason — the
-            * parent's `items-center` centres (not stretches) children once
-            * it's a column. */}
-          <div data-align="block-end" className="flex w-full items-center gap-2 px-3 pb-3 pt-2">
+          {/* A direct child of the input group, which is `flex items-center`
+            * until an addon claims `data-align="block-end"`. Staying in the
+            * row — `order-last` plus `self-end` — is what keeps this one bar
+            * instead of a textarea with a separate toolbar strip beneath it,
+            * and pins the two buttons to the bottom edge as the textarea
+            * grows. */}
+          <div
+            data-align="inline-end"
+            className="order-last flex shrink-0 items-center gap-1 self-end px-2 pb-2"
+          >
             {/* Rendered only where the API exists — a browser without it gets
               * no button rather than a dead one. */}
             {voiceSupported && (
@@ -162,9 +164,9 @@ export function Composer({
                 active={listening}
               >
                 {listening ? (
-                  <Square size={14} strokeWidth={2.2} fill="currentColor" />
+                  <Square size={13} strokeWidth={2.2} fill="currentColor" />
                 ) : (
-                  <Mic size={16} strokeWidth={1.7} />
+                  <Mic size={15} strokeWidth={1.7} />
                 )}
               </ComposerIconButton>
             )}
@@ -173,10 +175,10 @@ export function Composer({
               type="submit"
               disabled={blocked}
               aria-label="Send message"
-              className="ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-[12px] transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:scale-100"
               style={{ background: "var(--ml-ink)", color: "var(--ml-canvas)" }}
             >
-              <ArrowUp size={16} strokeWidth={2.2} />
+              <ArrowUp size={15} strokeWidth={2.4} />
             </button>
           </div>
         </PromptInput>
