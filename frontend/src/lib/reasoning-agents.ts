@@ -18,7 +18,7 @@ export function humaniseAgents(agents: readonly string[]): string | null {
   for (const raw of agents) {
     const name = raw.replace(/_agent$/, "");
     if (!(name in AGENT_PHRASES)) {
-      // Unknown to this table but it really ran â€” name it rather than hide
+      // Unknown to this table but it really ran — name it rather than hide
       // it. Under-reporting is still misreporting.
       phrases.push(`run ${name}`);
       continue;
