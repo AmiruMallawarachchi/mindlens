@@ -110,7 +110,13 @@ class ConnectionMessageMethods:
         text: str,
         resources: list[dict],
     ) -> bool:
-        """Send a crisis response to the client."""
+        """Send a crisis response to the client.
+
+        There is deliberately no `session_paused` flag: nothing in the backend
+        or the UI stops the next message after a crisis turn, so claiming the
+        session paused would be a protective behaviour the product does not
+        have. The frame carries the hold-steady text and the real resources.
+        """
         return await self.send_to_user(
             user_id,
             {
@@ -118,7 +124,6 @@ class ConnectionMessageMethods:
                 "text": text,
                 "crisis_flag": True,
                 "resources": resources,
-                "session_paused": True,
             },
         )
 
@@ -131,13 +136,6 @@ class ConnectionMessageMethods:
                 "chunk": chunk,
                 "index": chunk_index,
             },
-        )
-
-    async def send_stream_end(self, user_id: str) -> bool:
-        """Signal the end of a streaming response."""
-        return await self.send_to_user(
-            user_id,
-            {"type": "stream_end"},
         )
 
     async def send_checkin(self, user_id: str, text: str, from_session: str) -> bool:
