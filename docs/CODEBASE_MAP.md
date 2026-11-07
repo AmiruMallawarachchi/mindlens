@@ -270,8 +270,9 @@ Every user-owned query is scoped by `user_id`; there is no cross-user read path.
    typed preferences onto the EOS, and emits a `stage_update`.
 7. **Retrieve.** `_retrieve` skips trivial or crisis turns; otherwise Pinecone
    returns curated passages or the turn records `degraded: ["pinecone"]`.
-8. **Reply.** `_specialist` asks the 8B or 70B model for one reply in the chosen
-   route's voice, using the specialist context.
+8. **Reply.** `_specialist` asks the 70B model for two or three sentences in the
+   chosen route's voice, using the specialist context and that route's one-line
+   hint (`ROUTE_HINTS`).
 9. **Review.** High-distress or complex turns get one 70B reviewer that can
    approve or replace the reply.
 10. **Finalize.** `response_validator.py` guards the text and
