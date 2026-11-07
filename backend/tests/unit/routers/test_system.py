@@ -63,10 +63,10 @@ class TestSystemStatus:
     ) -> None:
         from app.routers import system
 
+        rag = {"provider": "pinecone", "status": "reachable", "dimension": 1024}
         with (
             patch.object(system.settings, "groq_api_key", "test-groq-key"),
-            patch.object(system.settings, "pinecone_api_key", "test-pinecone-key"),
-            patch.object(system.settings, "pinecone_index_name", "test-index"),
+            patch.object(system, "rag_status", AsyncMock(return_value=rag)),
         ):
             response = await admin_client.get("/api/v1/admin/system")
 
@@ -75,11 +75,30 @@ class TestSystemStatus:
         assert body["status"] == "ok"
         assert body["database"] == "connected"
         assert body["inference"] == {"provider": "groq", "status": "configured"}
-        assert body["rag"] == {"provider": "pinecone", "status": "configured"}
+        assert body["rag"] == rag
         assert body["observability"]["provider"] == "langfuse"
         assert "environment" in body
         assert "timestamp" in body
         mock_db.client.admin.command.assert_awaited_once_with("ping")
+
+    async def test_rag_status_is_probed_not_assumed(
+        self, admin_client: AsyncClient, mock_db: MagicMock
+    ) -> None:
+        """The endpoint used to derive rag.status from the presence of a key
+        string, so a rejected key still reported "configured". It now has to
+        ask, and has to pass along whatever the answer was."""
+        from app.routers import system
+
+        rejected = {
+            "provider": "pinecone",
+            "status": "unauthorized",
+            "detail": "the API key was rejected",
+        }
+        with patch.object(system, "rag_status", AsyncMock(return_value=rejected)) as probe:
+            response = await admin_client.get("/api/v1/admin/system")
+
+        probe.assert_awaited_once()
+        assert response.json()["rag"] == rejected
 
     async def test_reports_disconnected_when_ping_fails(
         self, admin_client: AsyncClient, mock_db: MagicMock
@@ -107,17 +126,17 @@ class TestModelStatus:
     ) -> None:
         from app.routers import system
 
+        rag = {"provider": "pinecone", "status": "not_configured"}
         with (
             patch.object(system.settings, "groq_api_key", "test-groq-key"),
-            patch.object(system.settings, "pinecone_api_key", "test-pinecone-key"),
-            patch.object(system.settings, "pinecone_index_name", "test-index"),
             patch.object(system.settings, "langfuse_enabled", True),
+            patch.object(system, "rag_status", AsyncMock(return_value=rag)),
         ):
             response = await admin_client.get("/api/v1/admin/models")
 
         assert response.status_code == 200
         assert response.json() == {
             "inference": {"provider": "groq", "status": "configured"},
-            "rag": {"provider": "pinecone", "status": "configured"},
+            "rag": rag,
             "observability": {"provider": "langfuse", "enabled": True},
         }

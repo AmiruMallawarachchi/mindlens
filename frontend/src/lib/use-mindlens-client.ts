@@ -9,6 +9,7 @@ import {
   login as apiLogin,
   logoutLocal,
   register as apiRegister,
+  revokeSession,
   updateMe,
   type RegisterInput,
 } from "./api";
@@ -132,6 +133,11 @@ export function useMindLensClient() {
   const logout = useCallback(() => {
     resetFramesForLogout();
     resetSessionsForLogout();
+    // Started before the local token is dropped, because the request reads
+    // that token to build its Authorization header, and never awaited: a
+    // backend that is unreachable is a reason to sign this tab out, not a
+    // reason to hold the UI on a spinner.
+    void revokeSession().catch(() => undefined);
     logoutLocal();
     setUser(null);
     setAuthStatus("anonymous");

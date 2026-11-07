@@ -26,6 +26,10 @@ export interface MemoryPreferences {
   palette_mode?: "auto" | "manual";
   manual_palette?: string;
   intensity_cap?: number;
+  /** ISO alpha-2, used only to pick crisis helplines. `null` clears it —
+   * which means international directories, never a guessed country.
+   * Mirrors backend app/core/crisis_resources.py. */
+  crisis_country?: string | null;
 }
 
 export interface MemoryEmotionalPatterns {

@@ -487,12 +487,16 @@ truthfully rather than reciting a script:
   "rag": {
     "status": "ran",          // ran | skipped_trivial | skipped_crisis | failed | provided
     "chunks": 5,
-    "model": "mindlens-rag-reranker"   // null unless the reranker was configured to run
+    "provider": "pinecone"    // only on a ran turn; a failed turn sends status + chunks
   },
   "modality": "CBT",          // null unless a modality-driven agent actually ran
   "substantive": true
 }
 ```
+
+There is no reranker field because V2 has no reranker: hosted retrieval returns
+Pinecone's own ordering, so the UI names the passages it got and claims
+nothing about how they were ranked.
 
 `modality` is null unless one of `{distortion, challenge, reflection}` ran.
 Every turn carries a modality field internally, but naming one on a turn where
@@ -2398,9 +2402,8 @@ anything to read.
 | `stage_update` | `stage`, `detail` — live pipeline progress |
 | `thinking_update` | `agents_active[]`, `eos`, `memory_recalled[]`, `telemetry`, `safety`, `degraded[]` |
 | `stream_chunk` | `chunk`, `index` |
-| `stream_end` | — |
 | `response` | `text`, `agents_used[]`, `eos_snapshot`, `crisis_flag`, `resources[]`, `degraded[]`, `memory_recalled[]`, `telemetry`, `safety`, `options` |
-| `crisis_response` | `text`, `crisis_flag: true`, `resources[]`, `session_paused` |
+| `crisis_response` | `text`, `crisis_flag: true`, `resources[]` |
 | `checkin` | `text`, `from_session` |
 | `error` | `detail` |
 | `ping` / `pong` | heartbeat, 30 s interval |
@@ -2668,7 +2671,6 @@ before horizontal scaling."*
 | `JWT_SECRET_KEY` starts with `dev-` | refuse |
 | `JWT_REFRESH_SECRET_KEY` starts with `dev-` | refuse |
 | `ADMIN_JWT_SECRET` starts with `admin-dev-` | refuse |
-| `ENCRYPTION_KEY` empty | refuse |
 | `MONGODB_URL` is still `mongodb://localhost:27017` | refuse |
 | `USE_OPENAI_STUBS` is true | refuse |
 | `GROQ_API_KEY` empty | refuse |
@@ -3368,27 +3370,35 @@ failure.
 | **Hugging Face Docker Space** | Fully documented, ready, never deployed | Kept accurate for if the tunnel approach stops being sufficient (e.g. an unattended demo). Free Docker Spaces give more RAM than the models need, and the weights already live on the same HF account |
 | **Render** (`render.yaml`) | Correct and current, not used | Free tier is 512 MB against a 2.5–3.5 GB need — a 5–7× gap, not a tuning problem — and free Render has no persistent disk. The blueprint's header says which plan it actually needs (`pro`, 4 GB) before anyone uses it |
 
-`plan: standard` (2 GB) in the blueprint will OOM on startup with
-`PRELOAD_MODELS=true`, and leaving it false just moves that failure onto a
-live user's first message.
-
 ### 22.3 Environment variables
 
+These are exactly the fields `app/config.py` declares. A variable set here and
+not in that list is ignored (`extra="ignore"`), so this table is the whole
+contract — the V1 self-hosted model keys (`HF_TOKEN`, `PRELOAD_MODELS`,
+`EMOTION_MODEL_ID`, `CRISIS_MODEL_ID`, `MH_MODEL_ID`, `DISTORTION_MODEL_ID`,
+`RAG_RERANKER_MODEL_ID`, `PRELOAD_RAG`, `CHROMADB_PERSIST_DIR`,
+`MODEL_INFERENCE_TIMEOUT_SECONDS`) and the never-read `ENCRYPTION_KEY` and
+`ADMIN_EMAIL` are gone with it.
+
 ```
-APP_ENV · DEBUG · PORT · RENDER_GIT_COMMIT
+APP_ENV · DEBUG · RENDER_GIT_COMMIT
 CORS_ORIGINS · COOKIE_SECURE · COOKIE_SAMESITE · COOKIE_DOMAIN
 MONGODB_URL · MONGODB_DB_NAME
 JWT_SECRET_KEY · JWT_REFRESH_SECRET_KEY · ADMIN_JWT_SECRET
 JWT_ALGORITHM · JWT_EXPIRE_MINUTES · JWT_REFRESH_EXPIRE_MINUTES
-ADMIN_JWT_EXPIRE_MINUTES · ENCRYPTION_KEY
-GROQ_API_KEY · HF_TOKEN · USE_OPENAI_STUBS
-PRELOAD_MODELS · MODEL_INFERENCE_TIMEOUT_SECONDS
-EMOTION_MODEL_ID · CRISIS_MODEL_ID · MH_MODEL_ID
-DISTORTION_MODEL_ID · RAG_RERANKER_MODEL_ID
-PRELOAD_RAG · RAG_KNOWLEDGE_PATH · CHROMADB_PERSIST_DIR
+ADMIN_JWT_EXPIRE_MINUTES
+GROQ_API_KEY · USE_OPENAI_STUBS
+PINECONE_API_KEY · PINECONE_INDEX_NAME · PINECONE_EMBEDDING_MODEL · PINECONE_TOP_K
+LANGFUSE_PUBLIC_KEY · LANGFUSE_SECRET_KEY · LANGFUSE_BASE_URL · LANGFUSE_ENABLED
 RATE_LIMIT_PER_IP_MINUTE · RATE_LIMIT_PER_USER_HOUR
-RATE_LIMIT_MAX_LOGIN_ATTEMPTS · WS_MAX_MESSAGE_CHARS · ADMIN_EMAIL
+RATE_LIMIT_MAX_LOGIN_ATTEMPTS · RATE_LIMIT_LOGIN_LOCKOUT_MINUTES
+WS_HEARTBEAT_INTERVAL_SECONDS · WS_MESSAGE_TIMEOUT_SECONDS
+WS_MAX_CONCURRENT_PER_USER · WS_MAX_MESSAGE_CHARS
+ADMIN_ROLE_NAME · USER_ROLE_NAME
 ```
+
+`RAG_KNOWLEDGE_PATH` is read by `scripts/ingest_pinecone.py`, and `PORT` by
+`run.py`, both straight from the environment rather than through `Settings`.
 
 Frontend: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_WS_BASE_URL` (optional,
 derived from the API URL otherwise), `NEXT_PUBLIC_PREVIEW_AUTH` (**must be 0
@@ -3712,7 +3722,7 @@ sequenceDiagram
     Note over CH,CA: NO Groq · NO RAG · NO other agents ·<br/>NO user style preferences applied
     CH->>CA: run(ctx)
     CA-->>CH: CRISIS_TEMPLATES["severe"] + resources
-    CH->>U: crisis_response {text, resources[], session_paused}
+    CH->>U: crisis_response {text, resources[]}
     CH->>DB: safety_events
     Note over DB: mood_logs deliberately NOT written —<br/>the crisis EOS is a placeholder, not a reading
 ```
@@ -4114,40 +4124,37 @@ mindlens/
 │   ├── run.py
 │   ├── .env.example        every environment variable, documented
 │   ├── data/
-│   │   ├── therapy_knowledge.json    60 cited RAG entries
-│   │   └── chroma_db/                the persistent vector store
+│   │   └── therapy_knowledge.json    60 cited RAG entries, ingested by
+│   │                                 scripts/ingest_pinecone.py
 │   ├── app/
 │   │   ├── main.py         app factory, lifespan, /health, /ready
 │   │   ├── config.py       pydantic-settings + production fail-closed
 │   │   ├── db.py           Motor client, indexes, document_id_filter
-│   │   ├── agents/         orchestrator + safety gate + 13 agents
-│   │   │   ├── orchestrator.py          776 lines — the pipeline
-│   │   │   ├── safety_gate.py           Layer 0
-│   │   │   ├── crisis_agent.py          zero-LLM templates
-│   │   │   ├── empathy_agent.py         the main voice
-│   │   │   ├── mindfulness_agent.py · reflection_agent.py
-│   │   │   ├── distortion_agent.py  · challenge_agent.py
-│   │   │   ├── routine_agent.py     · journaling_agent.py
-│   │   │   ├── checkin_agent.py     · checkin_scheduler.py
-│   │   │   ├── progress_agent.py    · personality_agent.py
-│   │   │   ├── session_memory_save.py   the memory write path
-│   │   │   ├── response_assembler.py · response_validator.py
-│   │   │   ├── question_options.py  · streaming.py
+│   │   ├── observability.py           Langfuse, metadata only
+│   │   ├── agents/         the hosted LangGraph runtime
+│   │   │   ├── hosted_graph.py          supervisor graph, bounded nodes
+│   │   │   ├── hosted_graph_state.py    state + value coercion
+│   │   │   ├── hosted_graph_result.py   result contract + LLM metadata
+│   │   │   ├── safety_gate.py           keyword regex + crisis read
+│   │   │   ├── response_validator.py    reply checks before send
 │   │   │   ├── groq_client.py           tiers, timeouts, degradation
-│   │   │   └── base_agent.py            AgentContext, AgentOutput, registry
+│   │   │   ├── groq_stub.py · groq_types.py
+│   │   │   └── streaming.py · streaming_pipeline.py · streaming_response.py
 │   │   ├── core/
-│   │   │   ├── emotional_os.py          the EOS
+│   │   │   ├── emotional_os.py · emotional_os_model.py
+│   │   │   │                            · emotional_os_factories.py · _types.py
 │   │   │   ├── emotion_labels.py        28 classes + severity weights
 │   │   │   ├── memory_recall.py         layer-2 read path (pure)
+│   │   │   ├── crisis_resources.py      country-aware helplines
 │   │   │   ├── anonymizer.py            PII stripping
-│   │   │   └── connection_manager.py    WebSocket frames + heartbeat
-│   │   ├── memory/session.py            turn buffer + session snapshots
-│   │   ├── middleware/auth.py           JWT, rate limits, CSRF, request ID
-│   │   ├── models/loader.py             the five-model registry
-│   │   ├── rag/                         vector_store · ingest · retriever
+│   │   │   └── connection_manager.py · connection_messages.py
+│   │   ├── middleware/     auth.py · auth_dependencies.py · auth_tokens.py
+│   │   ├── rag/hosted_retriever.py     the Pinecone read path
 │   │   ├── routers/                     auth · session · chat · memory ·
 │   │   │                                journal · dashboard · onboarding ·
 │   │   │                                account · system
+│   │   │   └── chat_services/           flow · persistence · memory
+│   │   ├── services/       checkins · memory_extraction · progress
 │   │   └── utils/logger.py
 │   └── tests/              730 tests, mirroring app/
 │

@@ -1,0 +1,10 @@
+# This Vercel project builds the Next.js app in frontend/.
+# Never upload the Python backend (and its secrets) to Vercel, and skip the
+# large local-only research assets.
+backend
+notebooks
+tools
+data
+.venv
+frontend/.env.local
+frontend/node_modules

@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { CRISIS_COUNTRIES } from "@/lib/crisis-countries";
 import { PERSONALITIES, TONES } from "@/lib/personalities";
 import type { MindLensClient } from "@/lib/use-mindlens-client";
 import type { MemoryPreferences } from "@/lib/types";
@@ -17,6 +18,7 @@ const KEYS: (keyof MemoryPreferences)[] = [
   "personality",
   "custom_instructions",
   "tone_preference",
+  "crisis_country",
 ];
 
 export function GeneralSection({ client }: { client: MindLensClient }) {
@@ -132,6 +134,24 @@ export function GeneralSection({ client }: { client: MindLensClient }) {
             {instructions.length} / 1500
           </p>
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup title="Crisis support">
+        <Row
+          label="Where you are"
+          description="Only decides which helpline numbers appear in a crisis. It never changes when one is used, and nothing else reads it. Leave unset and MindLens shows international directories instead of guessing your country."
+          control={
+            <Select
+              ariaLabel="Where you are"
+              value={(draft.crisis_country ?? "") as string}
+              options={[
+                { id: "", label: "Not set", hint: "International directories — works anywhere" },
+                ...CRISIS_COUNTRIES.map((c) => ({ id: c.code, label: c.label })),
+              ]}
+              onChange={(id) => set("crisis_country", id || null)}
+            />
+          }
+        />
       </SettingsGroup>
 
       {(error || nicknameError) && (

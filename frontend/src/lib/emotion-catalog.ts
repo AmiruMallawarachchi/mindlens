@@ -30,7 +30,7 @@ export type Temperament =
 
 export interface EmotionState {
   id: EmotionId;
-  /** Plain-language name. Always shown next to any score â€” Â§8: the emotion
+  /** Plain-language name. Always shown next to any score — §8: the emotion
    * read is informational, never a diagnosis label, never a bare number. */
   name: string;
   c1: string;
@@ -184,10 +184,10 @@ export const EMOTION_ORDER: readonly EmotionId[] = [
  * go-emotions' 28 classes folded onto the 12 UI states.
  *
  * Two states are deliberately absent from this table:
- *  - `envious` â€” go-emotions has no envy class, and nothing else in it is a
+ *  - `envious` — go-emotions has no envy class, and nothing else in it is a
  *    faithful stand-in. It stays reachable through the inspector's emotion
  *    picker (the user naming their own feeling) rather than being guessed at.
- *  - `flat`    â€” not a classifier output but a *combination*; see
+ *  - `flat`    — not a classifier output but a *combination*; see
  *    resolveEmotion(), where neutral + high mental fatigue resolves to it.
  */
 const SURFACE_TO_STATE: Record<string, EmotionId> = {
@@ -227,7 +227,7 @@ export function stateForLabel(label: string | undefined | null): EmotionId | nul
 }
 
 // ---------------------------------------------------------------------------
-// Blends â€” two feelings at once
+// Blends — two feelings at once
 // ---------------------------------------------------------------------------
 
 export interface Blend {
@@ -247,7 +247,7 @@ const BLENDS: readonly Blend[] = [
 
 /** A blend exists only when the surface and core reads genuinely differ and
  * that unordered pair is one the design names. Anything else is a single
- * feeling â€” we don't invent a second one to fill the chip. */
+ * feeling — we don't invent a second one to fill the chip. */
 export function findBlend(a: EmotionId | null, b: EmotionId | null): Blend | null {
   if (!a || !b || a === b) return null;
   return (

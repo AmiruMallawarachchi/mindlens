@@ -62,9 +62,13 @@ _RE_URL: Pattern = re.compile(
 )
 
 # Common name indicators (Mr., Mrs., Dr., etc.) — weak signal, used with NER
+# Case-sensitive on purpose. With re.IGNORECASE the pattern stopped needing a
+# title at all: "the dr went away", "add ms to the list" and even "Dr and Mrs
+# Smith" (the lowercase "and" becomes the surname) all collapsed into [NAME].
+# Over-redaction is the worse failure here — anonymize() runs on every message
+# before triage, so scrubbed words are words the classifier never sees.
 _RE_NAME_PREFIX: Pattern = re.compile(
-    r"\b(?:Mr|Mrs|Ms|Dr|Prof|Rev|Hon)\.?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?\b",
-    re.IGNORECASE,
+    r"\b(?:Mr|Mrs|Ms|Dr|Prof|Rev|Hon)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b"
 )
 
 # Physical addresses (simple street pattern)

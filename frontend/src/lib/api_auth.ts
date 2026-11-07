@@ -45,6 +45,22 @@ export function logoutLocal(): void {
   setAccessToken(null);
 }
 
+/**
+ * End the session on the server as well as in this tab.
+ *
+ * `logoutLocal()` only drops the bearer token. The login also set a 7-day
+ * httpOnly refresh cookie, and a browser that "logs out" without clearing it
+ * can still POST /auth/refresh and be handed a brand new access token — so it
+ * was never actually signed out. Like the refresh call, this one needs the
+ * cookie, hence `credentials: "include"`.
+ */
+export async function revokeSession(): Promise<void> {
+  await request<{ message: string }>("/api/v1/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export async function completeOnboarding(
   input: OnboardingInput,
 ): Promise<UserProfile> {

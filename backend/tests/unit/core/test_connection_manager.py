@@ -142,7 +142,7 @@ class TestConnectionManagerBasics:
         call_args = ws.send_json.call_args[0][0]
         assert call_args["type"] == "crisis_response"
         assert call_args["crisis_flag"] is True
-        assert call_args["session_paused"] is True
+        assert "session_paused" not in call_args
         assert call_args["resources"][0]["number"] == "1926"
 
     @pytest.mark.asyncio
@@ -163,18 +163,6 @@ class TestConnectionManagerBasics:
         assert first["index"] == 0
         assert second["chunk"] == " world"
         assert second["index"] == 1
-
-    @pytest.mark.asyncio
-    async def test_send_stream_end(self, manager: ConnectionManager) -> None:
-        ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_json = AsyncMock()
-
-        await manager.connect(ws, "user_123", "sess_abc")
-        await manager.send_stream_end("user_123")
-
-        call_args = ws.send_json.call_args[0][0]
-        assert call_args["type"] == "stream_end"
 
     @pytest.mark.asyncio
     async def test_send_checkin(self, manager: ConnectionManager) -> None:

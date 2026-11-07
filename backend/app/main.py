@@ -137,12 +137,18 @@ def create_app() -> FastAPI:
                 inference_status = "stub_mode"
             else:
                 inference_status = "missing_key"
-            rag_status: dict[str, object] = {
-                "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
+            rag_check: dict[str, object] = {
+                "status": "key_present" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
                 "provider": "pinecone",
                 # Retrieval is fail-soft: the graph answers without it, so a
-                # missing or unreachable index must not fail readiness. It is
-                # reported as configuration, not reachability, on purpose.
+                # missing or unreachable index must not fail readiness. This
+                # endpoint is polled by the platform's health check, so it
+                # deliberately makes no outbound call — it reports that a key
+                # is in the environment and nothing more. A rejected key
+                # landed here as "configured" for a whole deployment cycle
+                # while every retrieval failed; "key_present" is the honest
+                # word for what this actually checked. GET /api/v1/admin/models
+                # is the endpoint that asks the service itself.
                 "mode": "fail_soft",
             }
             return JSONResponse(
@@ -155,7 +161,7 @@ def create_app() -> FastAPI:
                         "status": inference_status,
                         "stub_mode": settings.use_openai_stubs,
                     },
-                    "rag": rag_status,
+                    "rag": rag_check,
                     "observability": {
                         "provider": "langfuse",
                         "enabled": settings.langfuse_enabled,

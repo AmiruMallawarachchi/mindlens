@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 from fastapi import WebSocket
@@ -46,6 +47,17 @@ async def run_chat_message_loop(
             logger.info("WebSocket timeout for user %s", user_id)
             await websocket.close(code=1000, reason="Session timeout")
             break
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # A garbled frame used to escape the loop and take the whole
+            # session with it, so one bad packet cost the user a reconnect.
+            logger.warning("Malformed WebSocket frame from user %s", user_id)
+            data = None
+
+        if data is None or not isinstance(data, dict):
+            await websocket.send_json(
+                {"type": "error", "detail": "That frame could not be read. Try again."}
+            )
+            continue
 
         # Validate message structure
         msg_type = data.get("type")

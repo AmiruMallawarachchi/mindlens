@@ -174,6 +174,26 @@ class TestUpdateEntry:
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["text"] == "Feeling a bit better now."
 
+    async def test_update_without_a_title_keeps_the_existing_one(
+        self, journal_client: Any, mock_db: MagicMock, sample_entry: dict
+    ) -> None:
+        """The edit pane sends body text only; `title` must not be written as
+        None over the user's original heading."""
+        mock_db.token_blocklist.find_one = AsyncMock(return_value=None)
+        mock_db.journal_entries.find_one = AsyncMock(return_value=sample_entry)
+        mock_db.journal_entries.update_one = AsyncMock()
+
+        response = await journal_client.put(
+            "/api/v1/journal/entry_abc",
+            json={"text": "Rewritten body, same heading."},
+            headers=_auth_header(),
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        set_doc = mock_db.journal_entries.update_one.await_args.args[1]["$set"]
+        assert "title" not in set_doc
+        assert response.json()["title"] == "A hard day"
+
     async def test_update_entry_not_found(
         self, journal_client: Any, mock_db: MagicMock
     ) -> None:

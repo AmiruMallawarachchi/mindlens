@@ -47,9 +47,6 @@ export interface TurnTelemetry {
     status: string;
     chunks: number;
     provider?: string;
-    /** The reranker model that ordered these chunks, named only when it was
-     * actually configured to run this turn. */
-    model?: string | null;
   };
   /** Null when no agent that consults a modality ran. A modality is set on
    * every turn regardless, so a non-null value here is the only honest
@@ -113,7 +110,6 @@ export type ServerFrame =
     }
   | { type: "stage_update"; stage: string; detail: string }
   | { type: "stream_chunk"; chunk: string; index: number }
-  | { type: "stream_end" }
   | {
       type: "response";
       text: string;

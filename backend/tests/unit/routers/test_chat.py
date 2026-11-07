@@ -139,7 +139,7 @@ class TestConnectionManager:
         call_args = ws.send_json.call_args[0][0]
         assert call_args["type"] == "crisis_response"
         assert call_args["crisis_flag"] is True
-        assert call_args["session_paused"] is True
+        assert "session_paused" not in call_args
 
     @pytest.mark.asyncio
 

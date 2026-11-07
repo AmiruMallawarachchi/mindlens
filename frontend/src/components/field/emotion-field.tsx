@@ -22,19 +22,58 @@
  * that all four secondary pages have been rebuilt against this design system.
  */
 
-import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
+import type { ShaderGradient, ShaderGradientCanvas } from "shadergradient";
 import { useReducedMotion } from "motion/react";
 import { TEMPERAMENT_MOTION, type EmotionReading } from "@/lib/emotion";
 
-const ShaderGradientCanvas = dynamic(
-  () => import("shadergradient").then((m) => m.ShaderGradientCanvas),
-  { ssr: false },
-);
-const ShaderGradient = dynamic(
-  () => import("shadergradient").then((m) => m.ShaderGradient),
-  { ssr: false },
-);
+type FieldModule = {
+  Canvas: typeof ShaderGradientCanvas;
+  Gradient: typeof ShaderGradient;
+};
+
+/**
+ * The shader chunk, fetched only once we know it is going to animate.
+ *
+ * Deliberately a bare import() in an effect rather than next/dynamic. Next's
+ * React-19 dynamic wrapper calls use() on the lazy payload from inside the
+ * react-three-fiber module graph, and under Fast Refresh that throws "An
+ * unsupported type was passed to use()" — which the route error boundary
+ * turned into a full-page "MindLens hit a snag" in place of the chat.
+ */
+function useFieldModule(animate: boolean): FieldModule | null {
+  const [field, setField] = useState<FieldModule | null>(null);
+
+  useEffect(() => {
+    if (!animate) return;
+    let mounted = true;
+    import("shadergradient")
+      .then((m) => {
+        if (mounted) setField({ Canvas: m.ShaderGradientCanvas, Gradient: m.ShaderGradient });
+      })
+      .catch(() => {
+        // A chunk that never arrives leaves the CSS wash doing the colours.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [animate]);
+
+  return field;
+}
+
+/** Keeps a lost GPU context, or any other WebGL failure, from reaching the page. */
+class FieldBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 /**
  * Cheap, honest capability check. We are deciding whether to hand a phone a
@@ -71,6 +110,7 @@ export function EmotionField({ reading }: { reading: EmotionReading }) {
 
   // §6: reduced motion gets a static frame, and the layout is identical.
   const animate = capable && !reduceMotion;
+  const field = useFieldModule(animate);
 
   return (
     <div
@@ -94,7 +134,7 @@ export function EmotionField({ reading }: { reading: EmotionReading }) {
       />
 
       {/* Layer 2 — the shader field. */}
-      {animate && (
+      {animate && field && (
         <div
           className="absolute inset-0"
           style={{
@@ -103,40 +143,38 @@ export function EmotionField({ reading }: { reading: EmotionReading }) {
             mixBlendMode: "screen",
           }}
         >
-          <ShaderGradientCanvas
-            style={{ width: "100%", height: "100%" }}
-            pixelDensity={1}
-            fov={40}
-          >
-            <ShaderGradient
-              control="props"
-              type="waterPlane"
-              animate="on"
-              enableTransition
-              color1={reading.state.c1}
-              color2={reading.state.c2}
-              color3={reading.state.c3}
-              uSpeed={motionParams.speed}
-              uStrength={motionParams.strength}
-              uDensity={1.3}
-              uFrequency={5.5}
-              uAmplitude={0}
-              cDistance={2.9}
-              cPolarAngle={125}
-              cAzimuthAngle={180}
-              cameraZoom={9.1}
-              positionX={0}
-              positionY={0}
-              positionZ={0}
-              rotationX={50}
-              rotationY={0}
-              rotationZ={-60}
-              brightness={1.1}
-              lightType="3d"
-              grain="off"
-              zoomOut={false}
-            />
-          </ShaderGradientCanvas>
+          <FieldBoundary>
+            <field.Canvas style={{ width: "100%", height: "100%" }} pixelDensity={1} fov={40}>
+              <field.Gradient
+                control="props"
+                type="waterPlane"
+                animate="on"
+                enableTransition
+                color1={reading.state.c1}
+                color2={reading.state.c2}
+                color3={reading.state.c3}
+                uSpeed={motionParams.speed}
+                uStrength={motionParams.strength}
+                uDensity={1.3}
+                uFrequency={5.5}
+                uAmplitude={0}
+                cDistance={2.9}
+                cPolarAngle={125}
+                cAzimuthAngle={180}
+                cameraZoom={9.1}
+                positionX={0}
+                positionY={0}
+                positionZ={0}
+                rotationX={50}
+                rotationY={0}
+                rotationZ={-60}
+                brightness={1.1}
+                lightType="3d"
+                grain="off"
+                zoomOut={false}
+              />
+            </field.Canvas>
+          </FieldBoundary>
         </div>
       )}
 

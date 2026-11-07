@@ -166,7 +166,6 @@ export function useChatFrames() {
         ]);
         break;
 
-      case "stream_end":
       case "pong":
         break;
     }

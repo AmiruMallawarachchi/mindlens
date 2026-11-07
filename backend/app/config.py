@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     jwt_refresh_expire_minutes: int = 10080
     admin_jwt_secret: str = "admin-dev-secret-key-change-in-production"
     admin_jwt_expire_minutes: int = 60
-    encryption_key: str = ""
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
     debug: bool = False
@@ -52,7 +51,6 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] | None = None
 
     use_openai_stubs: bool = True
-    admin_email: str = "admin@mindlens.app"
     render_git_commit: str = "local"
 
     rate_limit_per_ip_minute: int = 100
@@ -65,7 +63,6 @@ class Settings(BaseSettings):
     ws_max_concurrent_per_user: int = 1
     ws_max_message_chars: int = 2000
 
-    anonymizer_enabled: bool = True
     admin_role_name: str = "admin"
     user_role_name: str = "user"
 
@@ -100,7 +97,6 @@ class Settings(BaseSettings):
             "JWT_SECRET_KEY": self.jwt_secret_key.startswith("dev-"),
             "JWT_REFRESH_SECRET_KEY": self.jwt_refresh_secret_key.startswith("dev-"),
             "ADMIN_JWT_SECRET": self.admin_jwt_secret.startswith("admin-dev-"),
-            "ENCRYPTION_KEY": not self.encryption_key,
             "MONGODB_URL": self.mongodb_url == "mongodb://localhost:27017",
         }
         invalid = [name for name, insecure in insecure_values.items() if insecure]
@@ -143,7 +139,6 @@ class Settings(BaseSettings):
     WS_HEARTBEAT_INTERVAL_SECONDS = property(lambda self: self.ws_heartbeat_interval_seconds)
     WS_MESSAGE_TIMEOUT_SECONDS = property(lambda self: self.ws_message_timeout_seconds)
     WS_MAX_CONCURRENT_PER_USER = property(lambda self: self.ws_max_concurrent_per_user)
-    ANONYMIZER_ENABLED = property(lambda self: self.anonymizer_enabled)
     ADMIN_ROLE_NAME = property(lambda self: self.admin_role_name)
     USER_ROLE_NAME = property(lambda self: self.user_role_name)
 

@@ -2,7 +2,7 @@
 MindLens WebSocket Connection Manager
 ====================================
 Manages WebSocket connection lifecycle, heartbeats, and per-user
-connection enforcement. Singleton pattern â€” one manager per app.
+connection enforcement. Singleton pattern — one manager per app.
 """
 
 from __future__ import annotations

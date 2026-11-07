@@ -157,6 +157,7 @@ class TestCheckinSchedulingWiring:
         )
         db.sessions.update_one = AsyncMock()
         db.users.find_one = AsyncMock(return_value={"nickname": "Amiru"})
+        db.token_blocklist.find_one = AsyncMock(return_value=None)
 
         connection_manager = MagicMock()
         connection_manager.connect = AsyncMock(return_value=True)
@@ -186,3 +187,51 @@ class TestCheckinSchedulingWiring:
             user_id="user_123",
             user_name="Amiru",
         )
+
+
+class TestHandshakeRevocation:
+    """A chat socket checked the signature but never the blocklist, so a
+    logged-out token kept streaming for the rest of its 15 minutes."""
+
+    @pytest.mark.asyncio
+    async def test_a_revoked_token_is_refused_the_socket(self) -> None:
+        from app.routers.chat import websocket_chat
+
+        websocket = MagicMock()
+        websocket.headers = {}
+        websocket.cookies = {"access_token": "jwt"}
+        websocket.close = AsyncMock()
+
+        db = MagicMock()
+        db.token_blocklist.find_one = AsyncMock(return_value={"token_jti": "revoked"})
+        db.sessions.find_one = AsyncMock()
+
+        with patch(
+            "app.routers.chat.verify_access_token",
+            return_value=MagicMock(id="user_123", jti="revoked"),
+        ):
+            await websocket_chat(websocket, "sess_abc", db)
+
+        assert websocket.close.await_args.kwargs["code"] == 4001
+        db.sessions.find_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_live_token_still_reaches_the_session_lookup(self) -> None:
+        from app.routers.chat import websocket_chat
+
+        websocket = MagicMock()
+        websocket.headers = {}
+        websocket.cookies = {"access_token": "jwt"}
+        websocket.close = AsyncMock()
+
+        db = MagicMock()
+        db.token_blocklist.find_one = AsyncMock(return_value=None)
+        db.sessions.find_one = AsyncMock(return_value=None)
+
+        with patch(
+            "app.routers.chat.verify_access_token",
+            return_value=MagicMock(id="user_123", jti="live"),
+        ):
+            await websocket_chat(websocket, "sess_abc", db)
+
+        db.sessions.find_one.assert_awaited()

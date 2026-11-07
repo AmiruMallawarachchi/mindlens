@@ -123,13 +123,10 @@ export function PipelineTrace({ message }: { message: ChatMessage }) {
             }
             input={{
               store: rag.provider ?? "pinecone",
-              reranker: "hosted",
             }}
             output={
               rag.status === "ran"
-                ? `${rag.chunks} passage${rag.chunks === 1 ? "" : "s"} retrieved${
-                    rag.model ? `, reranked by ${rag.model}` : ""
-                  }`
+                ? `${rag.chunks} passage${rag.chunks === 1 ? "" : "s"} retrieved`
                 : rag.status === "skipped_trivial"
                   ? "Skipped — turn too brief to retrieve for."
                   : rag.status === "skipped_crisis"

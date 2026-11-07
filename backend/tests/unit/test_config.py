@@ -14,7 +14,6 @@ def _production_settings(**overrides: object) -> Settings:
         "jwt_secret_key": "access-secret-with-production-entropy",
         "jwt_refresh_secret_key": "refresh-secret-with-production-entropy",
         "admin_jwt_secret": "admin-secret-with-production-entropy",
-        "encryption_key": "fernet-key-supplied-by-deployment",
         "groq_api_key": "provider-key-supplied-by-deployment",
         "pinecone_api_key": "pinecone-key-supplied-by-deployment",
         "pinecone_index_name": "mindlens-test-index",
@@ -38,7 +37,6 @@ def test_production_configuration_derives_cross_site_cookie_security() -> None:
     [
         ("jwt_secret_key", "dev-secret-key-change-in-production", "JWT_SECRET_KEY"),
         ("mongodb_url", "mongodb://localhost:27017", "MONGODB_URL"),
-        ("encryption_key", "", "ENCRYPTION_KEY"),
     ],
 )
 def test_production_rejects_insecure_required_values(

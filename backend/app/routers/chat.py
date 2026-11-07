@@ -78,6 +78,11 @@ async def websocket_chat(
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
+    if await db.token_blocklist.find_one({"token_jti": jwt_user.jti}):
+        logger.warning("WebSocket connection rejected: revoked token (user=%s)", jwt_user.id)
+        await websocket.close(code=4001, reason="Token has been revoked")
+        return
+
     user_id = jwt_user.id
 
     # -------------------------------------------------------------------

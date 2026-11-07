@@ -10,20 +10,24 @@ deployment guide.
 
 ## Current state
 
-- Frontend: `https://mindlens-theta.vercel.app` serves the marketing page and
-  the application shell. Its production bundle still targets the retired tunnel
-  `https://playroom-operative-ninth.ngrok-free.dev`, so the deployed chat cannot
-  reach an API.
-- Backend: **not yet deployed.** `render.yaml` defines the Docker web service,
-  but no Render account has created it. `https://mindlens-api.onrender.com`
-  does not answer, so that hostname is a placeholder, not a live endpoint.
+Verified 2026-11-05.
+
+- Backend: live on Render at `https://mindlens-iigy.onrender.com`. `/health` and `/ready`
+  both return 200; `/ready` reports Mongo connected, Groq configured, Pinecone configured,
+  and Langfuse enabled. `/docs` is disabled in production on purpose.
+- Frontend: live on Vercel at `https://mindlens-theta.vercel.app`, built with
+  `NEXT_PUBLIC_API_BASE_URL=https://mindlens-iigy.onrender.com`. The earlier production
+  bundle still targeted the retired ngrok tunnel; that host was rebuilt from the repository
+  root (the project's Root Directory is `frontend`, so deploying from inside `frontend/`
+  uploads the wrong tree) with `.vercelignore` keeping `backend/`, `notebooks/`, `tools/`,
+  `data/`, and both env files out of the upload.
 - `NEXT_PUBLIC_*` variables are baked into the bundle at build time. Setting
   the API URL in the Vercel dashboard changes nothing until a new build runs.
 
-To finish the deployment, follow the steps in this document in order: create the
-Render service from the blueprint, set the secrets, create and ingest the
-Pinecone index, then rebuild Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at
-the Render URL.
+To reproduce the deployment from scratch, follow the steps in this document in order: create
+the Render service from the blueprint, set the secrets, create and ingest the
+Pinecone index, then rebuild Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at the Render
+URL.
 
 ## Required services
 
@@ -41,6 +45,17 @@ free service sleeps after about 15 minutes without traffic and cold-starts in
 about a minute. Its filesystem is ephemeral; no database, model, or vector index
 may be stored there. The service runs one worker because WebSocket connection
 state and rate limits are process-local.
+
+The frontend absorbs that wake rather than showing it as a failure. Each REST
+call has a 12 second timeout, which a cold start always exceeds; when a *read*
+hits it, the client polls the public `/ready` for up to 45 seconds — one shared
+poll, however many reads are waiting — and replays the request once the backend
+has answered. A write is never replayed: aborting only ends the browser's wait,
+so an entry the server accepted before it went quiet could still be saved, and
+sending it again would store it twice. Two cases still surface the error text,
+both honest about what happened: a wake longer than the 45 second budget, and
+any write that timed out. The chat WebSocket is not covered by any of this; it
+reconnects on its own backoff, in `frontend/src/lib/websocket.ts`.
 
 ## Creating the service correctly
 
@@ -86,7 +101,6 @@ secrets). Never commit values.
 | `LANGFUSE_ENABLED` | `true` after both keys are present |
 | `CORS_ORIGINS` | exact Vercel production origin (and any preview origins) |
 | `JWT_SECRET_KEY` / `JWT_REFRESH_SECRET_KEY` / `ADMIN_JWT_SECRET` | three independent values |
-| `ENCRYPTION_KEY` | a Fernet key generated for this deployment |
 
 `RENDER_GIT_COMMIT` is injected by Render and surfaced by `/health`.
 
@@ -106,10 +120,14 @@ gate.
 The response also reports:
 
 - `inference.status`: `configured`, `missing_key`, or `stub_mode`;
-- `rag.status`: `configured` or `not_configured`, with `mode: "fail_soft"`.
+- `rag.status`: `key_present` or `not_configured`, with `mode: "fail_soft"`.
   Pinecone is deliberately not pinged on every health check because retrieval
   is fail-soft; a failed search degrades one turn, it does not make the API
-  unready;
+  unready. `key_present` means exactly that — the variables are set. It has
+  never been evidence the key works, which is why a rejected key could sit
+  behind a green `configured` while every search failed. Ask the service
+  itself with `GET /api/v1/admin/models`, which calls Pinecone and answers
+  `reachable`, `unauthorized`, `index_not_found`, or `unreachable`;
 - `observability`: Langfuse enabled/configured flags. Tracing is optional and
   never gates readiness.
 
@@ -145,7 +163,9 @@ user data and requires explicit approval.
 
 1. `GET /health` returns 200 with the release commit.
 2. `GET /ready` returns 200 with `inference.status: "configured"`,
-   `stub_mode: false`, and `rag.mode: "fail_soft"`.
+   `stub_mode: false`, and `rag.mode: "fail_soft"`. Then sign in as an admin
+   and read `GET /api/v1/admin/models`: `rag.status` must be `reachable`, with
+   the index's dimension, or retrieval is silently running without sources.
 3. Open the Vercel origin, register or log in, and send one real message.
    Confirm a model-generated reply, the thinking trail, and persistence after a
    reload.

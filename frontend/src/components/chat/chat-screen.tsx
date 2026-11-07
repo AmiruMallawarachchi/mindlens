@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * The chat screen â€” design.md Â§4.1, board 1a.
+ * The chat screen — design.md §4.1, board 1a.
  *
  * Three columns: sidebar 262px / conversation / inspector 336px. The
  * inspector is collapsible and hidden below 981px.
  *
  * The header carries a mono eyebrow, the session title in Newsreader, and a
- * plain status pill â€” Â§4.1 explicitly forbids naming the therapy approach
+ * plain status pill — §4.1 explicitly forbids naming the therapy approach
  * here. It appears only inside the reasoning trail.
  */
 
@@ -75,7 +75,7 @@ export function ChatScreen({
         />
       </div>
 
-      {/* Mobile drawer â€” the mockup's Chat Mobile hides the sidebar behind a
+      {/* Mobile drawer — the mockup's Chat Mobile hides the sidebar behind a
        * hamburger rather than shrinking it, since 262px doesn't fit. */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 min-[780px]:hidden" role="dialog" aria-modal="true">
@@ -149,7 +149,7 @@ export function ChatScreen({
                 color: "#ffb15f",
               }}
             >
-              Preview Â· no backend
+              Preview · no backend
             </span>
           )}
 
@@ -198,7 +198,7 @@ export function ChatScreen({
 
             {/* Two phases, not one. While the pipeline is still running,
               * stage_update frames arrive one at a time and LiveStageTrail
-              * grows to match â€” this is the genuinely live half. Once the
+              * grows to match — this is the genuinely live half. Once the
               * pipeline finishes, thinking_update delivers the complete
               * picture and the full ReasoningTrail takes over; that one was
               * always "complete the instant it appears" and still is, but

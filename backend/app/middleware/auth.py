@@ -13,7 +13,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.middleware.auth_dependencies import optional_user, require_admin, require_user
-from app.middleware.auth_pii import anonymize_request_body, anonymize_text
 from app.middleware.auth_tokens import (
     JWTUser,
     RateLimitStore,
@@ -32,8 +31,6 @@ __all__ = [
     "MindLensAuthMiddleware",
     "JWTUser",
     "RateLimitStore",
-    "anonymize_request_body",
-    "anonymize_text",
     "create_admin_token",
     "create_token_pair",
     "get_rate_limit_store",
@@ -54,9 +51,13 @@ class MindLensAuthMiddleware(BaseHTTPMiddleware):
     """
     FastAPI middleware that:
     1. Injects a request ID for tracing
-    2. Rate-limits unauthenticated requests by IP
-    3. Attaches JWT user to request.state for downstream use
-    4. Anonymizes request body if configured
+    2. Enforces CSRF on cookie-authenticated writes in production
+    3. Rate-limits unauthenticated requests by IP
+    4. Attaches the JWT user to request.state for downstream use
+
+    It deliberately does not touch request bodies. PII stripping happens at
+    the model boundary, in core/anonymizer.py, where it can be applied to the
+    text that is actually about to leave for inference.
     """
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:

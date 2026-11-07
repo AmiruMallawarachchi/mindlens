@@ -85,6 +85,13 @@ async def connect_db() -> None:
     await database.journal_entries.create_index("entry_id", unique=True)
     await database.journal_entries.create_index([("user_id", 1), ("created_at", -1)])
     await database.progress_insights.create_index("user_id", unique=True)
+    # Every "your devices" read, revoke and logout filters user_sessions by
+    # user_id; the list also sorts by created_at. Left non-unique on purpose:
+    # this build runs at startup, and an index that fails to build would stop
+    # the API from booting — a worse failure than a duplicate row, which no
+    # read here depends on preventing.
+    await database.user_sessions.create_index([("user_id", 1), ("created_at", -1)])
+    await database.user_sessions.create_index([("user_id", 1), ("jti", 1)])
 
     logger.info("Database indexes created")
 

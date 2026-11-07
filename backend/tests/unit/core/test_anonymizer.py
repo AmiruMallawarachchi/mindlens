@@ -43,6 +43,20 @@ class TestAnonymizer:
         result = anonymize(text)
         assert result == text
 
+    def test_a_title_only_redacts_a_real_capitalised_name(self) -> None:
+        assert anonymize("I spoke to Dr. Perera about it") == "I spoke to [NAME] about it"
+
+    def test_lowercase_title_words_are_not_names(self) -> None:
+        """The pattern used to run IGNORECASE, so any word after "dr", "ms"
+        or "rev" became [NAME] — including the ordinary prose the emotion
+        classifier is supposed to read."""
+        for text in (
+            "the dr was far away",
+            "I met mr and mrs darcy at the ball",
+            "add 15 min to the rev queue",
+        ):
+            assert anonymize(text) == text, text
+
     def test_empty_string(self) -> None:
         assert anonymize("") == ""
 
