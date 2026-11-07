@@ -109,7 +109,7 @@ failure cannot cost the user their message or the reply.
 - `tests/unit/routers/` — auth, chat persistence, one full WebSocket turn,
   journal, memory, dashboard, account.
 - `tests/unit/services/` — extraction, check-in scheduling, progress insight.
-- `tests/unit/core/`, `tests/unit/middleware/`, `tests/unit/memory/` — pure
+- `tests/unit/core/`, `tests/unit/middleware/` — pure
   rules and auth plumbing.
 - `tests/integration/test_full_pipeline.py` — the graph end to end with stubs.
 

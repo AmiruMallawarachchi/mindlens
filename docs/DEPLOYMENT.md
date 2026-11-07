@@ -73,6 +73,12 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+If something else already holds 3000, Next moves to 3001 and the origin no
+longer matches the backend's `CORS_ORIGINS`. The browser reports the rejected
+preflight as a failed `fetch`, so the app says "Couldn't reach MindLens. It may
+be down" when nothing is down — add the new origin to `CORS_ORIGINS` in
+`backend/.env` and restart the API rather than chasing the backend.
+
 Do **not** set `NEXT_PUBLIC_PREVIEW_AUTH=1` outside local development. It
 bypasses the auth gate and would let every visitor into chat as a fake logged-in
 user. It must never be set in a Vercel environment.

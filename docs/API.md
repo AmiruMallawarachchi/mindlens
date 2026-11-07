@@ -34,7 +34,11 @@ The refresh token is rotated by `POST /api/v1/auth/refresh`. Logout is handled b
 - `GET /api/v1/dashboard/summary`: dashboard summary.
 - `GET /api/v1/admin/system`: admin-only dependency and hosted-service status.
 - `GET /api/v1/admin/models`: admin-only hosted-service status in the same
-  shape (the name is kept for an unchanged client contract).
+  shape (the name is kept for an unchanged client contract). Its `rag` field
+  comes from an actual Pinecone call, so it answers `reachable` (with the
+  index name and dimension), `unauthorized`, `index_not_found`, `not_configured`
+  or `unreachable` — `GET /ready`, which the platform polls, only reports that
+  a key is present.
 
 ## WebSocket chat
 
