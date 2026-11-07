@@ -47,12 +47,13 @@ def build_stub_response(
         ),
         "mindfulness": (
             "Let's take a breath together, {name}. Close your eyes if you want. "
-            "Breathe in slowly for 4 countsâ€¦ hold for 4â€¦ out for 6. "
+            "Breathe in slowly for 4 counts… hold for 4… out for 6. "
             "You're safe right here."
         ),
         "crisis": (
-            "I can hear how much pain you're in. Please reach out to NIMH at 1926 â€” "
-            "they're available 24/7. Your safety matters most."
+            "I can hear how much pain you're in. Please reach out to a crisis "
+            "line right away - the list below has one that will answer. "
+            "Your safety matters most."
         ),
         "reflection": (
             "It sounds like the core feeling here is {emotion}. "
@@ -78,7 +79,7 @@ def build_stub_response(
         ),
         "checkin": (
             "Hey {name}, just checking in. How are you feeling today? "
-            "No pressure â€” just a gentle pause."
+            "No pressure — just a gentle pause."
         ),
         "progress": (
             "Looking at your journey so far, {name}, you've been showing up consistently. "
@@ -113,7 +114,7 @@ def build_stub_response(
     # Truncate to max_tokens approximation (roughly 4 chars per token)
     max_chars = max_tokens * 4
     if len(text) > max_chars:
-        text = text[:max_chars].rsplit(" ", 1)[0] + "â€¦"
+        text = text[:max_chars].rsplit(" ", 1)[0] + "…"
 
     return GroqResponse(
         text=text,

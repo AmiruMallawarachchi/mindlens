@@ -51,7 +51,7 @@ class StreamingResponse:
         degraded: list[str] | None = None,
     ) -> None:
         """Send thinking panel update to client."""
-        # mode="json" â€” see EmotionalOperatingState.to_dict()'s docstring;
+        # mode="json" — see EmotionalOperatingState.to_dict()'s docstring;
         # a plain model_dump() here leaves any populated datetime field
         # (PeopleGraph.mentioned_at, etc.) unserializable by send_json().
         eos_dict = (

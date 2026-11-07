@@ -13,12 +13,13 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from app.agents.groq_client import get_groq_client
+from app.agents.groq_client import begin_degradation_tracking, get_groq_client
 from app.agents.hosted_graph_result import llm_call_metadata, result_contract
 from app.agents.hosted_graph_state import (
     HostedGraphState,
     _base_eos,
     _clean_json,
+    _flag,
     _number,
     _recall_context,
     _specialist_context,
@@ -27,12 +28,60 @@ from app.agents.hosted_graph_state import (
 from app.agents.response_validator import ResponseValidator
 from app.agents.safety_gate import CRISIS_TEMPLATES, safety_gate
 from app.core.anonymizer import anonymize
-from app.core.crisis_resources import CRISIS_RESOURCES
+from app.core.crisis_resources import resources_for
 from app.observability import trace_graph
 from app.rag.hosted_retriever import get_hosted_retriever
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+ROUTES: frozenset[str] = frozenset(
+    {"empathy", "mindfulness", "journaling", "reflection", "routine", "challenge", "distortion"}
+)
+
+# Triage answers `route` in its own vocabulary — "self_help", "supportive",
+# "none" — and none of those name a specialist. The old membership test dropped
+# every one of them onto the empathy default, so six of the seven routes were
+# unreachable in production however accurate the assessment was. The prompt now
+# constrains the vocabulary; this map keeps the drift from costing a route.
+ROUTE_ALIASES: dict[str, str] = {
+    "": "empathy",
+    "none": "empathy",
+    "supportive": "empathy",
+    "support": "empathy",
+    "validation": "empathy",
+    "listening": "empathy",
+    "emotional": "empathy",
+    "grounding": "mindfulness",
+    "meditation": "mindfulness",
+    "breathing": "mindfulness",
+    "self_help": "journaling",
+    "self_help_resources": "journaling",
+    "journal": "journaling",
+    "writing": "journaling",
+    "expressive": "journaling",
+    "reflective": "reflection",
+    "insight": "reflection",
+    "exploration": "reflection",
+    "practical": "routine",
+    "action": "routine",
+    "solution_focused": "routine",
+    "coping": "routine",
+    "structure": "routine",
+    "cbt": "challenge",
+    "cognitive": "challenge",
+    "reframing": "challenge",
+    "restructuring": "challenge",
+    "defensive": "distortion",
+    "rationalization": "distortion",
+}
+
+
+def _normalize_route(raw: Any) -> str:
+    route = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if route in ROUTES:
+        return route
+    return ROUTE_ALIASES.get(route, "empathy")
 
 
 class HostedGraphOrchestrator:
@@ -78,6 +127,10 @@ class HostedGraphOrchestrator:
         memory: dict[str, Any] | None = None,
         on_stage=None,
     ) -> dict[str, Any]:
+        # Groq's own fallbacks (timeout, api_error, empty completion) are
+        # recorded into this sink rather than into the graph state, so a canned
+        # reply can never be reported as though the model wrote it.
+        sink = begin_degradation_tracking()
         state: HostedGraphState = {
             "user_text": user_text,
             "user_name": user_name,
@@ -93,6 +146,7 @@ class HostedGraphOrchestrator:
         trace = trace_graph(state)
         with trace:
             result = await self.graph.ainvoke(state)
+            result["degraded"] = [*result.get("degraded", []), *sorted(sink)]
             trace.state.update(result)
         return self._result_contract(result)
 
@@ -134,14 +188,20 @@ class HostedGraphOrchestrator:
             "You are MindLens triage. Return only JSON. Never diagnose. "
             "Assess emotion and conversation needs, and set crisis_risk true only for likely immediate self-harm or harm to others. "
             "Schema: surface_emotion, surface_confidence, core_emotion, suppressed_emotion, distress_level, "
-            "mental_fatigue, modality, valence, distortion_label, distortion_score, crisis_risk, route, review_required."
+            "mental_fatigue, modality, valence, distortion_label, distortion_score, crisis_risk, route, review_required. "
+            "surface_confidence, distress_level, mental_fatigue and distortion_score are decimal numbers from 0 to 1, never words. "
+            "crisis_risk and review_required are JSON true or false, never strings. "
+            f"route is exactly one of: {', '.join(sorted(ROUTES))}. "
+            "modality is exactly 'CBT', 'DBT' or 'ACT'. "
+            "Emit one compact JSON object on a single line, with no commentary. "
+            "Set distress_level to 0.7 or above when the person is clearly struggling, not merely mentioning a bad day."
         )
         try:
             response = await get_groq_client().chat(
                 system_prompt=system,
                 user_prompt=json.dumps(prompt, ensure_ascii=False),
                 model_tier="70B",
-                max_tokens=260,
+                max_tokens=640,
                 temperature=0.1,
             )
             assessment = _clean_json(response.text)
@@ -151,7 +211,7 @@ class HostedGraphOrchestrator:
             state["degraded"].append("assessment")
             assessment = {"surface_emotion": "neutral", "distress_level": 0.0, "route": "empathy", "crisis_risk": False}
         state["assessment"] = assessment
-        if bool(assessment.get("crisis_risk")):
+        if _flag(assessment.get("crisis_risk")):
             state["crisis_flag"] = True
             state["safety"] = {
                 "is_crisis": True,
@@ -160,7 +220,9 @@ class HostedGraphOrchestrator:
                 "reason": "Hosted assessment flagged immediate safety risk",
             }
         state["eos"] = _base_eos(state, assessment)
-        state["review_required"] = bool(assessment.get("review_required")) or _number(assessment.get("distress_level")) >= 0.7
+        state["review_required"] = _flag(assessment.get("review_required")) or _number(
+            assessment.get("distress_level")
+        ) >= 0.7
         await _stage(state, "reading", "Assessment complete.")
         return state
 
@@ -197,7 +259,7 @@ class HostedGraphOrchestrator:
             except Exception as exc:
                 logger.warning("Hosted retrieval failed: %s", exc)
                 state["rag_chunks"] = []
-                state["degraded"].append("pinecone")
+                state["degraded"].append("rag:pinecone")
                 state["telemetry"] = {"rag": {"status": "failed", "chunks": 0}}
         state["telemetry"]["modality"] = state.get("eos", {}).get("modality")
         await _stage(state, "retrieval", f"Prepared {len(state['rag_chunks'])} therapy passage(s).")
@@ -205,9 +267,7 @@ class HostedGraphOrchestrator:
 
     async def _specialist(self, state: HostedGraphState) -> HostedGraphState:
         state["graph_nodes"].append("specialist")
-        route = str(state.get("assessment", {}).get("route") or "empathy").lower()
-        allowed = {"empathy", "mindfulness", "journaling", "reflection", "routine", "challenge", "distortion"}
-        state["route"] = route if route in allowed else "empathy"
+        state["route"] = _normalize_route(state.get("assessment", {}).get("route"))
         if state.get("crisis_flag"):
             return state
         context = _specialist_context(state)
@@ -249,7 +309,7 @@ class HostedGraphOrchestrator:
             )
             verdict = _clean_json(response.text)
             state["llm_calls"].append(self._llm_call_metadata("review", response))
-            if not bool(verdict.get("approved", True)) and isinstance(verdict.get("replacement"), str):
+            if not _flag(verdict.get("approved"), True) and isinstance(verdict.get("replacement"), str):
                 state["response"] = verdict["replacement"].strip()
         except Exception as exc:
             logger.warning("Hosted review failed: %s", exc)
@@ -262,12 +322,13 @@ class HostedGraphOrchestrator:
         if state.get("crisis_flag"):
             distress = _number(state.get("assessment", {}).get("distress_level"), 1.0)
             text = CRISIS_TEMPLATES["severe" if distress >= 0.85 else "moderate"]
+            country = ((state.get("memory") or {}).get("preferences") or {}).get("crisis_country")
             state["response"] = text
             state["agent_outputs"] = [
                 {
                     "agent": "crisis",
                     "text": text,
-                    "metadata": {"resources": CRISIS_RESOURCES},
+                    "metadata": {"resources": resources_for(country), "country": country},
                 }
             ]
             state["route"] = "crisis"

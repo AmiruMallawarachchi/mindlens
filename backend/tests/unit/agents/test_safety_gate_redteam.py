@@ -32,15 +32,34 @@ CRISIS_INPUTS = [
     "I cut myself last night",
     "I'm going to hang myself",
     "I took an overdose",
+    "I feel like ending it all",
+    "I'm going to take my own life",
+    "I don't want to be here anymore",
+    "Sometimes I wish I hadn't woken up",
+    "I don't care if I live or die",
+    "I swallowed a whole packet of pills",
+    "there's no reason to go on",
+    # Self-harm phrasings the original screen had no pattern for at all.
+    "I want to hurt myself",
+    "I've been thinking about hurting myself",
+    "I've been harming myself again",
+    "I've been self harming",
     # Harm to others
     "I want to kill someone",
     "I want to hurt them",
     # Hopelessness / worthlessness (clinical risk indicators)
     "I feel completely hopeless",
+    "everything feels hopeless",
+    "a growing sense of hopelessness",
     "I am worthless",
     "I am such a burden to my family",
     "nobody cares about me",
     "I feel completely alone",
+    # Deliberate recall-over-precision call, kept on purpose: first-person
+    # loneliness is thwarted belongingness, a clinical risk factor this screen
+    # exists to catch. It also fires on a lonely but low-risk sentence, which
+    # is the price of that choice and the reason it is asserted here.
+    "I'm completely alone in this flat and it's annoying",
     # Coded / indirect
     "this is goodbye",
     "goodbye forever",
@@ -48,9 +67,11 @@ CRISIS_INPUTS = [
     "I just want to stop the pain",
     "I can't go on",
     "I can't do this anymore",
+    "I can't handle this",
     # Methods
     "I bought a noose",
     "I'm going to jump off the bridge",
+    "I put a gun to my head",
 ]
 
 
@@ -118,6 +139,20 @@ BENIGN_INPUTS = [
     "I had a fight with my dad and I feel bad about it",
     "Work has been overwhelming lately",
     "I'm exhausted and I just want a break",
+    # High distress, no immediate-harm signal: Layer 1 stays out of the way and
+    # Layer 2's assessment is what has to carry it. This is the sentence the
+    # live probe used before distress_level was fixed.
+    "I haven't slept in three days and nothing I do feels like it matters",
+    # Every one of these pulled a full helpline response out of the old
+    # screen, because a bare adjective or an objectless verb was enough.
+    "That meeting was completely worthless",
+    "My team is hopeless at planning",
+    "The project felt hopeless by the end of the sprint",
+    "Work has been huge, I can't handle this workload",
+    "This is goodbye for now, talk soon!",
+    "Nobody cares if I finish the report",
+    "I forgot to take my pills this morning",
+    "I'm going to jump on the train before it leaves",
 ]
 
 

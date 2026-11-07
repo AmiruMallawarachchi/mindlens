@@ -90,7 +90,7 @@ class EmotionalOperatingState(BaseModel):
         description=(
             "Standing social-disposition profile: 0.0 introvert, 1.0 extrovert. "
             "Inferred by PersonalityAgent over many turns and persisted at "
-            "preferences.introvert_score â€” distinct from social_energy, which "
+            "preferences.introvert_score — distinct from social_energy, which "
             "is how much social capacity is available *right now*."
         ),
     )
@@ -156,7 +156,7 @@ class EmotionalOperatingState(BaseModel):
 
     checkin_preferred_time: typing.Literal["morning", "evening", "whenever"] | None = Field(
         default=None,
-        description="Onboarding step 3 â€” when CheckInScheduler should land a proactive check-in",
+        description="Onboarding step 3 — when CheckInScheduler should land a proactive check-in",
     )
 
     memory_depth: typing.Literal["everything", "key_details", "nothing"] = Field(
