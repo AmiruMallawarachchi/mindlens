@@ -10,14 +10,14 @@ export interface EmotionReading {
   blend: Blend | null;
   /** The core state when it differs from the surface one, blend or not. */
   coreState: EmotionState | null;
-  /** 0.1â€“1.0 â€” scales field opacity, glow radius, motion amplitude, accent
-   * saturation. Â§2: at 0.2 the room is barely tinted; at 1.0 everything agrees. */
+  /** 0.1–1.0 — scales field opacity, glow radius, motion amplitude, accent
+   * saturation. §2: at 0.2 the room is barely tinted; at 1.0 everything agrees. */
   intensity: number;
   /** Classifier confidence in the surface read, shown beside the name. */
   confidence: number | null;
   /** Sub-emotion chips for the emotion read strip. */
   subs: readonly string[];
-  /** True when nothing has been read yet â€” render the resting state. */
+  /** True when nothing has been read yet — render the resting state. */
   resting: boolean;
 }
 
@@ -81,10 +81,10 @@ export function resolveEmotion(eos: EosSnapshot | null | undefined): EmotionRead
 }
 
 /**
- * Settings > Appearance's intensity cap (design.md Â§2: "users who want
+ * Settings > Appearance's intensity cap (design.md §2: "users who want
  * stillness can cap it"). Returns a new reading with `intensity` clamped so
- * every consumer downstream â€” the field's wash opacity, this module's own
- * emotionCssVars â€” agrees, rather than only the CSS variable capping while
+ * every consumer downstream — the field's wash opacity, this module's own
+ * emotionCssVars — agrees, rather than only the CSS variable capping while
  * the field's own opacity math (which reads `reading.intensity` directly,
  * not the CSS var) ignores it.
  */
@@ -96,7 +96,7 @@ export function capIntensity(reading: EmotionReading, cap = 1): EmotionReading {
 /**
  * The CSS custom properties the field, companion and accents all read from.
  * Applied to the app root; @property registration in tokens.css is what makes
- * these crossfade over 1.6s instead of snapping (Â§2, Â§6).
+ * these crossfade over 1.6s instead of snapping (§2, §6).
  */
 export function emotionCssVars(
   reading: EmotionReading,
@@ -113,7 +113,7 @@ export function emotionCssVars(
   };
 }
 
-/** Field motion parameters per temperament â€” consumed by the ShaderGradient
+/** Field motion parameters per temperament — consumed by the ShaderGradient
  * field and by the companion's springs so they always agree. */
 export const TEMPERAMENT_MOTION: Record<
   Temperament,
