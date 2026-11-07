@@ -111,7 +111,7 @@ async def login(
 
     - Finds user by email
     - Verifies password with bcrypt
-    - Checks login lockout (5 failed attempts ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 15 min lockout)
+    - Checks login lockout (5 failed attempts → 15 min lockout)
     - Returns JWT + sets refresh token in httpOnly cookie
     """
     # Check login lockout by email
@@ -198,7 +198,7 @@ async def refresh_token(
 
     - Validates refresh token from cookie
     - Checks blocklist
-    - Issues new access token (and optionally new refresh token ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rotation)
+    - Issues new access token (and optionally new refresh token — rotation)
     """
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:

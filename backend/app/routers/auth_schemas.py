@@ -77,7 +77,7 @@ class AdminTokenResponse(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """Settings > General. Only what the user is allowed to change about
-    themselves â€” email, role and onboarding state are deliberately absent."""
+    themselves — email, role and onboarding state are deliberately absent."""
 
     nickname: str | None = Field(None, min_length=1, max_length=60)
 

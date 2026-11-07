@@ -62,7 +62,7 @@ async def update_me(
         {"$set": {**updates, "updated_at": datetime.datetime.now(datetime.UTC)}},
     )
 
-    # Keep the memory doc's mirrored profile in step ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â memory_recall.py reads
+    # Keep the memory doc's mirrored profile in step — memory_recall.py reads
     # the nickname from there when personalising a turn, so letting the two
     # drift would mean the companion greets you by the old name.
     if "nickname" in updates:

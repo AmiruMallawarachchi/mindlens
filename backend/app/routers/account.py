@@ -29,12 +29,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.db import document_id_filter, get_db
 from app.middleware.auth import (
     get_request_access_token,
     require_user,
     verify_access_token,
 )
+from app.routers.auth_helpers import blocklist_token
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -170,14 +172,10 @@ async def list_sessions(
 
 async def _revoke(db: AsyncIOMotorDatabase, user_id: str, row: dict[str, Any]) -> None:
     """Blocklist both halves of a session's token pair, then forget the row."""
-    now = datetime.datetime.now(datetime.UTC)
-    for key in ("jti", "refresh_jti"):
+    created = row.get("created_at") or datetime.datetime.now(datetime.UTC)
+    for key, ttl in (("jti", settings.jwt_expire_minutes), ("refresh_jti", settings.jwt_refresh_expire_minutes)):
         if row.get(key):
-            await db.token_blocklist.update_one(
-                {"token_jti": row[key]},
-                {"$set": {"token_jti": row[key], "user_id": user_id, "revoked_at": now}},
-                upsert=True,
-            )
+            await blocklist_token(db, row[key], created + datetime.timedelta(minutes=ttl), user_id)
     await db.user_sessions.delete_one({"_id": row["_id"]})
 
 
