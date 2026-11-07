@@ -11,6 +11,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import settings
 from app.db import get_db
 from app.middleware.auth import require_admin
+from app.rag.hosted_retriever import rag_status
 
 router = APIRouter()
 
@@ -30,10 +31,7 @@ async def system_status(
             "provider": "groq",
             "status": "configured" if settings.groq_api_key else "missing_key",
         },
-        "rag": {
-            "provider": "pinecone",
-            "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured",
-        },
+        "rag": await rag_status(),
         "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
         "timestamp": datetime.datetime.now(datetime.UTC),
     }
@@ -45,6 +43,6 @@ async def model_status(
 ) -> dict[str, Any]:
     return {
         "inference": {"provider": "groq", "status": "configured" if settings.groq_api_key else "missing_key"},
-        "rag": {"provider": "pinecone", "status": "configured" if settings.pinecone_api_key and settings.pinecone_index_name else "not_configured"},
+        "rag": await rag_status(),
         "observability": {"provider": "langfuse", "enabled": settings.langfuse_enabled},
     }

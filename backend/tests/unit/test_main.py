@@ -87,7 +87,7 @@ class TestReadinessCheck:
         }
         assert body["rag"] == {
             "provider": "pinecone",
-            "status": "configured",
+            "status": "key_present",
             "mode": "fail_soft",
         }
         assert body["observability"]["provider"] == "langfuse"
