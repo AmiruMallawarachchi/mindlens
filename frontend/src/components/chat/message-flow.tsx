@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * The message flow â€” ported from the approved mockup (MindLens Chat.dc.html).
+ * The message flow — ported from the approved mockup (MindLens Chat.dc.html).
  *
  * User turns: right-aligned bubbles with an asymmetric 18/18/5/18 radius and
- * the emotion read strip beneath. Assistant turns: no bubble â€” the companion
+ * the emotion read strip beneath. Assistant turns: no bubble — the companion
  * blob avatar, the reasoning trail, editorial text, then a compact actions
- * row (Copy / Regenerate / Read aloudâ€“soon) and any inline cards in a
+ * row (Copy / Regenerate / Read aloud–soon) and any inline cards in a
  * two-column grid.
  */
 
@@ -57,7 +57,7 @@ export function AssistantTurn({
   companionId?: string;
   /** Sends the chosen answer as an ordinary message. */
   onChooseOption?: (text: string) => void;
-  /** Only the newest turn offers its options â€” buttons on a turn three
+  /** Only the newest turn offers its options — buttons on a turn three
    * messages back answer a question that has already moved on. */
   showOptions?: boolean;
 }) {
@@ -104,7 +104,7 @@ export function AssistantTurn({
   }, [message.agentsUsed]);
   const hasCards = offersBreathing;
 
-  // The "asking" state â€” the companion tilts and a "?" blooms. Only once the
+  // The "asking" state — the companion tilts and a "?" blooms. Only once the
   // reply is complete; mid-stream a trailing "?" isn't yet the final shape.
   const endsInQuestion = !isStreaming && message.text.trimEnd().endsWith("?");
 
@@ -121,10 +121,10 @@ export function AssistantTurn({
 
   return (
     <div className="flex w-full gap-3">
-      {/* 44px, matching the thinking row in chat-screen.tsx â€” the two sit in
+      {/* 44px, matching the thinking row in chat-screen.tsx — the two sit in
         * the same transcript gutter and must stay the same width. */}
       <div className="w-[44px] shrink-0 pt-0.5">
-        {/* Crisis: the companion holds completely still â€” "safety kills the
+        {/* Crisis: the companion holds completely still — "safety kills the
           * spectacle". `frozen` gates every animation, ambient and per-state. */}
         <CompanionAvatar
           companionId={companionId}
@@ -140,14 +140,14 @@ export function AssistantTurn({
           <ReasoningTrail steps={steps} summary={summary} isStreaming={isStreaming} duration={message.thinkingDurationS} />
         )}
 
-        {/* The mechanical counterpart to the prose trail above â€” collapsed
+        {/* The mechanical counterpart to the prose trail above — collapsed
           * by default, so the default reading experience is unchanged. */}
         {!isStreaming && steps.length > 0 && <PipelineTrace message={message} />}
 
         {/* whitespace-pre-line, because the reply genuinely carries
           * structure and HTML was throwing all of it away. The assembler
           * joins empathy and the specialist with "\n\n", and a guided
-          * exercise arrives as one step per line â€” collapsed to single
+          * exercise arrives as one step per line — collapsed to single
           * spaces, that rendered as an unreadable wall with "1. ... 2. ...
           * 3." running inline mid-sentence. Only newlines are honoured;
           * runs of spaces still collapse, so this cannot be used to inject

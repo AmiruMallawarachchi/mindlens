@@ -18,7 +18,7 @@ export function ChatSidebarExpanded({ mood, user, sessions, activeSessionId, act
       aria-label="Conversations and navigation"
     >
       <div className="flex items-center gap-2 px-5 pb-4 pt-5">
-        {/* Was a bare <span> â€” it looked like a home affordance and did
+        {/* Was a bare <span> — it looked like a home affordance and did
           * nothing when clicked. It goes to the marketing home, which is
           * what "/" actually is; the product's own landing view is the
           * Chat nav row below. */}
@@ -58,7 +58,7 @@ export function ChatSidebarExpanded({ mood, user, sessions, activeSessionId, act
           <Plus size={15} strokeWidth={1.7} className="shrink-0" />
           <span className="truncate">New conversation</span>
           <span className="ml-num ml-auto shrink-0 text-[10px] leading-none" style={{ opacity: 0.5 }}>
-            âŒ˜K
+            ⌘K
           </span>
         </button>
       </div>

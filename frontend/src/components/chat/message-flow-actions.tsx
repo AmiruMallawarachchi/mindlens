@@ -6,11 +6,11 @@ import { createJournalEntry } from "@/lib/api";
 import { useReadAloud } from "@/lib/use-read-aloud";
 import type { ChatMessage } from "@/lib/types";
 /**
- * Actions row from the mockup: Copy Â· save-to-journal Â· Regenerate Â· Read
- * aloud. Regenerate resends the previous user message â€” only offered on the
+ * Actions row from the mockup: Copy · save-to-journal · Regenerate · Read
+ * aloud. Regenerate resends the previous user message — only offered on the
  * last assistant turn, where "try that again" has a well-defined meaning.
  * Save-to-journal uses the same journal CRUD the Journal page already calls
- * (lib/api.ts's createJournalEntry) â€” this was the one action Â§4.1 lists
+ * (lib/api.ts's createJournalEntry) — this was the one action §4.1 lists
  * that had no button anywhere.
  *
  * Read aloud was the mockup's declared-future control and rendered disabled
@@ -52,7 +52,7 @@ export function TurnActions({
   }, [text, saved]);
 
   const journalTitle =
-    saved === "done" ? "Saved to journal" : saved === "error" ? "Couldn't save â€” try again" : "Save to journal";
+    saved === "done" ? "Saved to journal" : saved === "error" ? "Couldn't save — try again" : "Save to journal";
 
   return (
     <div className="-my-1 flex gap-0.5">
@@ -115,7 +115,7 @@ function ActionButton({
 /**
  * Tappable answers under a reply that asked something.
  *
- * They are a shortcut for typing, never a constraint on what may be said â€”
+ * They are a shortcut for typing, never a constraint on what may be said —
  * so the free-text escape is always present and the composer stays fully
  * usable while they are on screen. Choosing one sends it as an ordinary
  * message, which is also the only inbound frame the backend accepts.
@@ -153,7 +153,7 @@ export function OptionChoices({
       ))}
       {payload.allow_other && (
         <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--ml-faint)" }}>
-          Or say it your own way below â€” these are just shortcuts.
+          Or say it your own way below — these are just shortcuts.
         </p>
       )}
     </div>

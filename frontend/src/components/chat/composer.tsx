@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The composer â€” a plain 22px panel, mic + send and nothing else.
+ * The composer — a plain 22px panel, mic + send and nothing else.
  *
  * Built on AI Elements' <PromptInput>, which supplies Enter-to-send,
  * Shift+Enter for a newline and the form plumbing. The textarea is controlled
@@ -15,7 +15,7 @@
  *   so an attached file had nowhere to go and nothing to read it. A control
  *   that cannot work is worse than an absent one (CLAUDE.md rule 1).
  * - The mic's "soon" state. It now genuinely dictates, via the browser's
- *   Web Speech API â€” but that ships audio to the browser vendor's servers
+ *   Web Speech API — but that ships audio to the browser vendor's servers
  *   (Google, in Chrome), which sits badly against "everything here stays
  *   yours". So it says so, once, before the first use, and the button is not
  *   rendered at all where the API is missing rather than rendered dead.
@@ -63,12 +63,12 @@ export function Composer({
   } = useComposerDictation(onTypingChange);
 
   const placeholder = preview
-    ? "Preview mode â€” start the backend to talk to MindLens"
+    ? "Preview mode — start the backend to talk to MindLens"
     : offline
-      ? "Reconnecting to MindLensâ€¦"
+      ? "Reconnecting to MindLens…"
       : listening
-        ? "Listeningâ€¦"
-        : "Say it however it comes outâ€¦";
+        ? "Listening…"
+        : "Say it however it comes out…";
 
   const handleSubmit = (message: PromptInputMessage) => {
     const text = (message.text ?? draft).trim();
@@ -91,7 +91,7 @@ export function Composer({
             }}
           >
             <p className="m-0 text-[12.5px] leading-[1.6]" style={{ color: "var(--ml-ink)" }}>
-              Dictation is done by your browser, not by MindLens â€” which means
+              Dictation is done by your browser, not by MindLens — which means
               your voice is sent to your browser&rsquo;s speech provider
               (Google, in Chrome) to be turned into text. The words that come
               back are treated like anything else you type. If a thought is one
@@ -149,11 +149,11 @@ export function Composer({
             * `has-[>[data-align=block-end]]:flex-col` selector. Without this
             * attribute the textarea and this toolbar sit side by side in one
             * squashed row instead of stacking, which is exactly how it
-            * rendered before. `w-full` is needed for the same reason â€” the
+            * rendered before. `w-full` is needed for the same reason — the
             * parent's `items-center` centres (not stretches) children once
             * it's a column. */}
           <div data-align="block-end" className="flex w-full items-center gap-2 px-3 pb-3 pt-2">
-            {/* Rendered only where the API exists â€” a browser without it gets
+            {/* Rendered only where the API exists — a browser without it gets
               * no button rather than a dead one. */}
             {voiceSupported && (
               <ComposerIconButton
@@ -192,7 +192,7 @@ export function Composer({
         )}
 
         {/* Typing is never blocked (see PromptInputTextarea above), only
-          * sending is â€” so the reason has to live here, next to the greyed
+          * sending is — so the reason has to live here, next to the greyed
           * send button, not in the placeholder alone. */}
         {blocked && (
           <p
@@ -200,21 +200,21 @@ export function Composer({
             style={{ color: "var(--ml-faint)" }}
           >
             {preview
-              ? "Preview mode has no backend â€” nothing you type here can send."
-              : "Not connected â€” keep typing, it'll send once MindLens is back."}
+              ? "Preview mode has no backend — nothing you type here can send."
+              : "Not connected — keep typing, it'll send once MindLens is back."}
           </p>
         )}
 
-        {/* Â§4.1 requires this to be always present, never behind a
-          * disclosure. Its home is now the sidebar â€” but below 780px the
+        {/* §4.1 requires this to be always present, never behind a
+          * disclosure. Its home is now the sidebar — but below 780px the
           * sidebar is a drawer behind a hamburger, so at those widths it
-          * would be exactly the disclosure Â§4.1 forbids. Hence this copy,
+          * would be exactly the disclosure §4.1 forbids. Hence this copy,
           * shown only where the sidebar isn't. */}
         <p
           className="mt-3 text-center text-[11px] leading-[1.6] min-[780px]:hidden"
           style={{ color: "var(--ml-faint)" }}
         >
-          MindLens is a wellbeing companion â€” not emergency or medical care.{" "}
+          MindLens is a wellbeing companion — not emergency or medical care.{" "}
           <a
             href="https://findahelpline.com"
             target="_blank"
